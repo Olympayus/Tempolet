@@ -20,3 +20,11 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   ref.onDispose(db.close);
   return db;
 });
+
+/// All holidays (the table holds a handful of rows per year, so no range
+/// filtering is needed at the query level).
+final holidaysProvider = StreamProvider<List<Holiday>>((ref) {
+  return ref.watch(databaseProvider).select(
+        ref.watch(databaseProvider).holidays,
+      ).watch();
+});

@@ -195,4 +195,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String notifOverdueBody(int count) {
     return '昨天有 $count 项未完成';
   }
+
+  @override
+  String get settingsDesktop => '桌面';
+
+  @override
+  String get closeToTray => '关闭窗口时最小化到托盘';
+
+  @override
+  String get launchAtStartup => '开机自启';
 }

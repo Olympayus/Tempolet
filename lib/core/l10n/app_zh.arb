@@ -58,5 +58,8 @@
   "notifStartingNow": "现在开始",
   "notifStartsIn": "还有 {minutes} 分钟开始",
   "notifOverdueTitle": "还有未完成的事项",
-  "notifOverdueBody": "昨天有 {count} 项未完成"
+  "notifOverdueBody": "昨天有 {count} 项未完成",
+  "settingsDesktop": "桌面",
+  "closeToTray": "关闭窗口时最小化到托盘",
+  "launchAtStartup": "开机自启"
 }

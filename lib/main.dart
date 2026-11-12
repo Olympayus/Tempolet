@@ -3,13 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/legacy.dart' show windowManager;
 
 import 'app.dart';
 import 'core/prefs.dart';
 import 'core/router/app_router.dart';
 import 'core/utils/dates.dart';
 import 'data/repositories/event_repository.dart';
+import 'desktop/tray_service.dart';
+import 'desktop/window_service.dart';
 import 'features/calendar/calendar_state.dart';
+import 'features/settings/desktop_prefs.dart';
 import 'notifications/flutter_local_notifications_service.dart';
 import 'notifications/notification_payload.dart';
 import 'notifications/notification_scheduler.dart';
@@ -32,6 +36,23 @@ Future<void> runTempolet() async {
       notificationServiceProvider.overrideWithValue(service),
     ],
   );
+
+  // Desktop chrome: window close behaviour and the tray. Initialisation
+  // order matters — window manager, then tray, then notifications.
+  final window = WindowService();
+  await window.initialize(
+    minimizeToTray: () => container.read(minimizeToTrayEnabledProvider),
+    onHidden: () async {},
+  );
+  final tray = TrayService();
+  await tray.initialize(
+    onShow: window.showWindow,
+    onQuit: () async {
+      await tray.dispose();
+      await windowManager.destroy();
+    },
+  );
+  await syncLaunchAtStartup(container.read(launchAtStartupEnabledProvider));
 
   runApp(
     UncontrolledProviderScope(
@@ -71,7 +92,9 @@ Future<void> _handleNotificationPayload(
     final event = await repo.getById(eventId);
     if (event != null) {
       container.read(selectedDayProvider.notifier).select(dateOnly(event.date));
-      container.read(calendarViewModeProvider.notifier).set(CalendarViewMode.day);
+      container
+          .read(calendarViewModeProvider.notifier)
+          .set(CalendarViewMode.day);
     }
   }
   // Unknown or summary payloads just bring the app to the calendar.

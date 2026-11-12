@@ -451,6 +451,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yesterday left {count} items undone'**
   String notifOverdueBody(int count);
+
+  /// No description provided for @settingsDesktop.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop'**
+  String get settingsDesktop;
+
+  /// No description provided for @closeToTray.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimise to tray when closing'**
+  String get closeToTray;
+
+  /// No description provided for @launchAtStartup.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch at startup'**
+  String get launchAtStartup;
 }
 
 class _AppLocalizationsDelegate

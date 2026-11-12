@@ -196,4 +196,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String notifOverdueBody(int count) {
     return 'Yesterday left $count items undone';
   }
+
+  @override
+  String get settingsDesktop => 'Desktop';
+
+  @override
+  String get closeToTray => 'Minimise to tray when closing';
+
+  @override
+  String get launchAtStartup => 'Launch at startup';
 }

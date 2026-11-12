@@ -93,5 +93,8 @@
         "type": "int"
       }
     }
-  }
+  },
+  "settingsDesktop": "Desktop",
+  "closeToTray": "Minimise to tray when closing",
+  "launchAtStartup": "Launch at startup"
 }

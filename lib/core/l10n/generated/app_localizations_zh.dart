@@ -90,6 +90,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cancel => '取消';
 
   @override
+  String get reschedule => '改期';
+
+  @override
   String get delete => '删除';
 
   @override

@@ -1,1 +1,28 @@
+# Flutter/Dart ignores (flutter create did not add its template because this file already existed)
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+**/doc/api/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Windows/Flutter build artifacts
+/windows/flutter/ephemeral/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Project-local, never committed
 docs/
+.superpowers/

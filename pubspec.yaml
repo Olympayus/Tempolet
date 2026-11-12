@@ -1,0 +1,46 @@
+name: tempolet
+description: "轻量日历 + 提醒/计划 + 备忘录（本地优先，Windows 桌面 v0.1.0）"
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^3.5.0
+  go_router: ^18.1.4
+  drift: ^2.35.4
+  drift_flutter: ^0.3.1
+  intl: ^0.20.3
+  shared_preferences: ^2.5.6
+  uuid: ^4.6.0
+  flutter_local_notifications: ^23.0.1
+  timezone: ^0.11.2
+  flutter_timezone: ^5.1.1
+  window_manager: ^0.6.0
+  tray_manager: ^0.8.3
+  launch_at_startup: ^0.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  drift_dev: ^2.35.3
+  build_runner: ^2.17.1
+
+# package:sqlite3 默认从 GitHub Releases 下载预编译 DLL；本机网络无法访问该地址，
+# 改用 Windows 自带的 winsqlite3.dll（Windows 10+ 系统组件）。
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
+      name:
+        windows: winsqlite3
+        default: sqlite3
+
+flutter:
+  uses-material-design: true

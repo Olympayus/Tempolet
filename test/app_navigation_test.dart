@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/app.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/data/database/database.dart';
+import 'package:tempolet/data/repositories/event_repository.dart';
 
 void main() {
   testWidgets('boots to the calendar page and navigates to settings',
@@ -13,7 +15,13 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          eventsInRangeProvider
+              .overrideWith((ref, arg) => Stream.value(const <Event>[])),
+          holidaysProvider
+              .overrideWith((ref) => Stream.value(const <Holiday>[])),
+        ],
         child: const TempoletApp(),
       ),
     );
@@ -38,7 +46,13 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          eventsInRangeProvider
+              .overrideWith((ref, arg) => Stream.value(const <Event>[])),
+          holidaysProvider
+              .overrideWith((ref) => Stream.value(const <Holiday>[])),
+        ],
         child: const TempoletApp(),
       ),
     );

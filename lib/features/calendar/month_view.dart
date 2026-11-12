@@ -71,6 +71,27 @@ class _MonthViewState extends ConsumerState<MonthView> {
         dateOnly(holiday.date): holiday.name,
     };
 
+    final narrow = MediaQuery.sizeOf(context).width < 560;
+    final monthTitle = Text(
+      DateFormat.yMMMM(locale).format(_month),
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context)
+          .textTheme
+          .titleMedium
+          ?.copyWith(fontWeight: FontWeight.w600),
+    );
+    final segmented = SegmentedButton<CalendarViewMode>(
+      segments: [
+        ButtonSegment(value: CalendarViewMode.month, label: Text(l10n.month)),
+        ButtonSegment(value: CalendarViewMode.week, label: Text(l10n.week)),
+        ButtonSegment(value: CalendarViewMode.day, label: Text(l10n.day)),
+      ],
+      selected: {viewMode},
+      showSelectedIcon: false,
+      onSelectionChanged: (selection) =>
+          ref.read(calendarViewModeProvider.notifier).set(selection.first),
+    );
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       child: Column(
@@ -78,13 +99,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
         children: [
           Row(
             children: [
-              Text(
-                DateFormat.yMMMM(locale).format(_month),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
+              Flexible(child: monthTitle),
               const SizedBox(width: 4),
               IconButton(
                 visualDensity: VisualDensity.compact,
@@ -97,22 +112,10 @@ class _MonthViewState extends ConsumerState<MonthView> {
                 onPressed: () => _shiftMonth(1),
               ),
               const Spacer(),
-              SegmentedButton<CalendarViewMode>(
-                segments: [
-                  ButtonSegment(
-                      value: CalendarViewMode.month, label: Text(l10n.month)),
-                  ButtonSegment(
-                      value: CalendarViewMode.week, label: Text(l10n.week)),
-                  ButtonSegment(
-                      value: CalendarViewMode.day, label: Text(l10n.day)),
-                ],
-                selected: {viewMode},
-                showSelectedIcon: false,
-                onSelectionChanged: (selection) => ref
-                    .read(calendarViewModeProvider.notifier)
-                    .set(selection.first),
-              ),
-              const SizedBox(width: 8),
+              if (!narrow) ...[
+                segmented,
+                const SizedBox(width: 8),
+              ],
               TextButton(onPressed: _goToday, child: Text(l10n.today)),
               const SizedBox(width: 4),
               IconButton.filledTonal(
@@ -122,6 +125,11 @@ class _MonthViewState extends ConsumerState<MonthView> {
               ),
             ],
           ),
+          if (narrow)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Align(alignment: Alignment.centerLeft, child: segmented),
+            ),
           const SizedBox(height: 6),
           Row(
             children: [

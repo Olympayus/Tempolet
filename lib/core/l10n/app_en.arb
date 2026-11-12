@@ -1,0 +1,77 @@
+{
+  "@@locale": "en",
+  "appTitle": "Tempolet",
+  "navCalendar": "Calendar",
+  "navSettings": "Settings",
+  "month": "Month",
+  "week": "Week",
+  "day": "Day",
+  "today": "Today",
+  "newEvent": "New event",
+  "newReminder": "New reminder",
+  "newPlan": "New plan",
+  "eventTitle": "Title",
+  "eventNote": "Note",
+  "eventStart": "Starts",
+  "eventEnd": "Ends",
+  "eventDate": "Date",
+  "kindReminder": "Reminder",
+  "kindPlan": "Plan",
+  "importance": "Importance",
+  "importanceHigh": "High",
+  "importanceMedium": "Medium",
+  "importanceLow": "Low",
+  "remindAtStart": "At start",
+  "remindMinutesBefore": "{minutes} min before",
+  "@remindMinutesBefore": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "remindNone": "No reminder",
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "edit": "Edit",
+  "done": "Done",
+  "overdue": "Overdue",
+  "reminder": "Reminder",
+  "allDone": "All done",
+  "noEvents": "No events",
+  "allDay": "All day",
+  "moreItems": "+{count}",
+  "@moreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hoverMoreItems": "and {count} more",
+  "@hoverMoreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsAppearance": "Appearance",
+  "themeMode": "Theme",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "themeSystem": "System",
+  "accentColor": "Accent color",
+  "accentCustom": "Custom",
+  "language": "Language",
+  "languageSystem": "System",
+  "settingsNotifications": "Notifications",
+  "defaultRemindOffset": "Default reminder lead time",
+  "notificationSound": "Notification sound",
+  "overdueSummary": "Overdue summary next morning",
+  "notificationsRequireAppOpen": "Notifications require the app to keep running",
+  "invalidTitle": "Please enter a title",
+  "invalidTimeRange": "End time must be after start time",
+  "missingStart": "Please choose a start time"
+}

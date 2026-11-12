@@ -46,5 +46,5 @@ class _TrayListener extends TrayListener {
   void onTrayIconMouseDown() => onShow();
 
   @override
-  void onTrayIconMouseDoubleClick() => onShow();
+  void onTrayIconMouseUp() => onShow();
 }

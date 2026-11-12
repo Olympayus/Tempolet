@@ -30,7 +30,6 @@ class _DayViewState extends ConsumerState<DayView> {
   int? _dragCurrentMinute;
 
   String? _draggingId;
-  int? _dragOriginalStart;
   int? _dragCurrentStart;
 
   DateTime get _day => dateOnly(widget.day ?? ref.read(selectedDayProvider));
@@ -206,7 +205,6 @@ class _DayViewState extends ConsumerState<DayView> {
             onTap: () => showEventDetailPopover(context, event),
             onDragStart: () => setState(() {
               _draggingId = event.id;
-              _dragOriginalStart = start;
               _dragCurrentStart = start;
             }),
             onDragUpdate: (dy) => setState(() {
@@ -219,7 +217,6 @@ class _DayViewState extends ConsumerState<DayView> {
               setState(() {
                 _draggingId = null;
                 _dragCurrentStart = null;
-                _dragOriginalStart = null;
               });
               if (moved == null || moved == start) return;
               final repo = ref.read(eventRepositoryProvider);

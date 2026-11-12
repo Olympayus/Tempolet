@@ -141,9 +141,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   }
 
   String _format(int? minute) =>
-      minute == null ? '--:--' : DateFormat.Hm().format(
-            DateTime(2000, 1, 1, minute ~/ 60, minute % 60),
-          );
+      minute == null ? '--:--' : formatMinuteOfDay(minute);
 
   Future<void> _save() async {
     final draft = EventDraft(

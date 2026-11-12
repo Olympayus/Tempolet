@@ -16,3 +16,14 @@ int snapMinutes(int minute, {int step = 5}) {
   final snapped = ((minute + step ~/ 2) ~/ step) * step;
   return snapped.clamp(0, 1440);
 }
+
+
+/// Formats minutes since midnight as HH:mm, rendering the 1440 sentinel as
+/// 24:00 (used for plan end times).
+String formatMinuteOfDay(int minute) {
+  final clamped = minute.clamp(0, 1440);
+  if (clamped == 1440) return '24:00';
+  final h = (clamped ~/ 60).toString().padLeft(2, '0');
+  final m = (clamped % 60).toString().padLeft(2, '0');
+  return '$h:$m';
+}

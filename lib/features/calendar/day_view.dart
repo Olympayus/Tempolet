@@ -363,9 +363,7 @@ class _PlanBlockState extends State<_PlanBlock> {
   }
 
   String _range(Event event) {
-    String fmt(int? m) => m == null
-        ? '--:--'
-        : DateFormat.Hm().format(DateTime(2000, 1, 1, m ~/ 60, m % 60));
+    String fmt(int? m) => m == null ? '--:--' : formatMinuteOfDay(m);
     final range = '${fmt(event.startMinute)}–${fmt(event.endMinute)}';
     final status = widget.overdue
         ? ' · ${AppLocalizations.of(context).overdue}'
@@ -395,8 +393,7 @@ class _ReminderCard extends StatelessWidget {
     final done = event.isCompleted;
     final time = event.startMinute == null
         ? l10n.allDay
-        : DateFormat.Hm().format(DateTime(
-            2000, 1, 1, event.startMinute! ~/ 60, event.startMinute! % 60));
+        : formatMinuteOfDay(event.startMinute!);
 
     return GestureDetector(
       onTap: onTap,

@@ -338,10 +338,7 @@ class _DayCellState extends State<_DayCell> {
   static String _eventLine(Event event, AppLocalizations l10n) {
     final minute = event.startMinute;
     if (minute == null) return '${l10n.allDay} ${event.title}';
-    final time = DateFormat.Hm().format(
-      DateTime(2000, 1, 1, minute ~/ 60, minute % 60),
-    );
-    return '$time ${event.title}';
+    return '${formatMinuteOfDay(minute)} ${event.title}';
   }
 }
 

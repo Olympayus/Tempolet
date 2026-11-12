@@ -33,6 +33,12 @@ void main() {
     expect(snapMinutes(1450), 1440);
   });
 
+  test('formatMinuteOfDay renders the 24:00 sentinel', () {
+    expect(formatMinuteOfDay(540), '09:00');
+    expect(formatMinuteOfDay(1439), '23:59');
+    expect(formatMinuteOfDay(1440), '24:00');
+  });
+
   test('snapMinutes honours a custom step', () {
     expect(snapMinutes(7, step: 15), 0);
     expect(snapMinutes(8, step: 15), 15);

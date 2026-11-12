@@ -74,5 +74,24 @@
   "notificationsRequireAppOpen": "Notifications require the app to keep running",
   "invalidTitle": "Please enter a title",
   "invalidTimeRange": "End time must be after start time",
-  "missingStart": "Please choose a start time"
+  "missingStart": "Please choose a start time",
+  "notifToday": "Today",
+  "notifStartingNow": "Starting now",
+  "notifStartsIn": "Starts in {minutes} min",
+  "@notifStartsIn": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "notifOverdueTitle": "Unfinished items",
+  "notifOverdueBody": "Yesterday left {count} items undone",
+  "@notifOverdueBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

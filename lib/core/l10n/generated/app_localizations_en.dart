@@ -177,4 +177,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get missingStart => 'Please choose a start time';
+
+  @override
+  String get notifToday => 'Today';
+
+  @override
+  String get notifStartingNow => 'Starting now';
+
+  @override
+  String notifStartsIn(int minutes) {
+    return 'Starts in $minutes min';
+  }
+
+  @override
+  String get notifOverdueTitle => 'Unfinished items';
+
+  @override
+  String notifOverdueBody(int count) {
+    return 'Yesterday left $count items undone';
+  }
 }

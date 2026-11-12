@@ -421,6 +421,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please choose a start time'**
   String get missingStart;
+
+  /// No description provided for @notifToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get notifToday;
+
+  /// No description provided for @notifStartingNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting now'**
+  String get notifStartingNow;
+
+  /// No description provided for @notifStartsIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts in {minutes} min'**
+  String notifStartsIn(int minutes);
+
+  /// No description provided for @notifOverdueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfinished items'**
+  String get notifOverdueTitle;
+
+  /// No description provided for @notifOverdueBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday left {count} items undone'**
+  String notifOverdueBody(int count);
 }
 
 class _AppLocalizationsDelegate

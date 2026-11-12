@@ -53,5 +53,10 @@
   "notificationsRequireAppOpen": "通知需要应用保持运行",
   "invalidTitle": "请输入标题",
   "invalidTimeRange": "结束时间必须晚于开始时间",
-  "missingStart": "请选择开始时间"
+  "missingStart": "请选择开始时间",
+  "notifToday": "今天",
+  "notifStartingNow": "现在开始",
+  "notifStartsIn": "还有 {minutes} 分钟开始",
+  "notifOverdueTitle": "还有未完成的事项",
+  "notifOverdueBody": "昨天有 {count} 项未完成"
 }

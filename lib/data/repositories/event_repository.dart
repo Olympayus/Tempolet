@@ -74,6 +74,30 @@ class EventRepository {
     return (_db.select(_db.events)..where((t) => t.id.equals(id))).getSingle();
   }
 
+  Future<Event?> getById(String id) async {
+    final rows =
+        await (_db.select(_db.events)..where((t) => t.id.equals(id))).get();
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  /// Unfinished, non-deleted events on or after [day] — used by startup
+  /// reconciliation.
+  Future<List<Event>> upcomingFrom(DateTime day) {
+    final start = dateOnly(day);
+    final query = _db.select(_db.events)
+      ..where((t) =>
+          t.deletedAt.isNull() &
+          t.isCompleted.equals(false) &
+          t.date.isBiggerOrEqualValue(start))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.date),
+        (t) => OrderingTerm(expression: t.startMinute, nulls: NullsOrder.last),
+      ]);
+    return query.get();
+  }
+
+  Future<List<Event>> eventsOnDay(DateTime day) => watchDay(day).first;
+
   Future<void> updateEvent(Event event) async {
     await (_db.update(_db.events)..where((t) => t.id.equals(event.id))).write(
       event.copyWith(updatedAt: DateTime.now()),

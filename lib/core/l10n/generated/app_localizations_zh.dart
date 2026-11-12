@@ -176,4 +176,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get missingStart => '请选择开始时间';
+
+  @override
+  String get notifToday => '今天';
+
+  @override
+  String get notifStartingNow => '现在开始';
+
+  @override
+  String notifStartsIn(int minutes) {
+    return '还有 $minutes 分钟开始';
+  }
+
+  @override
+  String get notifOverdueTitle => '还有未完成的事项';
+
+  @override
+  String notifOverdueBody(int count) {
+    return '昨天有 $count 项未完成';
+  }
 }

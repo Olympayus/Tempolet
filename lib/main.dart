@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/legacy.dart' show windowManager;
 
 import 'app.dart';
+import 'core/platform.dart';
 import 'core/prefs.dart';
 import 'core/router/app_router.dart';
 import 'core/utils/dates.dart';
@@ -39,20 +41,23 @@ Future<void> runTempolet() async {
 
   // Desktop chrome: window close behaviour and the tray. Initialisation
   // order matters — window manager, then tray, then notifications.
-  final window = WindowService();
-  await window.initialize(
-    minimizeToTray: () => container.read(minimizeToTrayEnabledProvider),
-    onHidden: () async {},
-  );
-  final tray = TrayService();
-  await tray.initialize(
-    onShow: window.showWindow,
-    onQuit: () async {
-      await tray.dispose();
-      await windowManager.destroy();
-    },
-  );
-  await syncLaunchAtStartup(container.read(launchAtStartupEnabledProvider));
+  // Mobile targets have none of these plugins, so skip the whole block.
+  if (isDesktopTarget(defaultTargetPlatform)) {
+    final window = WindowService();
+    await window.initialize(
+      minimizeToTray: () => container.read(minimizeToTrayEnabledProvider),
+      onHidden: () async {},
+    );
+    final tray = TrayService();
+    await tray.initialize(
+      onShow: window.showWindow,
+      onQuit: () async {
+        await tray.dispose();
+        await windowManager.destroy();
+      },
+    );
+    await syncLaunchAtStartup(container.read(launchAtStartupEnabledProvider));
+  }
 
   runApp(
     UncontrolledProviderScope(

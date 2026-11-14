@@ -35,6 +35,7 @@ class NoteVaultService {
     required AppPaths paths,
     String? vaultPath,
     String Function()? shortIdGenerator,
+    void Function(String path, Object error)? onSkippedFile,
   }) : // The public names differ from the private fields, so the lint's
        // initializing-formal suggestion cannot apply to named parameters.
        // ignore: prefer_initializing_formals
@@ -44,12 +45,18 @@ class NoteVaultService {
        // An empty preference means "use the platform default", exactly like an
        // absent one. Never let callers construct Directory('').
        _vaultPath = _normalizeVaultPath(vaultPath),
-       _shortIdGenerator = shortIdGenerator ?? _defaultShortId;
+       _shortIdGenerator = shortIdGenerator ?? _defaultShortId,
+       // ignore: prefer_initializing_formals
+       _onSkippedFile = onSkippedFile;
 
   final NoteRepository _repository;
   final AppPaths _paths;
   String? _vaultPath;
   final String Function() _shortIdGenerator;
+
+  /// Optional record channel for files that reconciliation could not import
+  /// (invalid UTF-8 or an IO failure). The data layer never prints.
+  final void Function(String path, Object error)? _onSkippedFile;
 
   Directory? _vault;
 
@@ -340,18 +347,36 @@ class NoteVaultService {
     }
 
     final seenIds = <String>{};
+    final scannedShortIds = byShortId.keys.toSet();
+
+    Future<void> recordSkip(File file, String? shortId, Object error) async {
+      _onSkippedFile?.call(file.path, error);
+      // The file still exists, so the index row it claims is not "missing":
+      // do not let rule 4 tombstone it.
+      if (shortId == null || !await file.exists()) return;
+      final row = await _repository.getByShortId(shortId);
+      if (row != null) seenIds.add(row.id);
+    }
 
     Future<void> importBatch(
       Iterable<File> batch, {
+      required String? shortId,
       required bool reuseFirstShortId,
     }) async {
       var index = 0;
       for (final file in batch) {
-        final note = await _importOrSkip(
-          file,
-          reuseShortId: reuseFirstShortId && index == 0,
-        );
-        if (note != null) seenIds.add(note.id);
+        try {
+          final note = await _importFile(
+            file,
+            reuseShortId: reuseFirstShortId && index == 0,
+            reservedShortIds: scannedShortIds,
+          );
+          seenIds.add(note.id);
+        } on InvalidNoteEncodingException catch (error) {
+          await recordSkip(file, shortId, error);
+        } on FileSystemException catch (error) {
+          await recordSkip(file, shortId, error);
+        }
         index++;
       }
     }
@@ -370,9 +395,9 @@ class NoteVaultService {
           return byTime != 0 ? byTime : a.path.compareTo(b.path);
         });
       }
-      await importBatch(group, reuseFirstShortId: true);
+      await importBatch(group, shortId: shortId, reuseFirstShortId: true);
     }
-    await importBatch(withoutShortId, reuseFirstShortId: false);
+    await importBatch(withoutShortId, shortId: null, reuseFirstShortId: false);
 
     final stamp = DateFormat('yyyyMMdd-HHmmss').format(DateTime.now());
     final rows = await _repository.getAll(includeDeleted: true);
@@ -406,17 +431,14 @@ class NoteVaultService {
     await reconcile();
   }
 
-  /// Imports a single file, or returns null when it is not valid UTF-8. The
-  /// file is left untouched in that case.
-  Future<Note?> _importOrSkip(File file, {required bool reuseShortId}) async {
-    try {
-      return await _importFile(file, reuseShortId: reuseShortId);
-    } on InvalidNoteEncodingException {
-      return null;
-    }
-  }
-
-  Future<Note> _importFile(File file, {required bool reuseShortId}) async {
+  /// Imports [file] as a note, reusing a parsed short id when asked and
+  /// avoiding [reservedShortIds] (short ids that other files in the current
+  /// scan claim) when allocating a fresh one.
+  Future<Note> _importFile(
+    File file, {
+    required bool reuseShortId,
+    Set<String> reservedShortIds = const {},
+  }) async {
     final vault = await ensureVault();
     await _ensureUtf8(file);
 
@@ -436,7 +458,7 @@ class NoteVaultService {
     String? relativePath;
     File? target;
     for (var attempt = 0; attempt < 20; attempt++) {
-      shortId ??= await _allocateShortId();
+      shortId ??= await _allocateShortId(reserved: reservedShortIds);
       final name = buildNoteFileName(
         title: title,
         shortId: shortId,
@@ -469,13 +491,24 @@ class NoteVaultService {
     try {
       final stat = await target.stat();
       if (existing != null) {
+        final revive = existing.deletedAt != null;
+        final changed =
+            existing.relativePath != relativePath ||
+            existing.title != title ||
+            existing.fileSize != stat.size ||
+            !_sameSecond(existing.fileMtime, stat.modified);
+        // Reconcile runs on every window focus; only write when something
+        // actually changed so repeated runs keep updatedAt (and watchAll's
+        // ordering) stable.
+        if (!changed && !revive) return existing;
+
         await _repository.updateFileMeta(
           existing.id,
           relativePath: relativePath,
           title: title,
           fileMtime: stat.modified,
           fileSize: stat.size,
-          revive: existing.deletedAt != null,
+          revive: revive,
         );
         final note = await _repository.getById(existing.id);
         if (note == null) {
@@ -577,11 +610,12 @@ class NoteVaultService {
     return note;
   }
 
-  /// Allocates a short id that no index row (including soft-deleted rows)
-  /// claims, retrying a bounded number of times.
-  Future<String> _allocateShortId() async {
+  /// Allocates a short id that no index row (including soft-deleted rows) or
+  /// [reserved] value claims, retrying a bounded number of times.
+  Future<String> _allocateShortId({Set<String> reserved = const {}}) async {
     for (var attempt = 0; attempt < 20; attempt++) {
       final candidate = _shortIdGenerator().toLowerCase();
+      if (reserved.contains(candidate)) continue;
       if (await _repository.getByShortId(candidate) == null) {
         return candidate;
       }

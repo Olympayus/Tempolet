@@ -18,6 +18,34 @@ class _FakeAppPaths implements AppPaths {
   Future<Directory> defaultVaultDirectory() async => directory;
 }
 
+class _CountingUpdateRepo extends NoteRepository {
+  _CountingUpdateRepo(super.db);
+
+  int updateFileMetaCalls = 0;
+
+  @override
+  Future<void> updateFileMeta(
+    String id, {
+    required String relativePath,
+    required String title,
+    required DateTime fileMtime,
+    required int fileSize,
+    String? shortId,
+    bool revive = false,
+  }) {
+    updateFileMetaCalls++;
+    return super.updateFileMeta(
+      id,
+      relativePath: relativePath,
+      title: title,
+      fileMtime: fileMtime,
+      fileSize: fileSize,
+      shortId: shortId,
+      revive: revive,
+    );
+  }
+}
+
 void main() {
   late AppDatabase db;
   late NoteRepository repo;
@@ -202,6 +230,30 @@ void main() {
     );
   });
 
+  test('reports skipped files and keeps their active row', () async {
+    final imported = await importVia('inbox/想法.md', 'hello');
+    final encoded = vaultFile(imported.relativePath)
+      ..writeAsBytesSync([0xFF, 0xFE, 0x41]);
+    final skippedPaths = <String>[];
+    final reportingService = NoteVaultService(
+      repository: repo,
+      paths: _FakeAppPaths(vault),
+      onSkippedFile: (path, error) {
+        skippedPaths.add(path);
+        expect(error, isA<InvalidNoteEncodingException>());
+      },
+    );
+
+    final notes = await reportingService.reconcile();
+
+    expect(skippedPaths.map(p.normalize), [p.normalize(encoded.path)]);
+    final row = (await repo.getById(imported.id))!;
+    expect(row.deletedAt, isNull);
+    expect(row.relativePath, imported.relativePath);
+    expect(notes.map((n) => n.id), [imported.id]);
+    expect(encoded.readAsBytesSync(), [0xFF, 0xFE, 0x41]);
+  });
+
   test('keeps the short id for the newest of two files claiming it', () async {
     final older = vaultFile('older~abcd.md')
       ..createSync(recursive: true)
@@ -233,6 +285,48 @@ void main() {
     expect(vaultFile('older~abcd.md').existsSync(), isFalse);
   });
 
+  test(
+    'duplicate resolution avoids ids claimed elsewhere in the scan',
+    () async {
+      final older = vaultFile('older~abcd.md')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('old');
+      final newer = vaultFile('newer~abcd.md')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('new');
+      vaultFile('third~ffff.md')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('third');
+      older.setLastModifiedSync(DateTime(2026, 1, 1));
+      newer.setLastModifiedSync(DateTime(2026, 6, 1));
+      var calls = 0;
+      final candidates = ['ffff', 'eeee'];
+      final duplicateService = NoteVaultService(
+        repository: repo,
+        paths: _FakeAppPaths(vault),
+        vaultPath: vault.path,
+        shortIdGenerator: () => candidates[calls++],
+      );
+
+      final notes = await duplicateService.reconcile();
+
+      expect(notes, hasLength(3));
+      expect(
+        notes.singleWhere((n) => n.shortId == 'abcd').relativePath,
+        'newer~abcd.md',
+      );
+      expect(
+        notes.singleWhere((n) => n.shortId == 'eeee').relativePath,
+        'older~eeee.md',
+      );
+      expect(
+        notes.singleWhere((n) => n.shortId == 'ffff').relativePath,
+        'third~ffff.md',
+      );
+      expect(calls, 2);
+    },
+  );
+
   test('imports .MD and .TXT extensions case-insensitively', () async {
     vaultFile('upper.MD')
       ..createSync(recursive: true)
@@ -250,7 +344,7 @@ void main() {
     });
   });
 
-  test('reconcile is idempotent', () async {
+  test('reconcile is idempotent and does not rewrite unchanged rows', () async {
     vaultFile('inbox/idea.md')
       ..createSync(recursive: true)
       ..writeAsStringSync('idea');
@@ -258,13 +352,26 @@ void main() {
       ..createSync(recursive: true)
       ..writeAsStringSync('note');
 
-    await service.reconcile();
-    final before = await repo.getAll(includeDeleted: true);
+    final countingRepo = _CountingUpdateRepo(db);
+    final idempotentService = NoteVaultService(
+      repository: countingRepo,
+      paths: _FakeAppPaths(vault),
+      vaultPath: vault.path,
+    );
+
+    await idempotentService.reconcile();
+    final before = await countingRepo.getAll(includeDeleted: true);
+    final timestampsBefore = {
+      for (final note in before) note.id: note.updatedAt,
+    };
     final filesBefore = relativeFiles(vault);
+    // Every row came from an insert, so nothing needed an update pass.
+    expect(countingRepo.updateFileMetaCalls, 0);
 
-    await service.reconcile();
+    await idempotentService.reconcile();
 
-    final after = await repo.getAll(includeDeleted: true);
+    expect(countingRepo.updateFileMetaCalls, 0);
+    final after = await countingRepo.getAll(includeDeleted: true);
     expect(
       after.map((n) => n.id).toList()..sort(),
       before.map((n) => n.id).toList()..sort(),
@@ -273,6 +380,9 @@ void main() {
       after.map((n) => n.relativePath).toList()..sort(),
       before.map((n) => n.relativePath).toList()..sort(),
     );
+    for (final note in after) {
+      expect(note.updatedAt, timestampsBefore[note.id]);
+    }
     expect(relativeFiles(vault), filesBefore);
   });
 

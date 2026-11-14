@@ -6,13 +6,38 @@ import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Events, Holidays])
+@DriftDatabase(tables: [Events, Holidays, Notes, NoteEventLinks, Categories, Courses])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ?? driftDatabase(name: 'tempolet'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          await m.createAll();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(events, events.categoryId);
+            await m.createTable(notes);
+            await m.createTable(noteEventLinks);
+            await m.createTable(categories);
+            await m.createTable(courses);
+            await m.addColumn(holidays, holidays.isWorkday);
+            await m.addColumn(holidays, holidays.source);
+            await m.addColumn(holidays, holidays.updatedAt);
+            await m.createIndex(idxNotesShortId);
+            await m.createIndex(idxNotesRelativePath);
+            await m.createIndex(idxLinksNote);
+            await m.createIndex(idxLinksEvent);
+            await m.createIndex(idxCategoriesName);
+            await m.createIndex(idxCoursesWeekday);
+          }
+        },
+      );
 }
 
 final databaseProvider = Provider<AppDatabase>((ref) {

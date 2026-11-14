@@ -17,6 +17,7 @@
 
 # Windows/Flutter build artifacts
 /windows/flutter/ephemeral/
+/dist/
 
 # OS
 .DS_Store

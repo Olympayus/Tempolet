@@ -46,34 +46,39 @@ class _ThrowingMarkDeletedRepo extends NoteRepository {
   }
 }
 
-/// Simulates the Windows fallback failing after it already deleted the target:
-/// the temp file holds the only copy and must survive.
-class _TargetLostService extends NoteVaultService {
-  _TargetLostService({
+/// Fails the first [tempRenameFailures] attempts to rename a `.tmp` file into
+/// place, exercising the retry/backup path of `replaceFileFromTemp`.
+class _FlakyRenameService extends NoteVaultService {
+  _FlakyRenameService({
     required super.repository,
     required super.paths,
     super.vaultPath,
+    required this.tempRenameFailures,
   });
 
+  int tempRenameFailures;
+  int tempRenameAttempts = 0;
+
   @override
-  Future<void> replaceFileFromTemp(File target, File temp) async {
-    await target.delete();
-    throw const FileSystemException('second rename failed');
+  Future<void> renameFile(File source, String target) async {
+    if (source.path.endsWith('.tmp')) {
+      tempRenameAttempts++;
+      if (tempRenameFailures > 0) {
+        tempRenameFailures--;
+        throw const FileSystemException('rename locked');
+      }
+    }
+    await super.renameFile(source, target);
   }
 }
 
-/// Simulates a replacement failure that leaves the target intact.
-class _ReplacementFailsService extends NoteVaultService {
-  _ReplacementFailsService({
-    required super.repository,
-    required super.paths,
-    super.vaultPath,
-  });
-
-  @override
-  Future<void> replaceFileFromTemp(File target, File temp) async {
-    throw const FileSystemException('replacement failed');
-  }
+/// Backup files left next to [target] by a failed replacement.
+List<File> backupsFor(File target) {
+  return target.parent
+      .listSync()
+      .whereType<File>()
+      .where((file) => file.path.startsWith('${target.path}.bak-'))
+      .toList();
 }
 
 void main() {
@@ -370,34 +375,45 @@ void main() {
   });
 
   test(
-    'writeNote keeps the temp file when the fallback loses the target',
+    'replaceFileFromTemp replaces the target and removes the temp',
     () async {
-      final note = await service.createNote(
-        format: NoteFormat.md,
-        title: 'guarded',
-        content: 'old',
-      );
-      final file = vaultFile(note);
-      final failingService = _TargetLostService(
-        repository: repo,
-        paths: paths,
-        vaultPath: defaultVault.path,
-      );
+      final target = File(p.join(root.path, 'note.md'))
+        ..writeAsStringSync('old');
+      final temp = File('${target.path}.tmp')..writeAsStringSync('new');
 
-      await expectLater(
-        failingService.writeNote(note.id, 'new'),
-        throwsA(isA<FileSystemException>()),
-      );
+      await service.replaceFileFromTemp(target, temp);
 
-      expect(file.existsSync(), isFalse);
-      final temp = File('${file.path}.tmp');
-      expect(temp.existsSync(), isTrue);
-      expect(await temp.readAsString(), 'new');
+      expect(await target.readAsString(), 'new');
+      expect(temp.existsSync(), isFalse);
+      expect(backupsFor(target), isEmpty);
     },
   );
 
   test(
-    'writeNote removes the temp file when the target survives the failure',
+    'replaceFileFromTemp recovers with a backup when the direct rename fails',
+    () async {
+      final target = File(p.join(root.path, 'note.md'))
+        ..writeAsStringSync('old');
+      final temp = File('${target.path}.tmp')..writeAsStringSync('new');
+      // All three direct attempts fail; the backup dance then succeeds.
+      final flaky = _FlakyRenameService(
+        repository: repo,
+        paths: paths,
+        vaultPath: root.path,
+        tempRenameFailures: 3,
+      );
+
+      await flaky.replaceFileFromTemp(target, temp);
+
+      expect(flaky.tempRenameAttempts, 4);
+      expect(await target.readAsString(), 'new');
+      expect(temp.existsSync(), isFalse);
+      expect(backupsFor(target), isEmpty);
+    },
+  );
+
+  test(
+    'writeNote restores the original and keeps the temp on double failure',
     () async {
       final note = await service.createNote(
         format: NoteFormat.md,
@@ -405,19 +421,28 @@ void main() {
         content: 'old',
       );
       final file = vaultFile(note);
-      final failingService = _ReplacementFailsService(
+      final flaky = _FlakyRenameService(
         repository: repo,
         paths: paths,
         vaultPath: defaultVault.path,
+        // Every temp rename fails, including the post-backup one.
+        tempRenameFailures: 1 << 20,
       );
 
       await expectLater(
-        failingService.writeNote(note.id, 'new'),
+        flaky.writeNote(note.id, 'new'),
         throwsA(isA<FileSystemException>()),
       );
 
       expect(await file.readAsString(), 'old');
-      expect(File('${file.path}.tmp').existsSync(), isFalse);
+      final temp = File('${file.path}.tmp');
+      expect(temp.existsSync(), isTrue);
+      expect(await temp.readAsString(), 'new');
+      expect(backupsFor(file), isEmpty);
+
+      // The index still describes the untouched original.
+      final row = (await repo.getById(note.id))!;
+      expect(row.fileSize, utf8.encode('old').length);
     },
   );
 

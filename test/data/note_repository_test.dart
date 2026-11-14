@@ -194,6 +194,44 @@ void main() {
     expect((await repo.getByShortId('cccc'))!.id, id);
   });
 
+  test('updateFileMeta updates the format only when one is given', () async {
+    final note = await insertNote(shortId: 'aaaa');
+    expect(note.format, 'md');
+
+    await repo.updateFileMeta(
+      note.id,
+      relativePath: note.relativePath,
+      title: note.title,
+      fileMtime: note.fileMtime,
+      fileSize: note.fileSize,
+    );
+    expect((await repo.getById(note.id))!.format, 'md');
+
+    await repo.updateFileMeta(
+      note.id,
+      relativePath: 'a~aaaa.txt',
+      title: note.title,
+      fileMtime: note.fileMtime,
+      fileSize: note.fileSize,
+      format: NoteFormat.txt,
+    );
+    expect((await repo.getById(note.id))!.format, 'txt');
+  });
+
+  test('watchAll and getAll break updatedAt ties by id', () async {
+    await insertNote(id: 'aaa', shortId: 'aaaa');
+    await insertNote(id: 'bbb', shortId: 'bbbb');
+    final tie = DateTime(2020, 1, 1);
+    for (final id in ['aaa', 'bbb']) {
+      await (db.update(db.notes)..where((t) => t.id.equals(id))).write(
+        NotesCompanion(updatedAt: Value(tie)),
+      );
+    }
+
+    expect((await repo.watchAll().first).map((n) => n.id), ['aaa', 'bbb']);
+    expect((await repo.getAll()).map((n) => n.id), ['aaa', 'bbb']);
+  });
+
   test('linkToEvent is idempotent per note-event pair', () async {
     final noteId = newId();
     final eventId = newId();

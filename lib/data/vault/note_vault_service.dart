@@ -205,16 +205,9 @@ class NoteVaultService {
       rethrow;
     }
 
-    try {
-      await replaceFileFromTemp(file, temp);
-    } catch (_) {
-      // If the Windows fallback already deleted the target, the temp file holds
-      // the only copy of the new content: keep it for recovery.
-      if (await file.exists()) {
-        await _deleteQuietly(temp);
-      }
-      rethrow;
-    }
+    // On failure the helper restores the original file and keeps the temp,
+    // which holds the only copy of the new content; never delete it here.
+    await replaceFileFromTemp(file, temp);
 
     final after = await file.stat();
     await _repository.updateFileMeta(
@@ -226,17 +219,62 @@ class NoteVaultService {
     );
   }
 
+  /// Number of attempts for the direct rename in [replaceFileFromTemp] before
+  /// falling back to the backup dance (spec §10.1 asks for a short retry).
+  static const int _replaceAttempts = 3;
+  static const Duration _replaceRetryDelay = Duration(milliseconds: 50);
+
+  /// Rename seam used by [replaceFileFromTemp]. Tests override this to
+  /// simulate platform rename failures without touching the real filesystem.
+  @visibleForTesting
+  Future<void> renameFile(File source, String target) => source.rename(target);
+
   /// Replaces [target] with the already-written [temp] file. Exposed for tests
-  /// so the Windows delete-then-rename fallback can be exercised.
+  /// so the Windows fallback can be exercised.
+  ///
+  /// The target is never deleted before the new content is in place: the
+  /// first attempts rename [temp] over it; on failure the target is moved to a
+  /// `<target>.bak-<timestamp>` sibling, the temp is renamed into place, and
+  /// the backup is removed on success. If that last rename also fails, the
+  /// backup is restored and the temp file is kept for recovery.
   @visibleForTesting
   Future<void> replaceFileFromTemp(File target, File temp) async {
+    for (var attempt = 0; attempt < _replaceAttempts; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(_replaceRetryDelay);
+      }
+      try {
+        await renameFile(temp, target.path);
+        return;
+      } on FileSystemException {
+        // Windows refuses rename-over in some cases; retry, then fall back.
+      }
+    }
+
+    File? backup;
+    if (await target.exists()) {
+      final backupFile = File(
+        '${target.path}.bak-${DateTime.now().millisecondsSinceEpoch}',
+      );
+      await renameFile(target, backupFile.path);
+      backup = backupFile;
+    }
+
     try {
-      await temp.rename(target.path);
-    } on FileSystemException {
-      // Windows refuses rename-over in some cases; fall back to
-      // delete-then-rename.
-      await target.delete();
-      await temp.rename(target.path);
+      await renameFile(temp, target.path);
+    } catch (_) {
+      if (backup != null) {
+        try {
+          await renameFile(backup, target.path);
+        } catch (_) {
+          // Leave the backup in place: it still holds the old content.
+        }
+      }
+      // Keep the temp file: it holds the only copy of the new content.
+      rethrow;
+    }
+    if (backup != null) {
+      await _deleteQuietly(backup);
     }
   }
 
@@ -492,8 +530,13 @@ class NoteVaultService {
       final stat = await target.stat();
       if (existing != null) {
         final revive = existing.deletedAt != null;
+        final pathChanged = existing.relativePath != relativePath;
+        // Spec §6.2: the format is derived from the extension only, so an
+        // external .md -> .txt rename must update the row, not just the path.
+        final formatChanged = existing.format != format.extension;
         final changed =
-            existing.relativePath != relativePath ||
+            pathChanged ||
+            formatChanged ||
             existing.title != title ||
             existing.fileSize != stat.size ||
             !_sameSecond(existing.fileMtime, stat.modified);
@@ -508,6 +551,7 @@ class NoteVaultService {
           title: title,
           fileMtime: stat.modified,
           fileSize: stat.size,
+          format: pathChanged || formatChanged ? format : null,
           revive: revive,
         );
         final note = await _repository.getById(existing.id);

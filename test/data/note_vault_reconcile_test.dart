@@ -30,6 +30,7 @@ class _CountingUpdateRepo extends NoteRepository {
     required String title,
     required DateTime fileMtime,
     required int fileSize,
+    NoteFormat? format,
     String? shortId,
     bool revive = false,
   }) {
@@ -40,6 +41,7 @@ class _CountingUpdateRepo extends NoteRepository {
       title: title,
       fileMtime: fileMtime,
       fileSize: fileSize,
+      format: format,
       shortId: shortId,
       revive: revive,
     );
@@ -162,6 +164,90 @@ void main() {
     expect(revived.title, '想法');
     expect(revived.relativePath, 'inbox/想法~${imported.shortId}.md');
     expect(await service.readNote(imported.id), 'back');
+  });
+
+  test('updates the format when a file extension changes externally', () async {
+    final imported = await importVia('inbox/想法.md', 'hello');
+    expect(imported.format, 'md');
+    final newPath = 'inbox/想法~${imported.shortId}.txt';
+    vaultFile(imported.relativePath)
+        .renameSync(p.join(vault.path, 'inbox', '想法~${imported.shortId}.txt'));
+
+    await service.reconcile();
+
+    final updated = (await repo.getById(imported.id))!;
+    expect(updated.format, 'txt');
+    expect(updated.relativePath, newPath);
+    expect(updated.relativePath, endsWith('.txt'));
+    expect(updated.shortId, imported.shortId);
+    expect(vaultFile(newPath).existsSync(), isTrue);
+    expect(vaultFile(imported.relativePath).existsSync(), isFalse);
+    expect(await service.readNote(imported.id), 'hello');
+
+    // A second pass sees nothing left to fix.
+    final countingRepo = _CountingUpdateRepo(db);
+    final idempotentService = NoteVaultService(
+      repository: countingRepo,
+      paths: _FakeAppPaths(vault),
+      vaultPath: vault.path,
+    );
+    await idempotentService.reconcile();
+    expect(countingRepo.updateFileMetaCalls, 0);
+  });
+
+  test('keeps event links across rename, delete and reappearance', () async {
+    final imported = await importVia('inbox/想法.md', 'hello');
+    await repo.linkToEvent(imported.id, 'event-1');
+
+    Future<void> expectActiveLink({required bool deleted}) async {
+      final note = (await repo.getById(imported.id))!;
+      expect(note.shortId, imported.shortId);
+      expect(note.deletedAt != null, deleted);
+      final links = await repo.watchLinksForNote(imported.id).first;
+      expect(links, hasLength(1));
+      expect(links.single.eventId, 'event-1');
+      expect(links.single.deletedAt, isNull);
+    }
+
+    // External rename that preserves the short id.
+    final renamedPath = 'inbox/想法改~${imported.shortId}.md';
+    vaultFile(imported.relativePath).renameSync(vaultFile(renamedPath).path);
+    await service.reconcile();
+    expect((await repo.getById(imported.id))!.relativePath, renamedPath);
+    await expectActiveLink(deleted: false);
+
+    // External delete: the row is tombstoned, the link stays active.
+    vaultFile(renamedPath).deleteSync();
+    await service.reconcile();
+    await expectActiveLink(deleted: true);
+
+    // Reappearance revives the same note and keeps the link.
+    vaultFile(renamedPath)
+      ..createSync(recursive: true)
+      ..writeAsStringSync('back');
+    await service.reconcile();
+    await expectActiveLink(deleted: false);
+    expect(await service.readNote(imported.id), 'back');
+  });
+
+  test('perceives external content changes at the same path', () async {
+    final imported = await importVia('inbox/想法.md', 'hello');
+    final file = vaultFile(imported.relativePath);
+    await file.writeAsString('外部修改的内容');
+    final newMtime = DateTime.now().add(const Duration(minutes: 2));
+    await file.setLastModified(newMtime);
+    final stat = await file.stat();
+
+    await service.reconcile();
+
+    final updated = (await repo.getById(imported.id))!;
+    expect(updated.relativePath, imported.relativePath);
+    expect(updated.fileSize, isNot(imported.fileSize));
+    expect(updated.fileSize, stat.size);
+    expect(
+      updated.fileMtime.millisecondsSinceEpoch ~/ 1000,
+      stat.modified.millisecondsSinceEpoch ~/ 1000,
+    );
   });
 
   test(

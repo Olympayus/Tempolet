@@ -19,6 +19,7 @@ class NoteRepository {
       ..where((t) => t.deletedAt.isNull())
       ..orderBy([
         (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+        (t) => OrderingTerm(expression: t.id),
       ]);
     return query.watch();
   }
@@ -32,6 +33,7 @@ class NoteRepository {
     }
     query.orderBy([
       (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+      (t) => OrderingTerm(expression: t.id),
     ]);
     return query.get();
   }
@@ -89,13 +91,15 @@ class NoteRepository {
   }
 
   /// Refreshes the file-facing metadata. A non-null [shortId] replaces the
-  /// existing one; [revive] clears the soft-delete marker.
+  /// existing one; a non-null [format] follows an externally changed file
+  /// extension; [revive] clears the soft-delete marker.
   Future<void> updateFileMeta(
     String id, {
     required String relativePath,
     required String title,
     required DateTime fileMtime,
     required int fileSize,
+    NoteFormat? format,
     String? shortId,
     bool revive = false,
   }) async {
@@ -105,6 +109,7 @@ class NoteRepository {
         title: Value(title),
         fileMtime: Value(fileMtime),
         fileSize: Value(fileSize),
+        format: format == null ? const Value.absent() : Value(format.extension),
         shortId: shortId == null ? const Value.absent() : Value(shortId),
         updatedAt: Value(DateTime.now()),
         deletedAt: revive ? const Value(null) : const Value.absent(),

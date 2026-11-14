@@ -6,15 +6,19 @@ import '../repositories/holiday_repository.dart';
 
 /// Imports the bundled holiday JSON once per [version].
 ///
-/// The seed version lives in the same preference as
-/// [HolidaySeedVersionController], so a version bump re-runs the (idempotent)
-/// import while unchanged versions skip the asset read entirely.
+/// The applied version is stored in the same preference as
+/// [HolidaySeedVersionController]. The raw JSON is also kept as a snapshot so
+/// a restart can prime the repository's in-memory seed cache without reading
+/// the asset again; if the snapshot is missing, the import re-runs even when
+/// the version matches.
 class HolidaySeedService {
   HolidaySeedService({
     required this.repository,
     required this.prefs,
     Future<String> Function(String assetPath)? loadAsset,
   }) : _loadAsset = loadAsset ?? rootBundle.loadString;
+
+  static const snapshotPrefKey = 'holiday_seed_snapshot';
 
   final HolidayRepository repository;
   final SharedPreferences prefs;
@@ -24,11 +28,20 @@ class HolidaySeedService {
     required String assetPath,
     required String version,
   }) async {
-    final prefKey = HolidaySeedVersionController.prefKey;
-    if (prefs.getString(prefKey) == version) return;
+    final versionKey = HolidaySeedVersionController.prefKey;
+    if (prefs.getString(versionKey) == version) {
+      final snapshot = prefs.getString(snapshotPrefKey);
+      if (snapshot != null) {
+        repository.primeSeedCacheFromJson(snapshot);
+        return;
+      }
+      // Version matches but the snapshot is gone: reseed to restore both the
+      // cache and the snapshot.
+    }
 
     final json = await _loadAsset(assetPath);
     await repository.seedFromJson(json);
-    await prefs.setString(prefKey, version);
+    await prefs.setString(snapshotPrefKey, json);
+    await prefs.setString(versionKey, version);
   }
 }

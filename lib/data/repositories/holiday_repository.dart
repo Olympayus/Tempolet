@@ -10,7 +10,8 @@ import '../database/database.dart';
 /// user overrides ([Holiday.source] is `seed` or `manual`).
 ///
 /// The parsed seed is kept in memory so [clearManual] can restore a seed row
-/// without re-reading the asset. Call [seedFromJson] before relying on that.
+/// without re-reading the asset; [seedFromJson] and [primeSeedCacheFromJson]
+/// populate it.
 class HolidayRepository {
   HolidayRepository(this._db);
 
@@ -55,6 +56,13 @@ class HolidayRepository {
       }
     });
     _seed.addAll(seed);
+  }
+
+  /// Fills the in-memory seed cache from an already-applied asset without
+  /// reading or writing the database. Used when a restart finds the seed
+  /// version unchanged, so [clearManual] can still restore seed rows.
+  void primeSeedCacheFromJson(String json) {
+    _seed.addAll(_parseSeed(json));
   }
 
   /// Writes a user override for [date].

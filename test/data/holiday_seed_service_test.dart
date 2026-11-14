@@ -50,11 +50,12 @@ void main() {
 
     expect(loads, 1);
     expect(prefs.getString('holiday_seed_version'), '2026.1');
+    expect(prefs.getString(HolidaySeedService.snapshotPrefKey), _assetJson);
     expect(await repository.isWorkday(DateTime(2026, 1, 1)), isFalse);
     expect(await repository.isWorkday(DateTime(2026, 1, 4)), isTrue);
     expect(await db.select(db.holidays).get(), hasLength(2));
 
-    // Same version: no asset load.
+    // Same version: primes the cache from the snapshot, no asset load.
     await service.seedIfNeeded(assetPath: _assetPath, version: '2026.1');
     expect(loads, 1);
 
@@ -62,10 +63,50 @@ void main() {
     await service.seedIfNeeded(assetPath: _assetPath, version: '2026.2');
     expect(loads, 2);
     expect(prefs.getString('holiday_seed_version'), '2026.2');
+    expect(prefs.getString(HolidaySeedService.snapshotPrefKey), _assetJson);
     expect(await db.select(db.holidays).get(), hasLength(2));
   });
 
-  test('skips loading when the stored version already matches', () async {
+  test('a matching version primes the seed cache from the snapshot', () async {
+    final first = HolidaySeedService(
+      repository: repository,
+      prefs: prefs,
+      loadAsset: (_) async => _assetJson,
+    );
+    await first.seedIfNeeded(assetPath: _assetPath, version: '2026.1');
+    await repository.setManual(
+      date: DateTime(2026, 1, 1),
+      name: '自定义',
+      isWorkday: true,
+    );
+
+    // Restart simulation: a fresh repository has an empty seed cache while
+    // the preference and the database keep their contents.
+    final restartedRepository = HolidayRepository(db);
+    var loads = 0;
+    final restarted = HolidaySeedService(
+      repository: restartedRepository,
+      prefs: prefs,
+      loadAsset: (_) async {
+        loads++;
+        return _assetJson;
+      },
+    );
+
+    await restarted.seedIfNeeded(assetPath: _assetPath, version: '2026.1');
+
+    expect(loads, 0);
+    await restartedRepository.clearManual(DateTime(2026, 1, 1));
+    final row = await (db.select(db.holidays)
+          ..where((t) => t.date.equals(DateTime(2026, 1, 1))))
+        .getSingle();
+    expect(row.name, '元旦');
+    expect(row.isWorkday, isFalse);
+    expect(row.source, 'seed');
+  });
+
+  test('reseeds when the version matches but the snapshot is missing',
+      () async {
     SharedPreferences.setMockInitialValues(
       {'holiday_seed_version': '2026.1'},
     );
@@ -82,8 +123,9 @@ void main() {
 
     await service.seedIfNeeded(assetPath: _assetPath, version: '2026.1');
 
-    expect(loads, 0);
-    expect(await db.select(db.holidays).get(), isEmpty);
+    expect(loads, 1);
+    expect(await db.select(db.holidays).get(), hasLength(2));
+    expect(prefs.getString(HolidaySeedService.snapshotPrefKey), _assetJson);
   });
 
   test('does not record the version when the asset fails to load', () async {
@@ -99,6 +141,7 @@ void main() {
     );
 
     expect(prefs.getString('holiday_seed_version'), isNull);
+    expect(prefs.getString(HolidaySeedService.snapshotPrefKey), isNull);
     expect(await db.select(db.holidays).get(), isEmpty);
   });
 }

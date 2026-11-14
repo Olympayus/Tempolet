@@ -52,6 +52,7 @@ class EventRepository {
     int? endMinute,
     int importance = 0,
     int? reminderOffsetMinutes,
+    String? categoryId,
   }) async {
     final id = const Uuid().v4();
     final now = DateTime.now();
@@ -66,6 +67,7 @@ class EventRepository {
             endMinute: Value(endMinute),
             importance: Value(importance),
             reminderOffsetMinutes: Value(reminderOffsetMinutes),
+            categoryId: Value(categoryId),
             notificationId: stableNotificationId(id),
             createdAt: now,
             updatedAt: now,
@@ -109,6 +111,15 @@ class EventRepository {
       EventsCompanion(
         isCompleted: Value(value),
         completedAt: Value(value ? DateTime.now() : null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> setCategory(String id, String? categoryId) async {
+    await (_db.update(_db.events)..where((t) => t.id.equals(id))).write(
+      EventsCompanion(
+        categoryId: Value(categoryId),
         updatedAt: Value(DateTime.now()),
       ),
     );

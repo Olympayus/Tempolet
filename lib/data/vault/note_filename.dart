@@ -21,6 +21,12 @@ String sanitizeNoteTitle(String title) {
   var result = title.replaceAll(_illegalCharacters, '_');
   result = result.replaceAll(_whitespaceRuns, ' ').trim();
 
+  // A leading dot would make the vault file hidden, so reconciliation would
+  // skip it. Collapse a leading run of dots into a single underscore.
+  if (result.startsWith('.')) {
+    result = '_${result.replaceFirst(RegExp(r'^\.+'), '')}';
+  }
+
   // Windows reserves device names regardless of extension or case, and the
   // final name is `<title>~<shortId>.<ext>` — the part before the first dot is
   // what Windows checks.

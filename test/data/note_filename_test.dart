@@ -41,6 +41,20 @@ void main() {
     test('truncation never yields an empty title', () {
       expect(sanitizeNoteTitle(' ' * 100), 'Untitled');
     });
+
+    test('replaces a leading run of dots so titles never become hidden', () {
+      expect(sanitizeNoteTitle('.hidden'), '_hidden');
+      expect(sanitizeNoteTitle('..notes'), '_notes');
+      expect(sanitizeNoteTitle('.'), '_');
+      expect(
+        buildNoteFileName(
+          title: '.hidden',
+          shortId: 'abcd',
+          format: NoteFormat.md,
+        ),
+        '_hidden~abcd.md',
+      );
+    });
   });
 
   group('parseShortId', () {

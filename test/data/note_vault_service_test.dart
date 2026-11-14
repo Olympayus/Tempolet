@@ -46,6 +46,36 @@ class _ThrowingMarkDeletedRepo extends NoteRepository {
   }
 }
 
+/// Simulates the Windows fallback failing after it already deleted the target:
+/// the temp file holds the only copy and must survive.
+class _TargetLostService extends NoteVaultService {
+  _TargetLostService({
+    required super.repository,
+    required super.paths,
+    super.vaultPath,
+  });
+
+  @override
+  Future<void> replaceFileFromTemp(File target, File temp) async {
+    await target.delete();
+    throw const FileSystemException('second rename failed');
+  }
+}
+
+/// Simulates a replacement failure that leaves the target intact.
+class _ReplacementFailsService extends NoteVaultService {
+  _ReplacementFailsService({
+    required super.repository,
+    required super.paths,
+    super.vaultPath,
+  });
+
+  @override
+  Future<void> replaceFileFromTemp(File target, File temp) async {
+    throw const FileSystemException('replacement failed');
+  }
+}
+
 void main() {
   late AppDatabase db;
   late NoteRepository repo;
@@ -337,5 +367,110 @@ void main() {
     final trash = Directory(p.join(root.path, '.trash'));
     expect(trash.listSync().whereType<File>(), isEmpty);
     expect((await repo.getById(note.id))!.deletedAt, isNull);
+  });
+
+  test(
+    'writeNote keeps the temp file when the fallback loses the target',
+    () async {
+      final note = await service.createNote(
+        format: NoteFormat.md,
+        title: 'guarded',
+        content: 'old',
+      );
+      final file = vaultFile(note);
+      final failingService = _TargetLostService(
+        repository: repo,
+        paths: paths,
+        vaultPath: defaultVault.path,
+      );
+
+      await expectLater(
+        failingService.writeNote(note.id, 'new'),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      expect(file.existsSync(), isFalse);
+      final temp = File('${file.path}.tmp');
+      expect(temp.existsSync(), isTrue);
+      expect(await temp.readAsString(), 'new');
+    },
+  );
+
+  test(
+    'writeNote removes the temp file when the target survives the failure',
+    () async {
+      final note = await service.createNote(
+        format: NoteFormat.md,
+        title: 'guarded',
+        content: 'old',
+      );
+      final file = vaultFile(note);
+      final failingService = _ReplacementFailsService(
+        repository: repo,
+        paths: paths,
+        vaultPath: defaultVault.path,
+      );
+
+      await expectLater(
+        failingService.writeNote(note.id, 'new'),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      expect(await file.readAsString(), 'old');
+      expect(File('${file.path}.tmp').existsSync(), isFalse);
+    },
+  );
+
+  test('writeNote rejects a soft-deleted note', () async {
+    final note = await service.createNote(
+      format: NoteFormat.md,
+      title: 'trashed',
+      content: 'old',
+    );
+    await service.moveToTrash(note.id);
+
+    await expectLater(service.writeNote(note.id, 'new'), throwsStateError);
+  });
+
+  test('writeNote reports a file missing from disk as a conflict', () async {
+    final note = await service.createNote(
+      format: NoteFormat.md,
+      title: 'missing',
+      content: 'old',
+    );
+    vaultFile(note).deleteSync();
+
+    await expectLater(
+      service.writeNote(note.id, 'new'),
+      throwsA(
+        isA<NoteConflictException>().having((e) => e.noteId, 'noteId', note.id),
+      ),
+    );
+  });
+
+  test('createNote treats an existing file as a short id collision', () async {
+    final orphan = File(p.join(root.path, 'x~abcd.md'))
+      ..writeAsStringSync('orphan');
+    var calls = 0;
+    final candidates = ['abcd', 'beef'];
+    final collisionService = NoteVaultService(
+      repository: repo,
+      paths: paths,
+      vaultPath: root.path,
+      shortIdGenerator: () => candidates[calls++],
+    );
+
+    final note = await collisionService.createNote(
+      format: NoteFormat.md,
+      title: 'x',
+      content: 'new',
+    );
+
+    expect(note.shortId, 'beef');
+    expect(await orphan.readAsString(), 'orphan');
+    expect(
+      await File(p.join(root.path, note.relativePath)).readAsString(),
+      'new',
+    );
   });
 }

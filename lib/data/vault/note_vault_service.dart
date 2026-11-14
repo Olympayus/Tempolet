@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
@@ -11,6 +12,19 @@ import '../models/note_format.dart';
 import '../repositories/note_repository.dart';
 import 'note_conflict.dart';
 import 'note_filename.dart';
+
+/// Raised by `NoteVaultService.importExternalFile` (and caught by `reconcile`)
+/// when a note file is not valid UTF-8. The file is left untouched and is not
+/// imported or converted.
+class InvalidNoteEncodingException implements Exception {
+  InvalidNoteEncodingException(this.path);
+
+  /// Absolute path of the file that could not be decoded.
+  final String path;
+
+  @override
+  String toString() => 'InvalidNoteEncodingException($path)';
+}
 
 /// Owns the note lifecycle across the index and the vault files. Every write
 /// goes file-first (or with a rollback) so the index and the on-disk vault stay
@@ -34,7 +48,7 @@ class NoteVaultService {
 
   final NoteRepository _repository;
   final AppPaths _paths;
-  final String? _vaultPath;
+  String? _vaultPath;
   final String Function() _shortIdGenerator;
 
   Directory? _vault;
@@ -53,9 +67,10 @@ class NoteVaultService {
     final cached = _vault;
     if (cached != null) return cached;
 
-    final directory = _vaultPath == null
+    final vaultPath = _vaultPath;
+    final directory = vaultPath == null
         ? await _paths.defaultVaultDirectory()
-        : Directory(_vaultPath);
+        : Directory(vaultPath);
     await directory.create(recursive: true);
     _vault = directory;
     return directory;
@@ -71,15 +86,33 @@ class NoteVaultService {
   }) async {
     final vault = await ensureVault();
     final id = const Uuid().v4();
-    final shortId = await _allocateShortId();
     final safeTitle = sanitizeNoteTitle(title);
-    final relativePath = buildNoteFileName(
-      title: safeTitle,
-      shortId: shortId,
-      format: format,
-    );
-    final file = File(p.join(vault.path, relativePath));
 
+    String? shortId;
+    String? relativePath;
+    for (var attempt = 0; attempt < 20; attempt++) {
+      final candidateShortId = await _allocateShortId();
+      final candidatePath = buildNoteFileName(
+        title: safeTitle,
+        shortId: candidateShortId,
+        format: format,
+      );
+      if (await File(p.join(vault.path, candidatePath)).exists()) {
+        // An orphan file already owns this name; never truncate it. Treat it
+        // like a short id collision and try another id.
+        continue;
+      }
+      shortId = candidateShortId;
+      relativePath = candidatePath;
+      break;
+    }
+    if (shortId == null || relativePath == null) {
+      throw StateError(
+        'Could not allocate a free note filename after 20 tries',
+      );
+    }
+
+    final file = File(p.join(vault.path, relativePath));
     await file.writeAsString(content, flush: true);
     try {
       final stat = await file.stat();
@@ -127,10 +160,25 @@ class NoteVaultService {
   /// a mismatch throws [NoteConflictException] without touching the file.
   Future<void> writeNote(String id, String content) async {
     final note = await _requireNote(id);
+    if (note.deletedAt != null) {
+      throw StateError('Cannot write a deleted note: $id');
+    }
+
     final vault = await ensureVault();
     final file = File(p.join(vault.path, note.relativePath));
 
     final before = await file.stat();
+    if (before.type == FileSystemEntityType.notFound) {
+      // The index still references a file that no longer exists. Surface it as
+      // a conflict instead of leaking a raw FileSystemException.
+      throw NoteConflictException(
+        noteId: id,
+        expectedMtime: note.fileMtime,
+        actualMtime: before.modified,
+        expectedSize: note.fileSize,
+        actualSize: before.size,
+      );
+    }
     if (before.size != note.fileSize ||
         !_sameSecond(before.modified, note.fileMtime)) {
       throw NoteConflictException(
@@ -145,21 +193,18 @@ class NoteVaultService {
     final temp = File('${file.path}.tmp');
     try {
       await temp.writeAsString(content, flush: true);
-      try {
-        await temp.rename(file.path);
-      } on FileSystemException {
-        // Windows refuses rename-over in some cases; the brief's fallback is
-        // delete-then-rename.
-        await file.delete();
-        await temp.rename(file.path);
-      }
     } catch (_) {
-      if (await temp.exists()) {
-        try {
-          await temp.delete();
-        } catch (_) {
-          // Leave the temp file for cleanup.
-        }
+      await _deleteQuietly(temp);
+      rethrow;
+    }
+
+    try {
+      await replaceFileFromTemp(file, temp);
+    } catch (_) {
+      // If the Windows fallback already deleted the target, the temp file holds
+      // the only copy of the new content: keep it for recovery.
+      if (await file.exists()) {
+        await _deleteQuietly(temp);
       }
       rethrow;
     }
@@ -172,6 +217,20 @@ class NoteVaultService {
       fileMtime: after.modified,
       fileSize: after.size,
     );
+  }
+
+  /// Replaces [target] with the already-written [temp] file. Exposed for tests
+  /// so the Windows delete-then-rename fallback can be exercised.
+  @visibleForTesting
+  Future<void> replaceFileFromTemp(File target, File temp) async {
+    try {
+      await temp.rename(target.path);
+    } on FileSystemException {
+      // Windows refuses rename-over in some cases; fall back to
+      // delete-then-rename.
+      await target.delete();
+      await temp.rename(target.path);
+    }
   }
 
   /// Renames the body file first, then updates the index; on an index failure
@@ -249,20 +308,267 @@ class NoteVaultService {
     }
   }
 
-  /// Task 8: imports an external file into the vault, renaming it to the
-  /// canonical `<title>~<shortId>.<ext>` shape.
-  Future<Note> importExternalFile(File file) {
-    throw UnimplementedError('importExternalFile is implemented in Task 8');
+  /// Imports [file] into the vault, renaming it to the canonical
+  /// `<title>~<shortId>.<ext>` shape while preserving its relative directory.
+  ///
+  /// A short id found in the filename is reused: when it matches an index row
+  /// (including soft-deleted ones) that row is updated and revived, otherwise a
+  /// new row is created with the same id. Files without a usable id get a fresh
+  /// short id and UUID.
+  Future<Note> importExternalFile(File file) =>
+      _importFile(file, reuseShortId: true);
+
+  /// Scans the vault and reconciles the index with the files on disk.
+  ///
+  /// Files with a valid `~<shortId>` are matched against all index rows
+  /// (including soft-deleted), then imported. Rows whose files disappeared are
+  /// soft-deleted with a `.lost/` tombstone path without touching the disk.
+  /// Idempotent, and returns the same list as `watchAll().first`.
+  Future<List<Note>> reconcile() async {
+    final vault = await ensureVault();
+    final files = await _scanNoteFiles(vault);
+
+    final byShortId = <String, List<File>>{};
+    final withoutShortId = <File>[];
+    for (final file in files) {
+      final shortId = parseShortId(p.basename(file.path));
+      if (shortId == null) {
+        withoutShortId.add(file);
+      } else {
+        byShortId.putIfAbsent(shortId, () => <File>[]).add(file);
+      }
+    }
+
+    final seenIds = <String>{};
+
+    Future<void> importBatch(
+      Iterable<File> batch, {
+      required bool reuseFirstShortId,
+    }) async {
+      var index = 0;
+      for (final file in batch) {
+        final note = await _importOrSkip(
+          file,
+          reuseShortId: reuseFirstShortId && index == 0,
+        );
+        if (note != null) seenIds.add(note.id);
+        index++;
+      }
+    }
+
+    for (final shortId in byShortId.keys.toList()..sort()) {
+      final group = byShortId[shortId]!;
+      if (group.length > 1) {
+        // Several files claim one short id: the newest mtime wins, the rest get
+        // a new identity and are renamed.
+        final mtimes = <String, DateTime>{};
+        for (final file in group) {
+          mtimes[file.path] = await _lastModified(file);
+        }
+        group.sort((a, b) {
+          final byTime = mtimes[b.path]!.compareTo(mtimes[a.path]!);
+          return byTime != 0 ? byTime : a.path.compareTo(b.path);
+        });
+      }
+      await importBatch(group, reuseFirstShortId: true);
+    }
+    await importBatch(withoutShortId, reuseFirstShortId: false);
+
+    final stamp = DateFormat('yyyyMMdd-HHmmss').format(DateTime.now());
+    final rows = await _repository.getAll(includeDeleted: true);
+    for (final row in rows) {
+      if (row.deletedAt != null || seenIds.contains(row.id)) continue;
+      final originalName = p.posix.basename(row.relativePath);
+      await _repository.markDeleted(
+        row.id,
+        tombstonePath: '.lost/$stamp-${row.shortId}-$originalName',
+      );
+    }
+
+    return _repository.watchAll().first;
   }
 
-  /// Task 8: scans the vault and reconciles the index with the files on disk.
-  Future<List<Note>> reconcile() {
-    throw UnimplementedError('reconcile is implemented in Task 8');
+  /// Soft-deletes the active rows of the current vault, switches to [path]
+  /// (null/empty means the platform default) and reconciles the new vault. Old
+  /// files stay untouched; switching back revives rows by short id.
+  Future<void> switchVault(String? path) async {
+    final stamp = DateFormat('yyyyMMdd-HHmmss').format(DateTime.now());
+    final active = await _repository.getAll();
+    for (final note in active) {
+      await _repository.markDeleted(
+        note.id,
+        tombstonePath: '.vault-switch/$stamp/${note.relativePath}',
+      );
+    }
+
+    _vaultPath = _normalizeVaultPath(path);
+    _vault = null; // Rebuild the cached directory for the new vault.
+    await reconcile();
   }
 
-  /// Task 8: soft-deletes the current vault rows and switches to [path].
-  Future<void> switchVault(String? path) {
-    throw UnimplementedError('switchVault is implemented in Task 8');
+  /// Imports a single file, or returns null when it is not valid UTF-8. The
+  /// file is left untouched in that case.
+  Future<Note?> _importOrSkip(File file, {required bool reuseShortId}) async {
+    try {
+      return await _importFile(file, reuseShortId: reuseShortId);
+    } on InvalidNoteEncodingException {
+      return null;
+    }
+  }
+
+  Future<Note> _importFile(File file, {required bool reuseShortId}) async {
+    final vault = await ensureVault();
+    await _ensureUtf8(file);
+
+    final fileName = p.basename(file.path);
+    final format = _formatForPath(file.path);
+    final relativeDir = _relativeDirectoryOf(file.path, vault.path);
+    final title = sanitizeNoteTitle(titleFromNoteFileName(fileName));
+
+    final parsedShortId = reuseShortId ? parseShortId(fileName) : null;
+    Note? existing;
+    String? shortId;
+    if (parsedShortId != null) {
+      existing = await _repository.getByShortId(parsedShortId);
+      shortId = parsedShortId;
+    }
+
+    String? relativePath;
+    File? target;
+    for (var attempt = 0; attempt < 20; attempt++) {
+      shortId ??= await _allocateShortId();
+      final name = buildNoteFileName(
+        title: title,
+        shortId: shortId,
+        format: format,
+      );
+      final candidatePath = relativeDir.isEmpty ? name : '$relativeDir/$name';
+      final candidate = File(p.join(vault.path, candidatePath));
+      if (p.equals(candidate.path, file.path) || !await candidate.exists()) {
+        relativePath = candidatePath;
+        target = candidate;
+        break;
+      }
+      // Another file already owns the canonical name; treat it as a short id
+      // collision and import this file under a fresh identity.
+      existing = null;
+      shortId = null;
+    }
+    if (shortId == null || relativePath == null || target == null) {
+      throw StateError(
+        'Could not allocate a free note filename after 20 tries',
+      );
+    }
+
+    final originalPath = file.path;
+    final renamed = !p.equals(originalPath, target.path);
+    if (renamed) {
+      await file.rename(target.path);
+    }
+
+    try {
+      final stat = await target.stat();
+      if (existing != null) {
+        await _repository.updateFileMeta(
+          existing.id,
+          relativePath: relativePath,
+          title: title,
+          fileMtime: stat.modified,
+          fileSize: stat.size,
+          revive: existing.deletedAt != null,
+        );
+        final note = await _repository.getById(existing.id);
+        if (note == null) {
+          throw StateError('Note ${existing.id} disappeared during import');
+        }
+        return note;
+      }
+
+      final id = const Uuid().v4();
+      await _repository.insertIndex(
+        id: id,
+        shortId: shortId,
+        title: title,
+        format: format,
+        relativePath: relativePath,
+        fileMtime: stat.modified,
+        fileSize: stat.size,
+      );
+      final note = await _repository.getById(id);
+      if (note == null) {
+        throw StateError('Note $id disappeared right after insertion');
+      }
+      return note;
+    } catch (_) {
+      if (renamed) {
+        try {
+          await target.rename(originalPath);
+        } catch (_) {
+          // Reconciliation will notice the dangling index row.
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Recursively lists note files, skipping hidden entries (which covers
+  /// `.trash/`, `.lost/` and `.vault-switch/`), symlinks and non-note files.
+  Future<List<File>> _scanNoteFiles(Directory vault) async {
+    final files = <File>[];
+    await for (final entity in vault.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is! File) continue; // Directories and links are skipped.
+      final segments = p.split(p.relative(entity.path, from: vault.path));
+      if (segments.any((segment) => segment.startsWith('.'))) continue;
+      final extension = p.extension(entity.path).toLowerCase();
+      if (extension != '.md' && extension != '.txt') continue;
+      files.add(entity);
+    }
+    files.sort((a, b) => a.path.compareTo(b.path));
+    return files;
+  }
+
+  Future<void> _ensureUtf8(File file) async {
+    final bytes = await file.readAsBytes();
+    try {
+      utf8.decode(bytes);
+    } on FormatException {
+      throw InvalidNoteEncodingException(file.path);
+    }
+  }
+
+  static NoteFormat _formatForPath(String path) {
+    final extension = p.extension(path).toLowerCase();
+    for (final format in NoteFormat.values) {
+      if ('.${format.extension}' == extension) return format;
+    }
+    throw ArgumentError.value(path, 'file', 'Not a note file (.txt or .md)');
+  }
+
+  /// The file's directory relative to the vault with forward slashes, or an
+  /// empty string for files at the vault root (or outside the vault).
+  static String _relativeDirectoryOf(String filePath, String vaultPath) {
+    if (!p.isWithin(vaultPath, filePath)) return '';
+    final relative = p.relative(filePath, from: vaultPath);
+    final segments = p.split(relative)..removeLast();
+    return segments.join('/');
+  }
+
+  static Future<DateTime> _lastModified(File file) async {
+    final stat = await file.stat();
+    return stat.type == FileSystemEntityType.notFound
+        ? DateTime.fromMillisecondsSinceEpoch(0)
+        : stat.modified;
+  }
+
+  static Future<void> _deleteQuietly(File file) async {
+    try {
+      await file.delete();
+    } catch (_) {
+      // Best effort cleanup only.
+    }
   }
 
   Future<Note> _requireNote(String id) async {

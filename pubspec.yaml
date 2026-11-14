@@ -38,13 +38,14 @@ dev_dependencies:
 
 # package:sqlite3 默认从 GitHub Releases 下载预编译库；Windows 上本机网络无法访问
 # 该地址，改用 Windows 自带的 winsqlite3.dll（Windows 10+ 系统组件）。Android
-# 没有 libsqlite3.so，必须使用默认的预编译库，因此按平台区分。
+# 没有 libsqlite3.so，必须使用下载的预编译库；其他桌面平台维持原有的系统库行为。
 hooks:
   user_defines:
     sqlite3:
       source:
         windows: system
-        default: sqlite3
+        android: sqlite3
+        default: system
       name:
         windows: winsqlite3
         default: sqlite3

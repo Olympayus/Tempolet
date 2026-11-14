@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -146,3 +147,26 @@ final notificationSchedulerProvider = Provider<NotificationScheduler>((ref) {
         (PlatformDispatcher.instance.locale),
   );
 });
+
+/// UI-facing bridge: every event mutation must re-register (or cancel) its
+/// notification immediately — startup reconciliation alone would leave
+/// same-session reminders unscheduled (design spec §3.2).
+class EventNotifierSync {
+  EventNotifierSync(this._ref);
+
+  final Ref _ref;
+
+  void afterCreate(Event event) =>
+      unawaited(_ref.read(notificationSchedulerProvider).syncEvent(event));
+
+  void afterUpdate(Event event) =>
+      unawaited(_ref.read(notificationSchedulerProvider).syncEvent(event));
+
+  void afterDelete(Event event) =>
+      unawaited(_ref.read(notificationSchedulerProvider).cancelEvent(event));
+
+  void afterCompletion(Event event) => afterUpdate(event);
+}
+
+final eventNotifierSyncProvider =
+    Provider<EventNotifierSync>(EventNotifierSync.new);

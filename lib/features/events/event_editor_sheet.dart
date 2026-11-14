@@ -7,6 +7,7 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/utils/dates.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../notifications/notification_scheduler.dart';
 import '../settings/notification_prefs.dart';
 import 'event_draft.dart';
 
@@ -189,6 +190,12 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
         reminderOffsetMinutes: _offset,
       );
     }
+    final sync = ref.read(eventNotifierSyncProvider);
+    if (existing != null) {
+      sync.afterUpdate(result);
+    } else {
+      sync.afterCreate(result);
+    }
     if (mounted) Navigator.of(context).pop(result);
   }
 
@@ -196,6 +203,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     final existing = widget.existing;
     if (existing == null) return;
     await ref.read(eventRepositoryProvider).softDelete(existing.id);
+    ref.read(eventNotifierSyncProvider).afterDelete(existing);
     if (mounted) Navigator.of(context).pop();
   }
 

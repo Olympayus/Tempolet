@@ -8,6 +8,7 @@ import '../../core/utils/dates.dart';
 import '../../data/database/database.dart';
 import '../../data/models/event_status.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../notifications/notification_scheduler.dart';
 import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
@@ -57,9 +58,12 @@ class _DayViewState extends ConsumerState<DayView> {
   }
 
   Future<void> _complete(Event event) async {
-    await ref
-        .read(eventRepositoryProvider)
-        .setCompleted(event.id, !event.isCompleted);
+    final repo = ref.read(eventRepositoryProvider);
+    await repo.setCompleted(event.id, !event.isCompleted);
+    final updated = await repo.getById(event.id);
+    if (updated != null) {
+      ref.read(eventNotifierSyncProvider).afterCompletion(updated);
+    }
   }
 
   @override

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -17,6 +18,22 @@ class FlutterLocalNotificationsService implements NotificationService {
   final FlutterLocalNotificationsPlugin _plugin;
   final Map<int, Timer> _fallbackTimers = {};
   void Function(String payload)? _onTap;
+
+  /// Lightweight runtime log (temp dir) — Windows toast delivery is hard to
+  /// observe after the fact, so scheduling and callback events are recorded.
+  static void _log(String message) {
+    try {
+      final file =
+          File('${Directory.systemTemp.path}${Platform.pathSeparator}tempolet-notify.log');
+      file.writeAsStringSync(
+        '${DateTime.now().toIso8601String()} $message\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+    } catch (_) {
+      // Logging must never break notifications.
+    }
+  }
 
   @override
   Future<void> initialize({required void Function(String payload) onTap}) async {
@@ -44,11 +61,13 @@ class FlutterLocalNotificationsService implements NotificationService {
       settings: settings,
       onDidReceiveNotificationResponse: (response) {
         final payload = response.payload;
+        _log('tap payload=$payload');
         if (payload != null && payload.isNotEmpty) {
           _onTap?.call(payload);
         }
       },
     );
+    _log('initialized (tz=${tz.local.name})');
   }
 
   @override
@@ -100,7 +119,9 @@ class FlutterLocalNotificationsService implements NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: notification.payload,
       );
-    } catch (_) {
+      _log('zonedSchedule ok id=${notification.id} at=$when');
+    } catch (error) {
+      _log('zonedSchedule FAILED id=${notification.id} at=$when error=$error');
       // Fallback: in-process timer plus an immediate toast. Keeps reminders
       // working while the app runs (including in the tray) even if the
       // platform scheduler rejects the request.
@@ -115,6 +136,7 @@ class FlutterLocalNotificationsService implements NotificationService {
 
   @override
   Future<void> showNow(ReminderNotification notification) async {
+    _log('showNow id=${notification.id}');
     await _plugin.show(
       id: notification.id,
       title: notification.title,

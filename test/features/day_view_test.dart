@@ -9,6 +9,8 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/day_view.dart';
 import 'package:tempolet/features/calendar/time_grid.dart';
+import 'package:tempolet/notifications/fake_notification_service.dart';
+import 'package:tempolet/notifications/notification_scheduler.dart';
 
 Future<void> _settle(WidgetTester tester) async {
   await tester.runAsync(
@@ -67,6 +69,8 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           databaseProvider.overrideWithValue(db),
+          notificationServiceProvider
+              .overrideWithValue(FakeNotificationService()),
         ],
       );
     });

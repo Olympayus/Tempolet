@@ -9,9 +9,12 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/events/event_draft.dart';
 import 'package:tempolet/features/events/event_editor_sheet.dart';
+import 'package:tempolet/notifications/fake_notification_service.dart';
+import 'package:tempolet/notifications/notification_scheduler.dart';
 
 late AppDatabase _db;
 late ProviderContainer _container;
+late FakeNotificationService _fake;
 
 Future<void> _pumpHost(
   WidgetTester tester, {
@@ -20,14 +23,17 @@ Future<void> _pumpHost(
   int? startMinute,
   int? endMinute,
   EventKind? initialKind,
+  Map<String, Object> prefsValues = const {},
 }) async {
-  SharedPreferences.setMockInitialValues({});
+  SharedPreferences.setMockInitialValues(prefsValues);
   final prefs = await SharedPreferences.getInstance();
   _db = AppDatabase(NativeDatabase.memory());
+  _fake = FakeNotificationService();
   _container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       databaseProvider.overrideWithValue(_db),
+      notificationServiceProvider.overrideWithValue(_fake),
     ],
   );
   addTearDown(() async {
@@ -156,6 +162,8 @@ void main() {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         databaseProvider.overrideWithValue(db),
+        notificationServiceProvider
+            .overrideWithValue(FakeNotificationService()),
       ],
     );
     addTearDown(() async {
@@ -214,6 +222,8 @@ void main() {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         databaseProvider.overrideWithValue(db),
+        notificationServiceProvider
+            .overrideWithValue(FakeNotificationService()),
       ],
     );
     addTearDown(() async {
@@ -252,5 +262,33 @@ void main() {
     final rows = await tester.runAsync(() => _db.select(_db.events).get());
     expect(rows!, hasLength(1));
     expect(rows.single.deletedAt, isNotNull);
+  });
+
+  testWidgets('saving a future reminder registers a notification',
+      (tester) async {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    await _pumpHost(
+      tester,
+      date: tomorrow,
+      startMinute: 540,
+      initialKind: EventKind.reminder,
+      prefsValues: {'default_remind_offset': 5},
+    );
+
+    await tester.enterText(
+        find.byKey(const ValueKey('editor-title')), 'Remind me');
+    await tester.ensureVisible(find.byKey(const ValueKey('editor-save')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('editor-save')));
+    await tester.pumpAndSettle();
+
+    final rows = await tester.runAsync(() => _db.select(_db.events).get());
+    expect(rows!, hasLength(1));
+    expect(_fake.scheduled, hasLength(1));
+    expect(_fake.scheduled.single.payload, startsWith('event:'));
+    expect(
+      _fake.scheduled.single.at,
+      DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 8, 55),
+    );
   });
 }

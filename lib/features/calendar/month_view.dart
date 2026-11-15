@@ -1,432 +1,296 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
-import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../core/utils/dates.dart';
+import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
+import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
 import 'calendar_state.dart';
+import 'category_marker.dart';
 import 'month_model.dart';
+import 'month_preview_dialog.dart';
 
-/// Monday-first grid, always 42 cells (6 weeks × 7 days).
-List<DateTime?> monthGridDays(DateTime month) {
-  final first = firstDayOfMonth(month);
-  final start = first.subtract(Duration(days: first.weekday - 1));
-  return List<DateTime?>.generate(42, (i) => start.add(Duration(days: i)));
-}
-
-class MonthView extends ConsumerStatefulWidget {
-  const MonthView({super.key, this.month, this.onNewEvent});
-
-  /// Displayed month; defaults to the month of the selected day.
-  final DateTime? month;
-  final VoidCallback? onNewEvent;
+/// Current-month grid: only real dates of the selected month, with blank
+/// leading/trailing cells and no hovering summary (`docs/design/03-calendar.md`
+/// §1). A single click opens [MonthPreviewDialog]; a double click selects the
+/// day and opens the sidebar.
+class MonthView extends ConsumerWidget {
+  const MonthView({super.key});
 
   @override
-  ConsumerState<MonthView> createState() => _MonthViewState();
-}
-
-class _MonthViewState extends ConsumerState<MonthView> {
-  late DateTime _month;
-
-  @override
-  void initState() {
-    super.initState();
-    _month = firstDayOfMonth(widget.month ?? ref.read(selectedDayProvider));
-  }
-
-  void _shiftMonth(int delta) {
-    setState(() => _month = DateTime(_month.year, _month.month + delta, 1));
-  }
-
-  void _goToday() {
-    final today = dateOnly(DateTime.now());
-    setState(() => _month = firstDayOfMonth(today));
-    ref.read(selectedDayProvider.notifier).select(today);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
-    final days = monthGridDays(_month);
-    final rangeStart = days.first!;
-    final rangeEnd = days.last!.add(const Duration(days: 1));
-    final eventsAsync =
-        ref.watch(eventsInRangeProvider((start: rangeStart, end: rangeEnd)));
-    final holidaysAsync = ref.watch(holidaysProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
+    final locale = Localizations.localeOf(context);
     final selected = ref.watch(selectedDayProvider);
+    final weeks = monthWeeks(selected);
+    final rangeStart = DateTime(selected.year, selected.month, 1);
+    final rangeEnd = DateTime(selected.year, selected.month + 1, 1);
+    final events =
+        ref
+            .watch(eventsInRangeProvider((start: rangeStart, end: rangeEnd)))
+            .value ??
+        const <Event>[];
+    final categories =
+        ref.watch(allCategoriesProvider).value ?? const <Category>[];
     final today = dateOnly(DateTime.now());
-    final viewMode = ref.watch(calendarViewModeProvider);
 
     final eventsByDay = <DateTime, List<Event>>{};
-    for (final event in eventsAsync.value ?? const <Event>[]) {
+    for (final event in events) {
       eventsByDay.putIfAbsent(dateOnly(event.date), () => []).add(event);
     }
-    final holidaysByDay = <DateTime, String>{
-      for (final holiday in holidaysAsync.value ?? const <Holiday>[])
-        dateOnly(holiday.date): holiday.name,
-    };
 
-    final narrow = MediaQuery.sizeOf(context).width < 560;
-    final monthTitle = Text(
-      DateFormat.yMMMM(locale).format(_month),
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w600),
-    );
-    final segmented = SegmentedButton<CalendarViewMode>(
-      segments: [
-        ButtonSegment(value: CalendarViewMode.month, label: Text(l10n.month)),
-        ButtonSegment(value: CalendarViewMode.week, label: Text(l10n.week)),
-        ButtonSegment(value: CalendarViewMode.day, label: Text(l10n.day)),
-      ],
-      selected: {viewMode},
-      showSelectedIcon: false,
-      onSelectionChanged: (selection) =>
-          ref.read(calendarViewModeProvider.notifier).set(selection.first),
-    );
+    void openPreview(DateTime day) {
+      showDialog<void>(
+        context: context,
+        builder: (_) => MonthPreviewDialog(day: day),
+      );
+    }
+
+    void openSidebar(DateTime day) {
+      ref.read(selectedDayProvider.notifier).select(day);
+      ref.read(sidebarPreferenceProvider.notifier).set(true);
+    }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Flexible(child: monthTitle),
-              const SizedBox(width: 4),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_left, size: 20),
-                onPressed: () => _shiftMonth(-1),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_right, size: 20),
-                onPressed: () => _shiftMonth(1),
-              ),
-              const Spacer(),
-              if (!narrow) ...[
-                segmented,
-                const SizedBox(width: 8),
-              ],
-              TextButton(onPressed: _goToday, child: Text(l10n.today)),
-              const SizedBox(width: 4),
-              IconButton.filledTonal(
-                tooltip: l10n.newEvent,
-                icon: const Icon(Icons.add, size: 18),
-                onPressed: widget.onNewEvent,
-              ),
-            ],
-          ),
-          if (narrow)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Align(alignment: Alignment.centerLeft, child: segmented),
-            ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              for (var i = 0; i < 7; i++)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      DateFormat.E(locale)
-                          .format(DateTime(2024, 1, 1 + i)),
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelSmall
-                          ?.copyWith(color: Theme.of(context).colorScheme.outline),
+          SizedBox(
+            height: 24,
+            child: Row(
+              children: [
+                for (var i = 0; i < 7; i++)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        AppFormats.weekday(locale, DateTime(2024, 1, 1 + i)),
+                        style: AppTextStyles.caption.copyWith(
+                          color: palette.sub,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 4),
           Expanded(
-            child: Column(
-              children: [
-                for (var row = 0; row < 6; row++)
-                  Expanded(
-                    child: Row(
-                      children: [
-                        for (var col = 0; col < 7; col++)
-                          Expanded(
-                            child: _DayCell(
-                              day: days[row * 7 + col]!,
-                              inMonth: days[row * 7 + col]!.month == _month.month,
-                              isToday:
-                                  dateOnly(days[row * 7 + col]!) == today,
-                              isSelected:
-                                  dateOnly(days[row * 7 + col]!) == selected,
-                              events:
-                                  eventsByDay[dateOnly(days[row * 7 + col]!)] ??
-                                      const [],
-                              holidayName:
-                                  holidaysByDay[dateOnly(days[row * 7 + col]!)],
-                              onTap: () {
-                                final day = dateOnly(days[row * 7 + col]!);
-                                ref
-                                    .read(selectedDayProvider.notifier)
-                                    .select(day);
-                                ref
-                                    .read(calendarViewModeProvider.notifier)
-                                    .set(CalendarViewMode.day);
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DayCell extends StatefulWidget {
-  const _DayCell({
-    required this.day,
-    required this.inMonth,
-    required this.isToday,
-    required this.isSelected,
-    required this.events,
-    required this.onTap,
-    this.holidayName,
-  });
-
-  final DateTime day;
-  final bool inMonth;
-  final bool isToday;
-  final bool isSelected;
-  final List<Event> events;
-  final String? holidayName;
-  final VoidCallback onTap;
-
-  @override
-  State<_DayCell> createState() => _DayCellState();
-}
-
-class _DayCellState extends State<_DayCell> {
-  final _link = LayerLink();
-  final _controller = OverlayPortalController();
-
-  String _keyDate() =>
-      '${widget.day.year}-${widget.day.month.toString().padLeft(2, '0')}-${widget.day.day.toString().padLeft(2, '0')}';
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    final shown = widget.events.take(2).toList();
-    final overflow = widget.events.length - shown.length;
-
-    return CompositedTransformTarget(
-      link: _link,
-      child: MouseRegion(
-        onEnter: (_) => _controller.show(),
-        onExit: (_) => _controller.hide(),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: OverlayPortal(
-            controller: _controller,
-            overlayChildBuilder: (context) => IgnorePointer(
-              child: CompositedTransformFollower(
-                link: _link,
-                showWhenUnlinked: false,
-                offset: const Offset(6, 6),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: _DaySummaryCard(
-                    day: widget.day,
-                    events: widget.events,
-                  ),
-                ),
-              ),
-            ),
             child: Container(
-              key: ValueKey('day-${_keyDate()}'),
-              margin: const EdgeInsets.all(1.5),
-              padding: const EdgeInsets.fromLTRB(4, 3, 4, 2),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: widget.isSelected
-                    ? scheme.primary.withValues(alpha: .07)
-                    : null,
-                border: Border.all(
-                  color: scheme.outlineVariant.withValues(alpha:
-                      widget.isSelected ? .9 : .45),
+                border: Border(
+                  top: BorderSide(color: palette.lineStrong),
+                  left: BorderSide(color: palette.lineStrong),
                 ),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 18,
-                        height: 18,
-                        alignment: Alignment.center,
-                        decoration: widget.isToday
-                            ? BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: scheme.primary,
-                              )
-                            : null,
-                        child: Text(
-                          '${widget.day.day}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: widget.isToday
-                                ? scheme.onPrimary
-                                : widget.inMonth
-                                    ? scheme.onSurface
-                                    : scheme.outline,
-                          ),
-                        ),
+                  for (final week in weeks)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          for (final day in week)
+                            Expanded(
+                              child: day == null
+                                  ? _GridBlank(palette: palette)
+                                  : _DayCell(
+                                      day: day,
+                                      isToday: day == today,
+                                      isSelected: day == selected,
+                                      events:
+                                          eventsByDay[day] ?? const <Event>[],
+                                      categories: categories,
+                                      palette: palette,
+                                      onTap: () => openPreview(day),
+                                      onDoubleTap: () => openSidebar(day),
+                                    ),
+                            ),
+                        ],
                       ),
-                    ],
-                  ),
-                  if (widget.holidayName != null)
-                    Text(
-                      widget.holidayName!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 8.5, color: scheme.error),
-                    ),
-                  const Spacer(),
-                  for (final event in shown)
-                    Text(
-                      _eventLine(event, l10n),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: event.isCompleted
-                            ? scheme.outline
-                            : scheme.onSurfaceVariant,
-                        decoration: event.isCompleted
-                            ? TextDecoration.lineThrough
-                            : null,
-                      ),
-                    ),
-                  if (overflow > 0)
-                    Text(
-                      l10n.moreItems(overflow),
-                      style: TextStyle(fontSize: 9, color: scheme.outline),
                     ),
                 ],
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+String _dateKey(DateTime day) =>
+    '${day.year}-${day.month.toString().padLeft(2, '0')}-'
+    '${day.day.toString().padLeft(2, '0')}';
+
+BoxDecoration _cellBorder(AppPalette palette) => BoxDecoration(
+  border: Border(
+    right: BorderSide(color: palette.lineStrong),
+    bottom: BorderSide(color: palette.lineStrong),
+  ),
+);
+
+/// Empty leading/trailing cell; it still draws its share of the table rules.
+class _GridBlank extends StatelessWidget {
+  const _GridBlank({required this.palette});
+
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(decoration: _cellBorder(palette));
+}
+
+class _DayCell extends StatelessWidget {
+  const _DayCell({
+    required this.day,
+    required this.isToday,
+    required this.isSelected,
+    required this.events,
+    required this.categories,
+    required this.palette,
+    required this.onTap,
+    required this.onDoubleTap,
+  });
+
+  final DateTime day;
+  final bool isToday;
+  final bool isSelected;
+  final List<Event> events;
+  final List<Category> categories;
+  final AppPalette palette;
+  final VoidCallback onTap;
+  final VoidCallback onDoubleTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = events.take(2).toList();
+    final hasOverflow = events.length > shown.length;
+
+    return GestureDetector(
+      key: ValueKey('day-${_dateKey(day)}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onDoubleTap: onDoubleTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(5, 4, 5, 3),
+        decoration: _cellBorder(palette),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DayNumber(
+              day: day,
+              isToday: isToday,
+              isSelected: isSelected,
+              palette: palette,
+            ),
+            const SizedBox(height: 2),
+            for (final event in shown)
+              _EventRow(
+                event: event,
+                color: categoryMarkerColor(event.categoryId, categories),
+                palette: palette,
+              ),
+            if (hasOverflow)
+              Text(
+                '…',
+                key: ValueKey('month-more-${_dateKey(day)}'),
+                style: AppTextStyles.caption.copyWith(
+                  color: palette.sub,
+                  letterSpacing: 1,
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
-
-  static String _eventLine(Event event, AppLocalizations l10n) {
-    final minute = event.startMinute;
-    if (minute == null) return '${l10n.allDay} ${event.title}';
-    return '${formatMinuteOfDay(minute)} ${event.title}';
-  }
 }
 
-class _DaySummaryCard extends StatelessWidget {
-  const _DaySummaryCard({required this.day, required this.events});
+class _DayNumber extends StatelessWidget {
+  const _DayNumber({
+    required this.day,
+    required this.isToday,
+    required this.isSelected,
+    required this.palette,
+  });
 
   final DateTime day;
-  final List<Event> events;
+  final bool isToday;
+  final bool isSelected;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
-    final shown = events.take(5).toList();
-    final hidden = events.length - shown.length;
+    final decoration = isToday
+        ? BoxDecoration(shape: BoxShape.circle, color: palette.accent)
+        : isSelected
+        ? BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: palette.accent, width: 1.5),
+          )
+        : null;
 
     return Container(
-      key: const ValueKey('day-summary-popover'),
-      width: 216,
-      padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x2214141E),
-            blurRadius: 16,
-            offset: Offset(0, 6),
-          ),
-        ],
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: decoration,
+      child: Text(
+        '${day.day}',
+        style: AppTextStyles.caption.copyWith(
+          color: isToday ? Colors.white : palette.ink,
+          fontWeight: FontWeight.w600,
+        ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+class _EventRow extends StatelessWidget {
+  const _EventRow({
+    required this.event,
+    required this.color,
+    required this.palette,
+  });
+
+  final Event event;
+  final Color color;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = event.startMinute;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
         children: [
-          Text(
-            DateFormat.MMMMd(locale).format(day),
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurface,
+          CategoryMarker(kind: event.kind, color: color),
+          const SizedBox(width: 4),
+          if (start != null) ...[
+            Text(
+              formatMinuteOfDay(start),
+              style: AppTextStyles.caption.copyWith(
+                color: palette.sub,
+                fontSize: 10,
+              ),
+            ),
+            const SizedBox(width: 3),
+          ],
+          Expanded(
+            child: Text(
+              event.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(color: palette.ink),
             ),
           ),
-          const SizedBox(height: 5),
-          if (events.isEmpty)
-            Text(
-              l10n.noEvents,
-              style: TextStyle(fontSize: 10.5, color: scheme.outline),
-            )
-          else
-            for (final event in shown)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 1.5),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 3,
-                      height: 12,
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: event.kind == 'plan'
-                            ? scheme.primary.withValues(alpha: .55)
-                            : scheme.tertiary,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        _DayCellState._eventLine(event, l10n),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          if (hidden > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Text(
-                l10n.hoverMoreItems(hidden),
-                style: TextStyle(fontSize: 10, color: scheme.outline),
-              ),
-            ),
         ],
       ),
     );

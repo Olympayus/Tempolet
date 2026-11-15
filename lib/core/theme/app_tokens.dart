@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+/// Neutral category colour for events without a category
+/// (`docs/design/01-tokens.md` §1.3). Identical in light and dark themes.
+const Color kUncategorizedColor = Color(0xFFC7C7CC);
+
 /// Semantic palette from `docs/design/01-tokens.md`.
 ///
 /// UI code reads tokens through this class (or `Theme.of`), never hex.

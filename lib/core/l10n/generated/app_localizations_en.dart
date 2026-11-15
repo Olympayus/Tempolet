@@ -257,6 +257,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addReminderOrPlan => '＋ Add reminder or plan';
 
   @override
+  String get editInSidebar => 'Edit in sidebar ›';
+
+  @override
   String get completedTitle => 'Completed';
 
   @override

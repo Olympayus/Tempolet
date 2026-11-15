@@ -256,6 +256,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addReminderOrPlan => '＋ 添加提醒或计划';
 
   @override
+  String get editInSidebar => '在侧栏中编辑 ›';
+
+  @override
   String get completedTitle => '已完成';
 
   @override

@@ -566,6 +566,12 @@ abstract class AppLocalizations {
   /// **'＋ Add reminder or plan'**
   String get addReminderOrPlan;
 
+  /// No description provided for @editInSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit in sidebar ›'**
+  String get editInSidebar;
+
   /// No description provided for @completedTitle.
   ///
   /// In en, this message translates to:

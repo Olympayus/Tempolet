@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_tokens.dart';
 import '../../core/utils/dates.dart';
 
 /// Vertical scale of the time grid. Shared by day and week views.
-const double kHourHeight = 56;
+const double kHourHeight = 34;
 
 double minuteToY(int minute) => minute * kHourHeight / 60;
 
@@ -20,8 +21,11 @@ int yToMinute(double dy) => snapMinutes((dy * 60 / kHourHeight).round());
 /// Number of whole hours shown in the full-day grid.
 const int kHoursInDay = 24;
 
-/// Vertical offset of the default viewport (08:00).
-const double kDefaultScrollOffset = 8 * kHourHeight;
+/// Width of the hour-label gutter along the left edge of the time grid.
+const double kAxisGutter = 34;
+
+/// Vertical offset of the default viewport (07:00).
+const double kDefaultScrollOffset = 7 * kHourHeight;
 
 /// Full-height grid canvas with hour rules and labels, used by the day and
 /// week views.
@@ -29,7 +33,7 @@ class HourGrid extends StatelessWidget {
   const HourGrid({
     super.key,
     this.labelBuilder,
-    this.gutterWidth = 48,
+    this.gutterWidth = kAxisGutter,
   });
 
   final Widget Function(BuildContext context, int hour)? labelBuilder;
@@ -37,7 +41,12 @@ class HourGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
     return SizedBox(
       height: kHoursInDay * kHourHeight,
       child: Stack(
@@ -59,12 +68,8 @@ class HourGrid extends StatelessWidget {
                           : Text(
                               '${hour.toString().padLeft(2, '0')}:00',
                               textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: scheme.outline,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures()
-                                ],
+                              style: AppTextStyles.caption.copyWith(
+                                color: palette.sub,
                               ),
                             ),
                     ),
@@ -73,7 +78,9 @@ class HourGrid extends StatelessWidget {
                     child: Divider(
                       height: 1,
                       thickness: 0.6,
-                      color: scheme.outlineVariant.withValues(alpha: .5),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: .5,
+                      ),
                     ),
                   ),
                 ],

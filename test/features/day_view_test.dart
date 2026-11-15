@@ -33,12 +33,12 @@ Widget _app(AppDatabase db, ProviderContainer container, Widget child) {
 void main() {
   group('time grid maths', () {
     test('minuteToY maps one hour to one kHourHeight', () {
-      expect(minuteToY(60), 56);
-      expect(minuteToY(8 * 60), 8 * 56);
+      expect(minuteToY(60), 34);
+      expect(minuteToY(8 * 60), 8 * 34);
     });
 
     test('yToMinute inverts minuteToY', () {
-      expect(yToMinute(56), 60);
+      expect(yToMinute(34), 60);
       expect(yToMinute(0), 0);
     });
 
@@ -94,7 +94,7 @@ void main() {
       );
     }
 
-    testWidgets('starts scrolled to 08:00', (tester) async {
+    testWidgets('starts scrolled to the default viewport', (tester) async {
       await tester.pumpWidget(
           _app(db, container, DayView(day: DateTime(2026, 11, 11))));
       await _settle(tester);

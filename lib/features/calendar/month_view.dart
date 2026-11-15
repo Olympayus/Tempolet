@@ -7,9 +7,7 @@ import '../../core/utils/dates.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/event_repository.dart';
 import 'calendar_state.dart';
-
-DateTime firstDayOfMonth(DateTime month) =>
-    DateTime(month.year, month.month, 1);
+import 'month_model.dart';
 
 /// Monday-first grid, always 42 cells (6 weeks × 7 days).
 List<DateTime?> monthGridDays(DateTime month) {

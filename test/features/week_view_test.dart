@@ -66,7 +66,7 @@ void main() {
     expect(find.byKey(const ValueKey('week-day-2026-11-11')), findsOneWidget);
   });
 
-  testWidgets('starts scrolled to 08:00', (tester) async {
+  testWidgets('starts scrolled to the default viewport', (tester) async {
     await tester.pumpWidget(
       _app(container, WeekView(weekStart: DateTime(2026, 11, 11))),
     );

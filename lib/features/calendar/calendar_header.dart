@@ -15,7 +15,11 @@ import 'calendar_state.dart';
 /// new item and the sidebar toggle) so those controls never disappear when
 /// the body switches views.
 class CalendarHeader extends ConsumerWidget {
-  const CalendarHeader({super.key});
+  const CalendarHeader({super.key, this.onToggleSidebar});
+
+  /// Flips the user's explicit sidebar choice to the opposite of the
+  /// width-aware effective state owned by the page.
+  final VoidCallback? onToggleSidebar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,12 +183,9 @@ class CalendarHeader extends ConsumerWidget {
             IconButton(
               key: const ValueKey('calendar-sidebar-toggle'),
               tooltip: l10n.toggleSidebar,
-              // Minimal wiring for now; the sidebar task flips the effective
-              // (width-aware) state instead of the raw preference.
-              onPressed: () {
-                final open = ref.read(sidebarPreferenceProvider) ?? false;
-                ref.read(sidebarPreferenceProvider.notifier).set(!open);
-              },
+              // The page owns the width-aware effective state; the header
+              // only flips the user's explicit choice.
+              onPressed: onToggleSidebar,
               icon: const Icon(LucideIcons.panelRight, size: 18),
               color: palette.sub,
               padding: EdgeInsets.zero,

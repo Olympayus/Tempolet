@@ -5,10 +5,15 @@ import 'calendar_header.dart';
 import 'calendar_state.dart';
 import 'day_view.dart';
 import 'month_view.dart';
+import 'sidebar.dart';
 import 'week_view.dart';
 
 /// Cross-fade length between calendar views (`docs/design/08-motion.md`).
 const kCalendarViewFadeDuration = Duration(milliseconds: 120);
+
+/// Below this window width the sidebar defaults to collapsed
+/// (`docs/design/02-shell-desktop.md` §6).
+const kSidebarBreakpoint = 1180;
 
 class CalendarPage extends ConsumerWidget {
   const CalendarPage({super.key});
@@ -26,19 +31,46 @@ class CalendarPage extends ConsumerWidget {
 
     return Scaffold(
       key: const ValueKey('calendar-page'),
-      body: Column(
-        children: [
-          // The header stays outside the switcher: it must not cross-fade.
-          const CalendarHeader(),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: reduceMotion
-                  ? Duration.zero
-                  : kCalendarViewFadeDuration,
-              child: KeyedSubtree(key: ValueKey(mode), child: body),
-            ),
-          ),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // An explicit choice always wins; the width only supplies the
+          // default until the user first toggles the sidebar.
+          final preference = ref.watch(sidebarPreferenceProvider);
+          final sidebarOpen =
+              preference ?? (constraints.maxWidth >= kSidebarBreakpoint);
+          // Day view owns its own 216px stats rail and hides the toggle
+          // (`docs/design/02-shell-desktop.md` §4, decision D38).
+          final showSidebar = sidebarOpen && mode != CalendarViewMode.day;
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    // The header stays outside the switcher: it must not
+                    // cross-fade.
+                    CalendarHeader(
+                      onToggleSidebar: () => ref
+                          .read(sidebarPreferenceProvider.notifier)
+                          .set(!sidebarOpen),
+                    ),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: reduceMotion
+                            ? Duration.zero
+                            : kCalendarViewFadeDuration,
+                        child: KeyedSubtree(key: ValueKey(mode), child: body),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (showSidebar)
+                const CalendarSidebar(key: ValueKey('calendar-sidebar')),
+            ],
+          );
+        },
       ),
     );
   }

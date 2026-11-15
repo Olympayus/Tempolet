@@ -102,6 +102,12 @@ void main() {
   testWidgets('double click selects the day and opens the sidebar', (
     tester,
   ) async {
+    // Wide enough to host the 280px sidebar (the engine default 800px sits
+    // below the app's 960px minimum and would squeeze the header).
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 

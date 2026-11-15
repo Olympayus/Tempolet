@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' show Rect, Size;
 
 import 'package:flutter/foundation.dart';
@@ -52,23 +53,30 @@ Rect? decodeWindowBounds(String? raw) {
 }
 
 /// Moves [bounds] fully inside [virtualDesktopEnvelope], preserving its size.
-Rect clampWindowBounds(Rect bounds) => Rect.fromLTWH(
-  bounds.left.clamp(
+/// Never throws: bounds larger than the envelope pin their leading edge to the
+/// envelope edge instead of producing an inverted `clamp` range.
+Rect clampWindowBounds(Rect bounds) {
+  final maxLeft = math.max(
     virtualDesktopEnvelope.left,
     virtualDesktopEnvelope.right - bounds.width,
-  ),
-  bounds.top.clamp(
+  );
+  final maxTop = math.max(
     virtualDesktopEnvelope.top,
     virtualDesktopEnvelope.bottom - bounds.height,
-  ),
-  bounds.width,
-  bounds.height,
-);
+  );
+  return Rect.fromLTWH(
+    bounds.left.clamp(virtualDesktopEnvelope.left, maxLeft),
+    bounds.top.clamp(virtualDesktopEnvelope.top, maxTop),
+    bounds.width,
+    bounds.height,
+  );
+}
 
 /// Pure restore rule: accepts saved bounds only when they are finite, at
-/// least [minimumWindowSize] and intersect the virtual desktop (otherwise a
-/// disconnected monitor could strand the window). Accepted bounds are clamped
-/// fully back on-screen.
+/// least [minimumWindowSize], no larger than the virtual desktop (a corrupted
+/// saved size must not crash the clamp) and intersect the virtual desktop
+/// (otherwise a disconnected monitor could strand the window). Accepted bounds
+/// are clamped fully back on-screen.
 Rect? restoreWindowBounds(Rect? saved) {
   if (saved == null) return null;
   if (!saved.left.isFinite ||
@@ -79,6 +87,10 @@ Rect? restoreWindowBounds(Rect? saved) {
   }
   if (saved.width < minimumWindowSize.width ||
       saved.height < minimumWindowSize.height) {
+    return null;
+  }
+  if (saved.width > virtualDesktopEnvelope.width ||
+      saved.height > virtualDesktopEnvelope.height) {
     return null;
   }
   if (saved.intersect(virtualDesktopEnvelope).isEmpty) return null;
@@ -150,6 +162,30 @@ class WindowService {
   }
 }
 
+/// Runs the close sequence after the native close callback. Persistence is
+/// best-effort: a failed bounds write must never leave the window un-closable
+/// while `setPreventClose(true)` is active. Window effects are injected so the
+/// sequence is testable without touching window_manager.
+Future<void> runWindowClose({
+  required Future<void> Function() persistBounds,
+  required bool Function() minimizeToTray,
+  required Future<void> Function() onHidden,
+  required Future<void> Function() hideWindow,
+  required Future<void> Function() destroyWindow,
+}) async {
+  try {
+    await persistBounds();
+  } catch (error, stackTrace) {
+    debugPrint('Window bounds persist failed: $error\n$stackTrace');
+  }
+  if (shouldHideOnClose(minimizeToTray())) {
+    await hideWindow();
+    await onHidden();
+  } else {
+    await destroyWindow();
+  }
+}
+
 class _CloseListener extends WindowListener {
   _CloseListener({
     required this.minimizeToTray,
@@ -168,15 +204,13 @@ class _CloseListener extends WindowListener {
     unawaited(_close());
   }
 
-  Future<void> _close() async {
-    await persistBounds();
-    if (shouldHideOnClose(minimizeToTray())) {
-      await windowManager.hide();
-      await onHidden();
-    } else {
-      await windowManager.destroy();
-    }
-  }
+  Future<void> _close() => runWindowClose(
+    persistBounds: persistBounds,
+    minimizeToTray: minimizeToTray,
+    onHidden: onHidden,
+    hideWindow: windowManager.hide,
+    destroyWindow: windowManager.destroy,
+  );
 }
 
 /// Applies the startup-registration setting to Windows.

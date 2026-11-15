@@ -71,9 +71,15 @@ Future<void> runTempolet() async {
     await tray.initialize(
       onShow: window.showWindow,
       onQuit: () async {
-        await tray.dispose();
-        await window.persistBounds();
-        await windowManager.destroy();
+        try {
+          await tray.dispose();
+          await window.persistBounds();
+        } catch (error, stackTrace) {
+          // Quitting must succeed even if the tray or bounds write fails.
+          debugPrint('Tray quit preparation failed: $error\n$stackTrace');
+        } finally {
+          await windowManager.destroy();
+        }
       },
       showLabel: l10n.trayShow,
       quitLabel: l10n.trayQuit,

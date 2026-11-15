@@ -52,6 +52,7 @@ void main() {
         notificationServiceProvider.overrideWithValue(
           FakeNotificationService(),
         ),
+        todayProvider.overrideWithValue(DateTime(2026, 11, 11)),
       ],
     );
     container.read(selectedDayProvider.notifier).select(DateTime(2026, 11, 11));

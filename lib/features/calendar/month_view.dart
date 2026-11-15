@@ -41,7 +41,7 @@ class MonthView extends ConsumerWidget {
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
     final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
-    final today = dateOnly(DateTime.now());
+    final today = dateOnly(ref.watch(todayProvider));
 
     final eventsByDay = <DateTime, List<Event>>{};
     for (final event in events) {

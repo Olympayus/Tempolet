@@ -83,8 +83,63 @@ void main() {
       );
     });
 
+    test('restore falls back for sizes larger than the virtual desktop', () {
+      // A corrupted persisted size must not reach the clamp (inverted range).
+      expect(
+        restoreWindowBounds(const Rect.fromLTWH(0, 0, 40000, 40000)),
+        isNull,
+      );
+      expect(
+        restoreWindowBounds(const Rect.fromLTWH(-40000, -40000, 40000, 40000)),
+        isNull,
+      );
+    });
+
+    test('clamp never throws for bounds larger than the envelope', () {
+      final clamped = clampWindowBounds(
+        const Rect.fromLTWH(0, 0, 40000, 40000),
+      );
+
+      expect(clamped.size, const Size(40000, 40000));
+      expect(clamped.left, virtualDesktopEnvelope.left);
+      expect(clamped.top, virtualDesktopEnvelope.top);
+    });
+
     test('restore falls back to null for missing bounds', () {
       expect(restoreWindowBounds(null), isNull);
+    });
+  });
+
+  group('window close sequence', () {
+    test('failing persistence still hides to tray', () async {
+      var hidden = false;
+      var onHiddenCalled = false;
+
+      await runWindowClose(
+        persistBounds: () async => throw StateError('prefs unavailable'),
+        minimizeToTray: () => true,
+        onHidden: () async => onHiddenCalled = true,
+        hideWindow: () async => hidden = true,
+        destroyWindow: () async => fail('destroy must not run when hiding'),
+      );
+
+      expect(hidden, isTrue);
+      expect(onHiddenCalled, isTrue);
+    });
+
+    test('failing persistence still destroys when minimize-to-tray is off',
+        () async {
+      var destroyed = false;
+
+      await runWindowClose(
+        persistBounds: () async => throw StateError('prefs unavailable'),
+        minimizeToTray: () => false,
+        onHidden: () async => fail('onHidden must not run when destroying'),
+        hideWindow: () async => fail('hide must not run when destroying'),
+        destroyWindow: () async => destroyed = true,
+      );
+
+      expect(destroyed, isTrue);
     });
   });
 }

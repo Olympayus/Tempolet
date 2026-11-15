@@ -4,6 +4,10 @@ import '../../core/prefs.dart';
 import '../../core/utils/dates.dart';
 import 'month_model.dart';
 
+/// The wall clock used to highlight "today". Overridden in tests so goldens do
+/// not depend on the calendar date they run on.
+final todayProvider = Provider<DateTime>((ref) => DateTime.now());
+
 enum CalendarViewMode { month, week, day }
 
 final calendarViewModeProvider =

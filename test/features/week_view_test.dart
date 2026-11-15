@@ -52,19 +52,19 @@ void main() {
   late AppDatabase db;
   late ProviderContainer container;
   late EventRepository repo;
+  late FakeNotificationService notifications;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     db = AppDatabase(NativeDatabase.memory());
     repo = EventRepository(db);
+    notifications = FakeNotificationService();
     container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         databaseProvider.overrideWithValue(db),
-        notificationServiceProvider.overrideWithValue(
-          FakeNotificationService(),
-        ),
+        notificationServiceProvider.overrideWithValue(notifications),
       ],
     );
   });
@@ -80,6 +80,7 @@ void main() {
     String kind = 'reminder',
     int startMinute = 540,
     int? endMinute,
+    int? reminderOffsetMinutes,
   }) {
     return repo.create(
       title: title,
@@ -87,10 +88,18 @@ void main() {
       date: day,
       startMinute: startMinute,
       endMinute: endMinute,
+      reminderOffsetMinutes: reminderOffsetMinutes,
     );
   }
 
   Future<void> pumpWeek(WidgetTester tester, DateTime day) async {
+    // The app's minimum desktop width is 960px; the engine default 800px
+    // leaves 109px columns where the reminder card's checkbox + time cannot
+    // fit.
+    tester.view.physicalSize = const Size(1000, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     container.read(selectedDayProvider.notifier).select(day);
     await tester.pumpWidget(_app(container, const WeekView()));
     await _settle(tester);
@@ -272,6 +281,63 @@ void main() {
       final rows = await tester.runAsync(() => repo.getById(plan.id));
       expect(rows!.startMinute, 600);
       expect(rows.endMinute, 660);
+    });
+
+    testWidgets('dragging a plan re-registers its notification at the new time',
+        (tester) async {
+      final day = DateTime(2030, 1, 2);
+      final plan = await seed(
+        title: 'Notify me',
+        day: day,
+        kind: 'plan',
+        startMinute: 540,
+        endMinute: 600,
+        reminderOffsetMinutes: 10,
+      );
+      await pumpWeek(tester, day);
+
+      await tester.drag(
+        find.byKey(ValueKey('week-plan-${plan.id}')),
+        const Offset(0, 34),
+      );
+      await _settle(tester);
+
+      expect(notifications.scheduled, hasLength(1));
+      expect(
+        notifications.scheduled.single.at,
+        DateTime(2030, 1, 2, 9, 50),
+      );
+    });
+
+    testWidgets('completing a week reminder removes it from the grid', (
+      tester,
+    ) async {
+      final reminder = await seed(
+        title: 'Week reminder',
+        day: DateTime(2026, 11, 11),
+        startMinute: 750,
+      );
+      await pumpWeek(tester, DateTime(2026, 11, 11));
+
+      expect(
+        find.byKey(ValueKey('reminder-${reminder.id}')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(ValueKey('complete-${reminder.id}')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(ValueKey('complete-${reminder.id}')));
+      await tester.pump(const Duration(milliseconds: 150));
+      await _settle(tester);
+
+      expect(
+        find.byKey(ValueKey('reminder-${reminder.id}')),
+        findsNothing,
+      );
+      final rows = await tester.runAsync(() => repo.getById(reminder.id));
+      expect(rows!.isCompleted, isTrue);
     });
 
     testWidgets('dragging the bottom edge resizes the plan end', (

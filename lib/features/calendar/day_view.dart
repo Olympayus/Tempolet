@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,6 +15,7 @@ import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
 import 'category_marker.dart';
+import 'lane_layout.dart';
 import 'now_line.dart';
 import 'plan_block.dart';
 import 'reminder_card.dart';
@@ -104,63 +106,95 @@ class _DayViewState extends ConsumerState<DayView> {
                 ? AppPalette.light
                 : AppPalette.dark)
             .withAccent(theme.colorScheme.primary);
+    final plans = [
+      for (final event in events)
+        if (event.kind == EventKind.plan.dbValue) event,
+    ];
+    final lanes = assignLanes([
+      for (final plan in plans)
+        TimeRange(
+          id: plan.id,
+          start: plan.startMinute ?? 0,
+          end: plan.endMinute,
+        ),
+    ]);
 
     return SingleChildScrollView(
       key: const ValueKey('day-scroll'),
       controller: _scroll,
       child: SizedBox(
         height: kHoursInDay * kHourHeight,
-        child: Stack(
-          children: [
-            const Positioned.fill(child: HourGrid()),
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (details) {
-                  final minute = _minuteAt(details.localPosition.dy);
-                  _openCreate(kind: EventKind.reminder, start: minute);
-                },
-                onVerticalDragStart: (details) {
-                  setState(() {
-                    _dragStartMinute = _minuteAt(details.localPosition.dy);
-                    _dragCurrentMinute = _dragStartMinute;
-                  });
-                },
-                onVerticalDragUpdate: (details) {
-                  setState(() {
-                    _dragCurrentMinute = _minuteAt(details.localPosition.dy);
-                  });
-                },
-                onVerticalDragEnd: (_) {
-                  final start = _dragStartMinute;
-                  final current = _dragCurrentMinute;
-                  setState(() {
-                    _dragStartMinute = null;
-                    _dragCurrentMinute = null;
-                  });
-                  if (start == null || current == null) return;
-                  final selection = selectionFromDrag(start, current);
-                  if (selection.end - selection.start < 5) {
-                    // A tiny drag is a tap in disguise.
-                    _openCreate(
-                      kind: EventKind.reminder,
-                      start: selection.start,
-                    );
-                    return;
-                  }
-                  _openCreate(
-                    kind: EventKind.plan,
-                    start: selection.start,
-                    end: selection.end,
-                  );
-                },
-              ),
-            ),
-            if (_dragStartMinute != null && _dragCurrentMinute != null)
-              _dragPreview(palette),
-            for (final event in events) ..._eventLayers(event, today),
-            if (isToday) const NowLine(key: ValueKey('day-now-line')),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final laneTotal = laneCount(lanes);
+            final trackWidth = constraints.maxWidth - kAxisGutter - 10;
+            final laneUnit = laneTotal == 0
+                ? trackWidth
+                : trackWidth / laneTotal;
+            return Stack(
+              children: [
+                const Positioned.fill(child: HourGrid()),
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    // Begin the range at the press point, not after the drag
+                    // slop, so a 34px drag from 09:00 really means 09:00–10:00.
+                    dragStartBehavior: DragStartBehavior.down,
+                    onTapUp: (details) {
+                      final minute = _minuteAt(details.localPosition.dy);
+                      _openCreate(kind: EventKind.reminder, start: minute);
+                    },
+                    onVerticalDragStart: (details) {
+                      setState(() {
+                        _dragStartMinute = _minuteAt(details.localPosition.dy);
+                        _dragCurrentMinute = _dragStartMinute;
+                      });
+                    },
+                    onVerticalDragUpdate: (details) {
+                      setState(() {
+                        _dragCurrentMinute = _minuteAt(
+                          details.localPosition.dy,
+                        );
+                      });
+                    },
+                    onVerticalDragEnd: (_) {
+                      final start = _dragStartMinute;
+                      final current = _dragCurrentMinute;
+                      setState(() {
+                        _dragStartMinute = null;
+                        _dragCurrentMinute = null;
+                      });
+                      if (start == null || current == null) return;
+                      final selection = selectionFromDrag(start, current);
+                      if (selection.end - selection.start < 5) {
+                        // A tiny drag is a tap in disguise.
+                        _openCreate(
+                          kind: EventKind.reminder,
+                          start: selection.start,
+                        );
+                        return;
+                      }
+                      _openCreate(
+                        kind: EventKind.plan,
+                        start: selection.start,
+                        end: selection.end,
+                      );
+                    },
+                  ),
+                ),
+                if (_dragStartMinute != null && _dragCurrentMinute != null)
+                  _dragPreview(palette),
+                for (final event in events)
+                  ..._eventLayers(
+                    event,
+                    today,
+                    lane: lanes[event.id] ?? 0,
+                    unit: laneUnit,
+                  ),
+                if (isToday) const NowLine(key: ValueKey('day-now-line')),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -186,7 +220,12 @@ class _DayViewState extends ConsumerState<DayView> {
     );
   }
 
-  List<Widget> _eventLayers(Event event, DateTime today) {
+  List<Widget> _eventLayers(
+    Event event,
+    DateTime today, {
+    required int lane,
+    required double unit,
+  }) {
     if (event.kind == EventKind.plan.dbValue) {
       final start = event.startMinute ?? 0;
       final end = event.endMinute ?? start + 30;
@@ -194,33 +233,41 @@ class _DayViewState extends ConsumerState<DayView> {
       final height = (minuteToY(end) - top).clamp(16.0, kHoursInDay * kHourHeight);
       final currentStart =
           _draggingId == event.id ? (_dragCurrentStart ?? start) : start;
+      final width = unit - 2 <= 1 ? 1.0 : unit - 2;
       return [
         Positioned(
-          left: kAxisGutter,
-          right: 10,
+          left: kAxisGutter + lane * unit + 1,
+          width: width,
           top: minuteToY(currentStart),
           height: height,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onPanStart: (_) {
+            // Start at the touch point so the whole 34px drag counts; with the
+            // default post-slop start, ~20px of the move is discarded.
+            dragStartBehavior: DragStartBehavior.down,
+            // Vertical drag rather than pan: inside the scrolling grid the
+            // scrollable's vertical recognizer wins any pan arena, so a child
+            // vertical recognizer is what keeps block moves on the block.
+            onVerticalDragStart: (_) {
               setState(() {
                 _draggingId = event.id;
                 _dragCurrentStart = start;
                 _dragAccumulated = 0;
               });
             },
-            onPanUpdate: (details) {
+            onVerticalDragUpdate: (details) {
               _dragAccumulated += details.delta.dy * 60 / kHourHeight;
               if (_dragAccumulated.abs() < 5) return;
               final delta = _dragAccumulated.round();
+              final latestStart = (1440 - (end - start)).clamp(0, 1440);
               setState(() {
                 _dragCurrentStart =
                     snapMinutes((_dragCurrentStart ?? start) + delta)
-                        .clamp(0, 1430);
+                        .clamp(0, latestStart);
               });
               _dragAccumulated -= delta;
             },
-            onPanEnd: (_) => _commitPlanMove(event, start, end),
+            onVerticalDragEnd: (_) => _commitPlanMove(event, start, end),
             child: PlanBlock(
               key: ValueKey('plan-${event.id}'),
               event: event,
@@ -277,6 +324,7 @@ class _DayViewState extends ConsumerState<DayView> {
       updatedAt: DateTime.now(),
     );
     await ref.read(eventRepositoryProvider).updateEvent(updated);
+    ref.read(eventNotifierSyncProvider).afterUpdate(updated);
   }
 }
 

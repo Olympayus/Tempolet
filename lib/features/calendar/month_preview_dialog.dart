@@ -55,6 +55,9 @@ class MonthPreviewDialog extends ConsumerWidget {
           autofocus: true,
           child: Container(
             width: 340,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .8,
+            ),
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             decoration: BoxDecoration(
               color: palette.card,
@@ -136,23 +139,37 @@ class MonthPreviewDialog extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Container(height: 1, color: palette.line),
                 const SizedBox(height: 6),
-                if (events.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      l10n.noEvents,
-                      style: AppTextStyles.secondary.copyWith(
-                        color: palette.sub,
-                      ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    key: const ValueKey('month-preview-scroll'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (events.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              l10n.noEvents,
+                              style: AppTextStyles.secondary.copyWith(
+                                color: palette.sub,
+                              ),
+                            ),
+                          )
+                        else
+                          for (final event in events)
+                            _PreviewRow(
+                              key: ValueKey(event.id),
+                              event: event,
+                              color: categoryMarkerColor(
+                                event.categoryId,
+                                categories,
+                              ),
+                            ),
+                      ],
                     ),
-                  )
-                else
-                  for (final event in events)
-                    _PreviewRow(
-                      key: ValueKey(event.id),
-                      event: event,
-                      color: categoryMarkerColor(event.categoryId, categories),
-                    ),
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Container(height: 1, color: palette.line),
                 const SizedBox(height: 4),

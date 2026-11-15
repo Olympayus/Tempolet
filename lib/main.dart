@@ -61,7 +61,7 @@ Future<void> runTempolet() async {
   // order matters — window manager, then tray, then notifications.
   // Mobile targets have none of these plugins, so skip the whole block.
   if (isDesktopTarget(defaultTargetPlatform)) {
-    final window = WindowService();
+    final window = WindowService(prefs: prefs);
     await window.initialize(
       minimizeToTray: () => container.read(minimizeToTrayEnabledProvider),
       onHidden: () async {},
@@ -72,6 +72,7 @@ Future<void> runTempolet() async {
       onShow: window.showWindow,
       onQuit: () async {
         await tray.dispose();
+        await window.persistBounds();
         await windowManager.destroy();
       },
       showLabel: l10n.trayShow,

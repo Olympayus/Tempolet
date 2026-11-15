@@ -13,6 +13,7 @@ import 'package:tempolet/features/calendar/calendar_page.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
 import 'package:tempolet/features/calendar/day_view.dart';
 import 'package:tempolet/features/calendar/time_grid.dart';
+import 'package:tempolet/features/events/fields/segmented_time_field.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -21,6 +22,18 @@ Future<void> _settle(WidgetTester tester) async {
     () => Future<void>.delayed(const Duration(milliseconds: 30)),
   );
   await tester.pumpAndSettle();
+}
+
+/// Reads the time held by the editor's start/end segmented field. Hour-grid
+/// tick labels behind the dialog must not satisfy these assertions.
+String _stepperText(WidgetTester tester, String key) {
+  final field = tester.widget<SegmentedTimeField>(
+    find.descendant(
+      of: find.byKey(ValueKey(key)),
+      matching: find.byType(SegmentedTimeField),
+    ),
+  );
+  return formatMinuteOfDay(field.value!);
 }
 
 Widget _app(ProviderContainer container, Widget home) {
@@ -57,17 +70,19 @@ void main() {
   late AppDatabase db;
   late ProviderContainer container;
   late EventRepository repo;
+  late FakeNotificationService notifications;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     db = AppDatabase(NativeDatabase.memory());
     repo = EventRepository(db);
+    notifications = FakeNotificationService();
     container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         databaseProvider.overrideWithValue(db),
-        notificationServiceProvider.overrideWithValue(FakeNotificationService()),
+        notificationServiceProvider.overrideWithValue(notifications),
       ],
     );
   });
@@ -83,6 +98,7 @@ void main() {
     String kind = 'reminder',
     int startMinute = 540,
     int? endMinute,
+    int? reminderOffsetMinutes,
   }) {
     return repo.create(
       title: title,
@@ -90,6 +106,7 @@ void main() {
       date: day,
       startMinute: startMinute,
       endMinute: endMinute,
+      reminderOffsetMinutes: reminderOffsetMinutes,
     );
   }
 
@@ -131,17 +148,106 @@ void main() {
       await pumpDay(tester, DateTime(2026, 11, 11));
 
       final rect = tester.getRect(find.byKey(const ValueKey('day-scroll')));
+      final offset = tester
+          .widget<SingleChildScrollView>(
+            find.byKey(const ValueKey('day-scroll')),
+          )
+          .controller!
+          .offset;
       final x = rect.center.dx;
-      final startY = rect.top + (minuteToY(9 * 60) - kDefaultScrollOffset);
+      final startY = rect.top + (minuteToY(9 * 60) - offset);
 
       await tester.dragFrom(Offset(x, startY), const Offset(0, 34));
       await _settle(tester);
 
       expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
-      // Only plans expose an end time in the editor.
+      // Only plans expose an end time in the editor. The hour-grid ticks
+      // behind the dialog also read 09:00/10:00, so read the editor's own
+      // steppers to prove the drag range was prefilled.
       expect(find.byKey(const ValueKey('end-stepper')), findsOneWidget);
-      expect(find.text('09:00'), findsWidgets);
-      expect(find.text('10:00'), findsWidgets);
+      expect(_stepperText(tester, 'start-stepper'), '09:00');
+      expect(_stepperText(tester, 'end-stepper'), '10:00');
+    });
+
+    testWidgets('dragging a plan to the bottom clamps its end to midnight', (
+      tester,
+    ) async {
+      final plan = await seed(
+        title: 'Late plan',
+        day: DateTime(2026, 11, 11),
+        kind: 'plan',
+        startMinute: 540,
+        endMinute: 570,
+      );
+      await pumpDay(tester, DateTime(2026, 11, 11));
+
+      await tester.drag(
+        find.byKey(ValueKey('plan-${plan.id}')),
+        const Offset(0, 600),
+      );
+      await _settle(tester);
+
+      final rows = await tester.runAsync(() => repo.getById(plan.id));
+      expect(rows!.startMinute, 1410);
+      expect(rows.endMinute, 1440);
+    });
+
+    testWidgets('dragging a plan re-registers its notification at the new time',
+        (tester) async {
+      final day = DateTime(2030, 1, 2);
+      final plan = await seed(
+        title: 'Notify me',
+        day: day,
+        kind: 'plan',
+        startMinute: 540,
+        endMinute: 600,
+        reminderOffsetMinutes: 10,
+      );
+      await pumpDay(tester, day);
+
+      await tester.drag(
+        find.byKey(ValueKey('plan-${plan.id}')),
+        const Offset(0, 34),
+      );
+      await _settle(tester);
+
+      expect(notifications.scheduled, hasLength(1));
+      expect(
+        notifications.scheduled.single.at,
+        DateTime(2030, 1, 2, 9, 50),
+      );
+    });
+
+    testWidgets('overlapping plans split into lanes', (tester) async {
+      final first = await seed(
+        title: 'LaneOne',
+        day: DateTime(2026, 11, 11),
+        kind: 'plan',
+        startMinute: 540,
+        endMinute: 600,
+      );
+      final second = await seed(
+        title: 'LaneTwo',
+        day: DateTime(2026, 11, 11),
+        kind: 'plan',
+        startMinute: 540,
+        endMinute: 600,
+      );
+      await pumpDay(tester, DateTime(2026, 11, 11));
+
+      final timeline = tester.getRect(
+        find.byKey(const ValueKey('day-scroll')),
+      );
+      final firstRect = tester.getRect(
+        find.byKey(ValueKey('plan-${first.id}')),
+      );
+      final secondRect = tester.getRect(
+        find.byKey(ValueKey('plan-${second.id}')),
+      );
+
+      expect(firstRect.width, closeTo(secondRect.width, 0.1));
+      expect(firstRect.width, lessThan(timeline.width));
+      expect(firstRect.left, isNot(closeTo(secondRect.left, 0.1)));
     });
 
     testWidgets('tapping a plan opens the editor dialog', (tester) async {

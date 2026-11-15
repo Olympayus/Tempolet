@@ -246,4 +246,40 @@ void main() {
     final completed = await tester.runAsync(() => repo.getById(alpha.id));
     expect(completed!.isCompleted, isTrue);
   });
+
+  testWidgets('long days scroll inside the dialog and keep actions reachable', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(500, 360);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (var i = 0; i < 9; i++) {
+      await repo.create(
+        title: 'Extra$i',
+        kind: 'reminder',
+        date: DateTime(2026, 11, 11),
+        startMinute: 480 + i * 15,
+      );
+    }
+
+    await openPreview(tester, DateTime(2026, 11, 11));
+
+    expect(find.byKey(const ValueKey('month-preview-scroll')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Extra8'),
+      50,
+      scrollable: find.descendant(
+        of: find.byKey(const ValueKey('month-preview-scroll')),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    expect(find.text('Extra8'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    // The footer stays pinned while the rows scroll, so it remains tappable.
+    await tester.tap(find.byKey(const ValueKey('preview-edit-sidebar')));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+  });
 }

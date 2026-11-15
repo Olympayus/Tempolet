@@ -9,6 +9,7 @@ import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/models/event_status.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../notifications/notification_scheduler.dart';
 import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
@@ -447,10 +448,24 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
         key: ValueKey('reminder-${event.id}'),
         event: event,
         overdue: eventStatus(event, widget.today) == EventStatus.overdue,
-        showCheckbox: false,
+        showCheckbox: true,
         onTap: () => showEventEditor(context, existing: event),
+        onComplete: _completion(event),
       ),
     );
+  }
+
+  /// Captures the repository and sync bridge while building, before the
+  /// card's 120ms fade, so a mid-fade dismissal can neither lose the write
+  /// nor touch `ref` after disposal.
+  Future<void> Function() _completion(Event event) {
+    final repo = ref.read(eventRepositoryProvider);
+    final sync = ref.read(eventNotifierSyncProvider);
+    final completed = event.copyWith(isCompleted: true);
+    return () async {
+      await repo.setCompleted(event.id, true);
+      sync.afterCompletion(completed);
+    };
   }
 
   Widget _createPreview() {
@@ -551,6 +566,7 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
       updatedAt: DateTime.now(),
     );
     await ref.read(eventRepositoryProvider).updateEvent(updated);
+    ref.read(eventNotifierSyncProvider).afterUpdate(updated);
   }
 }
 

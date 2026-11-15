@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app_shell.dart';
 import '../../features/calendar/calendar_page.dart';
+import '../../features/completed/completed_page.dart';
 import '../../features/settings/settings_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -18,6 +19,14 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/calendar',
                 builder: (context, state) => const CalendarPage(),
+                routes: [
+                  // Nested so the icon rail and shell survive; the spec's
+                  // `/completed` is short-form.
+                  GoRoute(
+                    path: 'completed',
+                    builder: (context, state) => const CompletedPage(),
+                  ),
+                ],
               ),
             ],
           ),

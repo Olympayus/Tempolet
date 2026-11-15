@@ -215,17 +215,10 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 30)),
       );
 
-      final events = await tester.runAsync(
-        () => repo.eventsOnDay(DateTime(2026, 11, 11)),
-      );
-      expect(
-        events!.firstWhere((event) => event.id == alpha.id).isCompleted,
-        isTrue,
-      );
-      expect(
-        events.firstWhere((event) => event.id == earlier.id).isCompleted,
-        isFalse,
-      );
+      final completed = await tester.runAsync(() => repo.getById(alpha.id));
+      final open = await tester.runAsync(() => repo.getById(earlier.id));
+      expect(completed!.isCompleted, isTrue);
+      expect(open!.isCompleted, isFalse);
     },
   );
 
@@ -244,12 +237,7 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 30)),
     );
 
-    final events = await tester.runAsync(
-      () => repo.eventsOnDay(DateTime(2026, 11, 11)),
-    );
-    expect(
-      events!.firstWhere((event) => event.id == alpha.id).isCompleted,
-      isTrue,
-    );
+    final completed = await tester.runAsync(() => repo.getById(alpha.id));
+    expect(completed!.isCompleted, isTrue);
   });
 }

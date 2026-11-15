@@ -151,9 +151,7 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey('editor-save')), findsNothing);
-    final events = await tester.runAsync(
-      () => repo.eventsOnDay(DateTime(2026, 11, 11)),
-    );
-    expect(events!.single.isCompleted, isTrue);
+    final completed = await tester.runAsync(() => repo.getById(event.id));
+    expect(completed!.isCompleted, isTrue);
   });
 }

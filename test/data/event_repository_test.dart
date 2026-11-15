@@ -35,8 +35,18 @@ void main() {
 
   test('watchDay sorts by start minute with unscheduled last', () async {
     final day = DateTime(2026, 11, 11);
-    await repo.create(title: 'late', kind: 'reminder', date: day, startMinute: 600);
-    await repo.create(title: 'early', kind: 'reminder', date: day, startMinute: 540);
+    await repo.create(
+      title: 'late',
+      kind: 'reminder',
+      date: day,
+      startMinute: 600,
+    );
+    await repo.create(
+      title: 'early',
+      kind: 'reminder',
+      date: day,
+      startMinute: 540,
+    );
     await repo.create(title: 'all-day', kind: 'plan', date: day);
 
     final events = await repo.watchDay(day).first;
@@ -53,9 +63,11 @@ void main() {
     );
 
     await repo.setCompleted(e.id, true);
-    final reloaded = await repo.watchDay(day).first;
-    expect(reloaded.single.isCompleted, isTrue);
-    expect(reloaded.single.completedAt, isNotNull);
+    // Completed events leave the day queries; the row keeps its completion.
+    expect(await repo.watchDay(day).first, isEmpty);
+    final reloaded = (await repo.getById(e.id))!;
+    expect(reloaded.isCompleted, isTrue);
+    expect(reloaded.completedAt, isNotNull);
 
     await repo.setCompleted(e.id, false);
     final undone = await repo.watchDay(day).first;
@@ -97,11 +109,23 @@ void main() {
 
   test('watchRange only returns events inside the range', () async {
     await repo.create(
-        title: 'before', kind: 'reminder', date: DateTime(2026, 11, 10), startMinute: 540);
+      title: 'before',
+      kind: 'reminder',
+      date: DateTime(2026, 11, 10),
+      startMinute: 540,
+    );
     await repo.create(
-        title: 'inside', kind: 'reminder', date: DateTime(2026, 11, 11), startMinute: 540);
+      title: 'inside',
+      kind: 'reminder',
+      date: DateTime(2026, 11, 11),
+      startMinute: 540,
+    );
     await repo.create(
-        title: 'after', kind: 'reminder', date: DateTime(2026, 11, 12), startMinute: 540);
+      title: 'after',
+      kind: 'reminder',
+      date: DateTime(2026, 11, 12),
+      startMinute: 540,
+    );
 
     final events = await repo
         .watchRange(DateTime(2026, 11, 11), DateTime(2026, 11, 12))

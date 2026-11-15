@@ -151,8 +151,7 @@ class _SegmentedDateFieldState extends State<SegmentedDateField> {
   Widget build(BuildContext context) {
     final p = _palette(context);
     final l10n = AppLocalizations.of(context);
-    final zh = Localizations.localeOf(context).languageCode == 'zh';
-    final units = zh ? const ['年', '月', '日'] : const ['y', 'm', 'd'];
+    final units = [l10n.yearUnit, l10n.monthUnit, l10n.dayUnit];
     final unitStyle = AppTextStyles.caption.copyWith(color: p.sub);
 
     return Shortcuts(

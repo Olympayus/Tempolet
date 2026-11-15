@@ -219,6 +219,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dateLabel => 'Date';
 
   @override
+  String get yearUnit => 'y';
+
+  @override
+  String get monthUnit => 'm';
+
+  @override
+  String get dayUnit => 'd';
+
+  @override
   String get timeLabel => 'Time';
 
   @override
@@ -243,7 +252,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get leadUnitHour => 'h';
 
   @override
-  String get leadUnitMinute => 'm before';
+  String get leadUnitMinute => 'm';
+
+  @override
+  String get leadBeforeSuffix => ' before';
 
   @override
   String itemsCount(int count) {

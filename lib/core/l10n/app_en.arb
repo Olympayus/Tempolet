@@ -101,6 +101,9 @@
   "editItem": "Edit",
   "create": "Create",
   "dateLabel": "Date",
+  "yearUnit": "y",
+  "monthUnit": "m",
+  "dayUnit": "d",
   "timeLabel": "Time",
   "leadLabel": "Remind",
   "categoryLabel": "Category",
@@ -109,7 +112,8 @@
   "custom": "Custom…",
   "leadUnitDay": "d",
   "leadUnitHour": "h",
-  "leadUnitMinute": "m before",
+  "leadUnitMinute": "m",
+  "leadBeforeSuffix": " before",
   "itemsCount": "{count} items",
   "@itemsCount": {
     "placeholders": {

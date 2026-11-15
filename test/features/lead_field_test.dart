@@ -91,4 +91,14 @@ void main() {
     expect(dropdown.value, 90);
     expect(find.text('1h 30m before'), findsOneWidget);
   });
+
+  testWidgets('custom labels keep the before suffix when minutes are zero', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(60, (_) {}));
+    expect(find.text('1h before'), findsOneWidget);
+
+    await tester.pumpWidget(_host(1440, (_) {}));
+    expect(find.text('1d before'), findsOneWidget);
+  });
 }

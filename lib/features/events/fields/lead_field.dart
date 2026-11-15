@@ -134,7 +134,8 @@ class _LeadFieldState extends State<LeadField> {
       if (hour > 0) '$hour${l10n.leadUnitHour}',
       if (minute > 0) '$minute${l10n.leadUnitMinute}',
     ];
-    return parts.join(' ');
+    if (parts.isEmpty) return l10n.remindAtStart;
+    return '${parts.join(' ')}${l10n.leadBeforeSuffix}';
   }
 
   AppPalette _palette(BuildContext context) {

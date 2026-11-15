@@ -494,6 +494,24 @@ abstract class AppLocalizations {
   /// **'Date'**
   String get dateLabel;
 
+  /// No description provided for @yearUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'y'**
+  String get yearUnit;
+
+  /// No description provided for @monthUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'m'**
+  String get monthUnit;
+
+  /// No description provided for @dayUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'d'**
+  String get dayUnit;
+
   /// No description provided for @timeLabel.
   ///
   /// In en, this message translates to:
@@ -545,8 +563,14 @@ abstract class AppLocalizations {
   /// No description provided for @leadUnitMinute.
   ///
   /// In en, this message translates to:
-  /// **'m before'**
+  /// **'m'**
   String get leadUnitMinute;
+
+  /// No description provided for @leadBeforeSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **' before'**
+  String get leadBeforeSuffix;
 
   /// No description provided for @itemsCount.
   ///

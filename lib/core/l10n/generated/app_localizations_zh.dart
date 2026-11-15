@@ -218,6 +218,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dateLabel => '日期';
 
   @override
+  String get yearUnit => '年';
+
+  @override
+  String get monthUnit => '月';
+
+  @override
+  String get dayUnit => '日';
+
+  @override
   String get timeLabel => '时间';
 
   @override
@@ -242,7 +251,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get leadUnitHour => '时';
 
   @override
-  String get leadUnitMinute => '分前';
+  String get leadUnitMinute => '分';
+
+  @override
+  String get leadBeforeSuffix => '前';
 
   @override
   String itemsCount(int count) {

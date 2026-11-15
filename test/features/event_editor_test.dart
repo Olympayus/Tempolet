@@ -275,6 +275,9 @@ void main() {
 
     expect(find.text('重要程度'), findsNothing);
     expect(find.text('新建'), findsOneWidget);
+    expect(find.text('年'), findsOneWidget);
+    expect(find.text('月'), findsOneWidget);
+    expect(find.text('日'), findsOneWidget);
   });
 
   testWidgets('empty title blocks saving and shows an error', (tester) async {

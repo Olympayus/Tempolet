@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 
 DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
+/// Monday of the week containing [date].
+///
+/// Calendar-day arithmetic keeps the result DST-safe.
+DateTime startOfWeek(DateTime date) {
+  final day = dateOnly(date);
+  return DateTime(day.year, day.month, day.day - (day.weekday - 1));
+}
+
 int timeToMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
 
 /// [m] is clamped to 0..1439; 1440 (end of day) maps to 23:59 because
@@ -16,7 +24,6 @@ int snapMinutes(int minute, {int step = 5}) {
   final snapped = ((minute + step ~/ 2) ~/ step) * step;
   return snapped.clamp(0, 1440);
 }
-
 
 /// Formats minutes since midnight as HH:mm, rendering the 1440 sentinel as
 /// 24:00 (used for plan end times).

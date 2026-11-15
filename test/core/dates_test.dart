@@ -8,6 +8,13 @@ void main() {
     expect(dateOnly(DateTime(2026, 1, 1)), DateTime(2026, 1, 1));
   });
 
+  test('startOfWeek returns the Monday of the containing week', () {
+    expect(startOfWeek(DateTime(2026, 11, 11)), DateTime(2026, 11, 9));
+    expect(startOfWeek(DateTime(2026, 11, 15)), DateTime(2026, 11, 9));
+    expect(startOfWeek(DateTime(2026, 11, 9, 23, 59)), DateTime(2026, 11, 9));
+    expect(startOfWeek(DateTime(2026, 1, 1)), DateTime(2025, 12, 29));
+  });
+
   test('timeToMinutes converts a TimeOfDay', () {
     expect(timeToMinutes(const TimeOfDay(hour: 8, minute: 5)), 485);
     expect(timeToMinutes(const TimeOfDay(hour: 0, minute: 0)), 0);

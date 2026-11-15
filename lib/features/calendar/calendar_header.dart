@@ -8,7 +8,6 @@ import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
-import 'week_view.dart';
 
 /// The single header row shared by the month, week and day views.
 ///

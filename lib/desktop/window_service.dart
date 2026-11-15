@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
@@ -10,6 +11,10 @@ import '../core/platform.dart';
 
 /// Pure rule: closing the window hides to tray when the setting is on.
 bool shouldHideOnClose(bool minimizeToTray) => minimizeToTray;
+
+/// Desktop window defaults.
+const Size defaultWindowSize = Size(1280, 820);
+const Size minimumWindowSize = Size(960, 600);
 
 class WindowService {
   WindowService({this.minimizeToTray = _defaultSetting});
@@ -24,6 +29,8 @@ class WindowService {
     required Future<void> Function() onHidden,
   }) async {
     await windowManager.ensureInitialized();
+    await windowManager.setSize(defaultWindowSize);
+    await windowManager.setMinimumSize(minimumWindowSize);
     await windowManager.setPreventClose(true);
     _listener = _CloseListener(
       minimizeToTray: minimizeToTray,

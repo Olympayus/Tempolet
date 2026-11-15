@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/legacy.dart' show windowManager;
 
 import 'app.dart';
+import 'core/l10n/generated/app_localizations.dart';
+import 'core/l10n/locale_controller.dart';
 import 'core/platform.dart';
 import 'core/prefs.dart';
 import 'core/router/app_router.dart';
@@ -28,8 +31,10 @@ Future<void> runTempolet() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
 
-  final service = FlutterLocalNotificationsService();
   late final ProviderContainer container;
+  final service = FlutterLocalNotificationsService(
+    locale: () => _activeLocale(container),
+  );
   await service.initialize(
     onTap: (payload) => _handleNotificationPayload(container, payload),
   );
@@ -62,12 +67,15 @@ Future<void> runTempolet() async {
       onHidden: () async {},
     );
     final tray = TrayService();
+    final l10n = lookupAppLocalizations(_activeLocale(container));
     await tray.initialize(
       onShow: window.showWindow,
       onQuit: () async {
         await tray.dispose();
         await windowManager.destroy();
       },
+      showLabel: l10n.trayShow,
+      quitLabel: l10n.trayQuit,
     );
     await syncLaunchAtStartup(container.read(launchAtStartupEnabledProvider));
   }
@@ -79,6 +87,18 @@ Future<void> runTempolet() async {
   final scheduler = container.read(notificationSchedulerProvider);
   unawaited(scheduler.reconcile());
   _scheduleDailySummary(container);
+}
+
+/// The locale actually shown by the app: the stored preference, otherwise the
+/// platform locale, resolved against the supported locales like MaterialApp.
+Locale _activeLocale(ProviderContainer container) {
+  final locale =
+      container.read(localeControllerProvider) ??
+      PlatformDispatcher.instance.locale;
+  for (final supported in AppLocalizations.supportedLocales) {
+    if (supported.languageCode == locale.languageCode) return supported;
+  }
+  return AppLocalizations.supportedLocales.first;
 }
 
 Future<void> _handleNotificationPayload(

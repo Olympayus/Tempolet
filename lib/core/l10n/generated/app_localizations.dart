@@ -721,6 +721,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sidebar'**
   String get toggleSidebar;
+
+  /// No description provided for @trayShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show main window'**
+  String get trayShow;
+
+  /// No description provided for @trayQuit.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit'**
+  String get trayQuit;
+
+  /// No description provided for @notifActionDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get notifActionDone;
+
+  /// No description provided for @notifActionRemind.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind in 10 minutes'**
+  String get notifActionRemind;
 }
 
 class _AppLocalizationsDelegate

@@ -159,5 +159,9 @@
     }
   },
   "noSchedule": "Nothing scheduled",
-  "toggleSidebar": "Sidebar"
+  "toggleSidebar": "Sidebar",
+  "trayShow": "Show main window",
+  "trayQuit": "Quit",
+  "notifActionDone": "Done",
+  "notifActionRemind": "Remind in 10 minutes"
 }

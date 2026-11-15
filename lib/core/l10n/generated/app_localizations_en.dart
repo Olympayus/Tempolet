@@ -337,4 +337,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get toggleSidebar => 'Sidebar';
+
+  @override
+  String get trayShow => 'Show main window';
+
+  @override
+  String get trayQuit => 'Quit';
+
+  @override
+  String get notifActionDone => 'Done';
+
+  @override
+  String get notifActionRemind => 'Remind in 10 minutes';
 }

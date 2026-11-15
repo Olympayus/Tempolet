@@ -336,4 +336,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get toggleSidebar => '辅助栏';
+
+  @override
+  String get trayShow => '显示主窗口';
+
+  @override
+  String get trayQuit => '退出';
+
+  @override
+  String get notifActionDone => '完成';
+
+  @override
+  String get notifActionRemind => '10 分钟后提醒';
 }

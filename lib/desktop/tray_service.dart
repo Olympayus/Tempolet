@@ -16,16 +16,18 @@ class TrayService {
 
   Future<void> initialize({
     required VoidCallback onShow,
-    required VoidCallback onQuit,
+    required Future<void> Function() onQuit,
+    String showLabel = '显示主窗口',
+    String quitLabel = '退出',
   }) async {
     await _tray.setToolTip('Tempolet');
     await _tray.setIcon('assets/tray_icon.ico');
     await _tray.setContextMenu(
       Menu(
         items: [
-          MenuItem(key: 'show', label: '显示主窗口', onClick: (_) => onShow()),
+          MenuItem(key: 'show', label: showLabel, onClick: (_) => onShow()),
           MenuItem.separator(),
-          MenuItem(key: 'quit', label: '退出', onClick: (_) => onQuit()),
+          MenuItem(key: 'quit', label: quitLabel, onClick: (_) => onQuit()),
         ],
       ),
     );

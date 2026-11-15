@@ -103,5 +103,9 @@
   "plansCount": "{count} 个计划",
   "remindersCount": "{count} 个提醒",
   "noSchedule": "无安排",
-  "toggleSidebar": "辅助栏"
+  "toggleSidebar": "辅助栏",
+  "trayShow": "显示主窗口",
+  "trayQuit": "退出",
+  "notifActionDone": "完成",
+  "notifActionRemind": "10 分钟后提醒"
 }

@@ -7,58 +7,45 @@ import 'package:tempolet/core/prefs.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 
+Future<void> pumpApp(WidgetTester tester) async {
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        eventsInRangeProvider.overrideWith(
+          (ref, arg) => Stream.value(const <Event>[]),
+        ),
+        holidaysProvider.overrideWith((ref) => Stream.value(const <Holiday>[])),
+      ],
+      child: const TempoletApp(),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('boots to the calendar page and navigates to settings',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+  testWidgets('icon rail boots to calendar and switches to settings', (
+    tester,
+  ) async {
+    await pumpApp(tester);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          eventsInRangeProvider
-              .overrideWith((ref, arg) => Stream.value(const <Event>[])),
-          holidaysProvider
-              .overrideWith((ref) => Stream.value(const <Holiday>[])),
-        ],
-        child: const TempoletApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
+    expect(find.byKey(const ValueKey('rail-calendar')), findsOneWidget);
     expect(find.byKey(const ValueKey('calendar-page')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-page')), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.tap(find.byKey(const ValueKey('rail-settings')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('settings-page')), findsOneWidget);
     expect(find.byKey(const ValueKey('calendar-page')), findsNothing);
   });
 
-  testWidgets('uses a compact navigation bar below 600px', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    tester.view.physicalSize = const Size(420, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets('rail is 54px wide', (tester) async {
+    await pumpApp(tester);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          eventsInRangeProvider
-              .overrideWith((ref, arg) => Stream.value(const <Event>[])),
-          holidaysProvider
-              .overrideWith((ref) => Stream.value(const <Holiday>[])),
-        ],
-        child: const TempoletApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.byType(NavigationRail), findsNothing);
+    expect(tester.getSize(find.byKey(const ValueKey('icon-rail'))).width, 54);
   });
 }

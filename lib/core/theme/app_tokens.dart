@@ -15,6 +15,11 @@ const List<BoxShadow> kDialogShadowDark = [
   BoxShadow(color: Color(0x73000000), blurRadius: 40, offset: Offset(0, 14)),
 ];
 
+/// Soft lift for floating reminder cards (`0 2px 6px rgba(0,0,0,.05)`).
+const List<BoxShadow> kCardShadow = [
+  BoxShadow(color: Color(0x0D000000), blurRadius: 6, offset: Offset(0, 2)),
+];
+
 /// Semantic palette from `docs/design/01-tokens.md`.
 ///
 /// UI code reads tokens through this class (or `Theme.of`), never hex.

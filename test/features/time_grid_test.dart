@@ -36,7 +36,11 @@ void main() {
     testWidgets('draws a 5px accent dot and a 1px accent rule', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(body: NowLine(now: DateTime(2026, 11, 15, 9, 30))),
+          home: Scaffold(
+            body: Stack(
+              children: [NowLine(now: DateTime(2026, 11, 15, 9, 30))],
+            ),
+          ),
         ),
       );
 
@@ -61,9 +65,33 @@ void main() {
       expect(rule.color, accent);
     });
 
+    testWidgets('positions itself at its own minute and the axis gutter', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [NowLine(now: DateTime(2026, 11, 15, 9, 30))],
+            ),
+          ),
+        ),
+      );
+
+      final positioned = tester.widget<Positioned>(
+        find.descendant(
+          of: find.byType(NowLine),
+          matching: find.byType(Positioned),
+        ),
+      );
+      expect(positioned.top, minuteToY(9 * 60 + 30));
+      expect(positioned.left, kAxisGutter);
+      expect(positioned.right, 0);
+    });
+
     testWidgets('cancels its minute timer when disposed', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: NowLine())),
+        const MaterialApp(home: Scaffold(body: Stack(children: [NowLine()]))),
       );
       await tester.pump(const Duration(minutes: 1));
 

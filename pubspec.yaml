@@ -56,3 +56,10 @@ flutter:
   assets:
     - assets/tray_icon.ico
     - assets/holidays/2026.json
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+    - family: NotoSansSC
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Variable.ttf

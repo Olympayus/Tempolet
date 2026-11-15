@@ -317,6 +317,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get customColor => 'Custom color';
 
   @override
+  String get confirm => 'OK';
+
+  @override
   String get tomorrowPreview => 'Tomorrow';
 
   @override

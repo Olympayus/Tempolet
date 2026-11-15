@@ -98,6 +98,7 @@
   "openFolder": "打开文件夹 ›",
   "restoreDefault": "恢复默认",
   "customColor": "自定义颜色",
+  "confirm": "确定",
   "tomorrowPreview": "明日",
   "plansCount": "{count} 个计划",
   "remindersCount": "{count} 个提醒",

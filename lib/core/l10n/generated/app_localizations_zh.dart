@@ -316,6 +316,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get customColor => '自定义颜色';
 
   @override
+  String get confirm => '确定';
+
+  @override
   String get tomorrowPreview => '明日';
 
   @override

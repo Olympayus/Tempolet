@@ -686,6 +686,12 @@ abstract class AppLocalizations {
   /// **'Custom color'**
   String get customColor;
 
+  /// No description provided for @confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get confirm;
+
   /// No description provided for @tomorrowPreview.
   ///
   /// In en, this message translates to:

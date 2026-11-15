@@ -140,6 +140,7 @@
   "openFolder": "Open folder ›",
   "restoreDefault": "Restore default",
   "customColor": "Custom color",
+  "confirm": "OK",
   "tomorrowPreview": "Tomorrow",
   "plansCount": "{count} plans",
   "@plansCount": {

@@ -2,9 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/prefs.dart';
 
-/// Default lead time applied when creating an event; null means "no
-/// notification". Stored events always carry a concrete value or null — the
-/// scheduler never falls back to this default (ledger ruling R6).
+/// Default lead time applied when creating an event.
+///
+/// External semantics: `0` = at the start (the factory default), `null` = no
+/// reminder, `N` = N minutes before. Storage keeps that distinction with a
+/// sentinel: an unset key reads as `0`, the raw value `-1` reads as `null`,
+/// and anything else is the stored minute count. Stored events always carry a
+/// concrete value or null — the scheduler never falls back to this default
+/// (ledger ruling R6).
 final defaultReminderOffsetProvider =
     NotifierProvider<DefaultReminderOffsetController, int?>(
   DefaultReminderOffsetController.new,
@@ -12,18 +17,21 @@ final defaultReminderOffsetProvider =
 
 class DefaultReminderOffsetController extends Notifier<int?> {
   static const prefKey = 'default_remind_offset';
+  static const noReminderSentinel = -1;
 
   @override
-  int? build() => ref.watch(sharedPreferencesProvider).getInt(prefKey);
+  int? build() {
+    final raw = ref.watch(sharedPreferencesProvider).getInt(prefKey);
+    if (raw == null) return 0;
+    if (raw == noReminderSentinel) return null;
+    return raw;
+  }
 
   void set(int? minutes) {
     state = minutes;
-    final prefs = ref.read(sharedPreferencesProvider);
-    if (minutes == null) {
-      prefs.remove(prefKey);
-    } else {
-      prefs.setInt(prefKey, minutes);
-    }
+    ref
+        .read(sharedPreferencesProvider)
+        .setInt(prefKey, minutes ?? noReminderSentinel);
   }
 }
 

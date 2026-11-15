@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/desktop/file_reveal.dart';
 import 'package:tempolet/desktop/window_service.dart';
 import 'package:tempolet/features/settings/desktop_prefs.dart';
 
@@ -36,5 +37,13 @@ void main() {
 
     expect(container.read(minimizeToTrayEnabledProvider), isTrue);
     expect(container.read(launchAtStartupEnabledProvider), isFalse);
+  });
+
+  testWidgets('revealing the data folder is a no-op off desktop', (
+    tester,
+  ) async {
+    // The test binding reports TargetPlatform.android, so the platform gate
+    // must return before touching path_provider or the shell.
+    await openDataFolder();
   });
 }

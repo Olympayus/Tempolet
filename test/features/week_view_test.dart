@@ -13,6 +13,7 @@ import 'package:tempolet/features/calendar/calendar_header.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
 import 'package:tempolet/features/calendar/time_grid.dart';
 import 'package:tempolet/features/calendar/week_view.dart';
+import 'package:tempolet/features/events/fields/segmented_time_field.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -35,17 +36,16 @@ Widget _app(ProviderContainer container, Widget child) {
   );
 }
 
-/// Reads the time shown by the editor's start/end stepper. Hour-grid tick
-/// labels behind the dialog must not satisfy these assertions.
+/// Reads the time held by the editor's start/end segmented field. Hour-grid
+/// tick labels behind the dialog must not satisfy these assertions.
 String _stepperText(WidgetTester tester, String key) {
-  return tester
-      .widget<Text>(
-        find.descendant(
-          of: find.byKey(ValueKey(key)),
-          matching: find.byType(Text),
-        ),
-      )
-      .data!;
+  final field = tester.widget<SegmentedTimeField>(
+    find.descendant(
+      of: find.byKey(ValueKey(key)),
+      matching: find.byType(SegmentedTimeField),
+    ),
+  );
+  return formatMinuteOfDay(field.value!);
 }
 
 void main() {

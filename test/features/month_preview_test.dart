@@ -11,6 +11,7 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
 import 'package:tempolet/features/calendar/month_preview_dialog.dart';
+import 'package:tempolet/features/events/fields/segmented_date_field.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -172,7 +173,12 @@ void main() {
     await _settle(tester);
 
     expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
-    expect(find.text('Nov 11, 2026'), findsOneWidget);
+    expect(
+      tester
+          .widget<SegmentedDateField>(find.byKey(const ValueKey('editor-date')))
+          .value,
+      DateTime(2026, 11, 11),
+    );
   });
 
   testWidgets('edit in sidebar closes, selects the day and opens the sidebar', (

@@ -318,6 +318,9 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
           child: GestureDetector(
             key: ValueKey('week-column-${_isoDay(widget.day)}'),
             behavior: HitTestBehavior.opaque,
+            // Begin the range at the press point, not after the drag slop,
+            // so a 34px drag from 09:00 really means 09:00–10:00.
+            dragStartBehavior: DragStartBehavior.down,
             onTapUp: (details) {
               _openCreate(
                 kind: EventKind.reminder,

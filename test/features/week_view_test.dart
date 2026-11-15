@@ -35,6 +35,19 @@ Widget _app(ProviderContainer container, Widget child) {
   );
 }
 
+/// Reads the time shown by the editor's start/end stepper. Hour-grid tick
+/// labels behind the dialog must not satisfy these assertions.
+String _stepperText(WidgetTester tester, String key) {
+  return tester
+      .widget<Text>(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(Text),
+        ),
+      )
+      .data!;
+}
+
 void main() {
   late AppDatabase db;
   late ProviderContainer container;
@@ -163,7 +176,7 @@ void main() {
 
         expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
         expect(find.byKey(const ValueKey('end-stepper')), findsNothing);
-        expect(find.text('09:00'), findsWidgets);
+        expect(_stepperText(tester, 'start-stepper'), '09:00');
       },
     );
 
@@ -183,8 +196,10 @@ void main() {
 
       expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
       expect(find.byKey(const ValueKey('end-stepper')), findsOneWidget);
-      expect(find.text('09:00'), findsWidgets);
-      expect(find.text('10:00'), findsWidgets);
+      // The hour-grid ticks behind the dialog also read 09:00/10:00, so read
+      // the editor's own steppers to prove the drag range was prefilled.
+      expect(_stepperText(tester, 'start-stepper'), '09:00');
+      expect(_stepperText(tester, 'end-stepper'), '10:00');
     });
 
     testWidgets('dragging an empty slot shows the accent selection preview', (
@@ -206,6 +221,14 @@ void main() {
       );
       final decoration = preview.decoration! as BoxDecoration;
       expect(decoration.color!.a, closeTo(.08, 0.001));
+
+      // The preview must start at the press point (09:00) and span the
+      // dragged hour, not begin after the touch slop.
+      final previewRect = tester.getRect(
+        find.byKey(const ValueKey('week-create-preview')),
+      );
+      expect(previewRect.top, closeTo(column.top + minuteToY(9 * 60), 0.5));
+      expect(previewRect.height, closeTo(kHourHeight, 0.5));
 
       await gesture.up();
       await _settle(tester);

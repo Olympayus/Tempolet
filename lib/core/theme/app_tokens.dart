@@ -4,6 +4,17 @@ import 'package:flutter/material.dart';
 /// (`docs/design/01-tokens.md` §1.3). Identical in light and dark themes.
 const Color kUncategorizedColor = Color(0xFFC7C7CC);
 
+/// Floating-window drop shadow (`docs/design/01-tokens.md` §4): a 14px
+/// offset with a 40px blur, softened on paper and deepened in dark mode.
+const List<BoxShadow> kDialogShadow = [
+  BoxShadow(color: Color(0x29000000), blurRadius: 40, offset: Offset(0, 14)),
+];
+
+/// Dark-mode counterpart of [kDialogShadow].
+const List<BoxShadow> kDialogShadowDark = [
+  BoxShadow(color: Color(0x73000000), blurRadius: 40, offset: Offset(0, 14)),
+];
+
 /// Semantic palette from `docs/design/01-tokens.md`.
 ///
 /// UI code reads tokens through this class (or `Theme.of`), never hex.

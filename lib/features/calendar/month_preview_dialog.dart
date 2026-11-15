@@ -58,13 +58,9 @@ class MonthPreviewDialog extends ConsumerWidget {
               color: palette.card,
               borderRadius: BorderRadius.circular(AppRadii.dialog),
               border: Border.all(color: palette.lineStrong),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x29000000),
-                  blurRadius: 40,
-                  offset: Offset(0, 14),
-                ),
-              ],
+              boxShadow: theme.brightness == Brightness.light
+                  ? kDialogShadow
+                  : kDialogShadowDark,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -139,6 +135,7 @@ class MonthPreviewDialog extends ConsumerWidget {
                 else
                   for (final event in events)
                     _PreviewRow(
+                      key: ValueKey(event.id),
                       event: event,
                       color: categoryMarkerColor(event.categoryId, categories),
                     ),
@@ -203,7 +200,7 @@ class MonthPreviewDialog extends ConsumerWidget {
 }
 
 class _PreviewRow extends ConsumerStatefulWidget {
-  const _PreviewRow({required this.event, required this.color});
+  const _PreviewRow({super.key, required this.event, required this.color});
 
   final Event event;
   final Color color;
@@ -217,14 +214,16 @@ class _PreviewRowState extends ConsumerState<_PreviewRow> {
 
   Future<void> _complete() async {
     if (widget.event.isCompleted || _completing) return;
+    // Capture the repository and sync bridge before the fade: the write must
+    // land even if the dialog is closed mid-animation, and `ref` is invalid
+    // once this row is disposed.
+    final repo = ref.read(eventRepositoryProvider);
+    final sync = ref.read(eventNotifierSyncProvider);
     setState(() => _completing = true);
     // Let the 120ms fade read as "done" before the completion is written.
     await Future<void>.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
-    await ref.read(eventRepositoryProvider).setCompleted(widget.event.id, true);
-    ref
-        .read(eventNotifierSyncProvider)
-        .afterCompletion(widget.event.copyWith(isCompleted: true));
+    await repo.setCompleted(widget.event.id, true);
+    sync.afterCompletion(widget.event.copyWith(isCompleted: true));
   }
 
   @override

@@ -187,4 +187,69 @@ void main() {
     expect(container.read(selectedDayProvider), DateTime(2026, 11, 11));
     expect(container.read(sidebarPreferenceProvider), isTrue);
   });
+
+  testWidgets(
+    'completion state follows its event when an earlier row appears',
+    (tester) async {
+      await openPreview(tester, DateTime(2026, 11, 11));
+
+      // Complete the 10:30 row, then insert an 08:00 row above it. Unkeyed rows
+      // would carry the 'completing' state down to a different event.
+      await tester.tap(find.byKey(ValueKey('preview-complete-${bravo.id}')));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+
+      final earlier = await repo.create(
+        title: 'Aardvark',
+        kind: 'reminder',
+        date: DateTime(2026, 11, 11),
+        startMinute: 480,
+      );
+      await _settle(tester);
+
+      await tester.tap(find.byKey(ValueKey('preview-complete-${alpha.id}')));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+
+      final events = await tester.runAsync(
+        () => repo.eventsOnDay(DateTime(2026, 11, 11)),
+      );
+      expect(
+        events!.firstWhere((event) => event.id == alpha.id).isCompleted,
+        isTrue,
+      );
+      expect(
+        events.firstWhere((event) => event.id == earlier.id).isCompleted,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('closing during the fade still writes the completion', (
+    tester,
+  ) async {
+    await openPreview(tester, DateTime(2026, 11, 11));
+
+    await tester.tap(find.byKey(ValueKey('preview-complete-${alpha.id}')));
+    await tester.pump(const Duration(milliseconds: 20));
+    // Tear the dialog down before the 120ms fade finishes; the write must
+    // still happen without touching `ref` after disposal.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 30)),
+    );
+
+    final events = await tester.runAsync(
+      () => repo.eventsOnDay(DateTime(2026, 11, 11)),
+    );
+    expect(
+      events!.firstWhere((event) => event.id == alpha.id).isCompleted,
+      isTrue,
+    );
+  });
 }

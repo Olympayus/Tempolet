@@ -469,6 +469,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Launch at startup'**
   String get launchAtStartup;
+
+  /// No description provided for @newItem.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get newItem;
+
+  /// No description provided for @editItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get editItem;
+
+  /// No description provided for @create.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get create;
+
+  /// No description provided for @dateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get dateLabel;
+
+  /// No description provided for @timeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get timeLabel;
+
+  /// No description provided for @leadLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind'**
+  String get leadLabel;
+
+  /// No description provided for @categoryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get categoryLabel;
+
+  /// No description provided for @uncategorized.
+  ///
+  /// In en, this message translates to:
+  /// **'Uncategorized'**
+  String get uncategorized;
+
+  /// No description provided for @noteOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Note (optional)'**
+  String get noteOptional;
+
+  /// No description provided for @custom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom…'**
+  String get custom;
+
+  /// No description provided for @leadUnitDay.
+  ///
+  /// In en, this message translates to:
+  /// **'d'**
+  String get leadUnitDay;
+
+  /// No description provided for @leadUnitHour.
+  ///
+  /// In en, this message translates to:
+  /// **'h'**
+  String get leadUnitHour;
+
+  /// No description provided for @leadUnitMinute.
+  ///
+  /// In en, this message translates to:
+  /// **'m before'**
+  String get leadUnitMinute;
+
+  /// No description provided for @itemsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} items'**
+  String itemsCount(int count);
+
+  /// No description provided for @viewCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'View completed ›'**
+  String get viewCompleted;
+
+  /// No description provided for @addReminderOrPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'＋ Add reminder or plan'**
+  String get addReminderOrPlan;
+
+  /// No description provided for @completedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get completedTitle;
+
+  /// No description provided for @clear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get clear;
+
+  /// No description provided for @restore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get restore;
+
+  /// No description provided for @todayGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get todayGroup;
+
+  /// No description provided for @yesterdayGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get yesterdayGroup;
+
+  /// No description provided for @earlierGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier'**
+  String get earlierGroup;
+
+  /// No description provided for @deleteForeverHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This cannot be undone'**
+  String get deleteForeverHint;
+
+  /// No description provided for @holidayBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get holidayBadge;
+
+  /// No description provided for @workdayBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Work'**
+  String get workdayBadge;
+
+  /// No description provided for @about.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get about;
+
+  /// No description provided for @version.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get version;
+
+  /// No description provided for @dataLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Data folder'**
+  String get dataLocation;
+
+  /// No description provided for @openFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open folder ›'**
+  String get openFolder;
+
+  /// No description provided for @restoreDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore default'**
+  String get restoreDefault;
+
+  /// No description provided for @customColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom color'**
+  String get customColor;
+
+  /// No description provided for @tomorrowPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Tomorrow'**
+  String get tomorrowPreview;
+
+  /// No description provided for @plansCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} plans'**
+  String plansCount(int count);
+
+  /// No description provided for @remindersCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} reminders'**
+  String remindersCount(int count);
+
+  /// No description provided for @noSchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing scheduled'**
+  String get noSchedule;
+
+  /// No description provided for @toggleSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar'**
+  String get toggleSidebar;
 }
 
 class _AppLocalizationsDelegate

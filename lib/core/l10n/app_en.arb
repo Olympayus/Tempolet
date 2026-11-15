@@ -96,5 +96,62 @@
   },
   "settingsDesktop": "Desktop",
   "closeToTray": "Minimise to tray when closing",
-  "launchAtStartup": "Launch at startup"
+  "launchAtStartup": "Launch at startup",
+  "newItem": "New",
+  "editItem": "Edit",
+  "create": "Create",
+  "dateLabel": "Date",
+  "timeLabel": "Time",
+  "leadLabel": "Remind",
+  "categoryLabel": "Category",
+  "uncategorized": "Uncategorized",
+  "noteOptional": "Note (optional)",
+  "custom": "Custom…",
+  "leadUnitDay": "d",
+  "leadUnitHour": "h",
+  "leadUnitMinute": "m before",
+  "itemsCount": "{count} items",
+  "@itemsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "viewCompleted": "View completed ›",
+  "addReminderOrPlan": "＋ Add reminder or plan",
+  "completedTitle": "Completed",
+  "clear": "Clear",
+  "restore": "Restore",
+  "todayGroup": "Today",
+  "yesterdayGroup": "Yesterday",
+  "earlierGroup": "Earlier",
+  "deleteForeverHint": "This cannot be undone",
+  "holidayBadge": "Off",
+  "workdayBadge": "Work",
+  "about": "About",
+  "version": "Version",
+  "dataLocation": "Data folder",
+  "openFolder": "Open folder ›",
+  "restoreDefault": "Restore default",
+  "customColor": "Custom color",
+  "tomorrowPreview": "Tomorrow",
+  "plansCount": "{count} plans",
+  "@plansCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "remindersCount": "{count} reminders",
+  "@remindersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noSchedule": "Nothing scheduled",
+  "toggleSidebar": "Sidebar"
 }

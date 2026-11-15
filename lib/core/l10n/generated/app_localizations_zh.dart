@@ -204,4 +204,118 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get launchAtStartup => '开机自启';
+
+  @override
+  String get newItem => '新建';
+
+  @override
+  String get editItem => '编辑';
+
+  @override
+  String get create => '创建';
+
+  @override
+  String get dateLabel => '日期';
+
+  @override
+  String get timeLabel => '时间';
+
+  @override
+  String get leadLabel => '提醒';
+
+  @override
+  String get categoryLabel => '分类';
+
+  @override
+  String get uncategorized => '未分类';
+
+  @override
+  String get noteOptional => '备注（可选）';
+
+  @override
+  String get custom => '自定义…';
+
+  @override
+  String get leadUnitDay => '日';
+
+  @override
+  String get leadUnitHour => '时';
+
+  @override
+  String get leadUnitMinute => '分前';
+
+  @override
+  String itemsCount(int count) {
+    return '$count 项';
+  }
+
+  @override
+  String get viewCompleted => '查看已完成 ›';
+
+  @override
+  String get addReminderOrPlan => '＋ 添加提醒或计划';
+
+  @override
+  String get completedTitle => '已完成';
+
+  @override
+  String get clear => '清空';
+
+  @override
+  String get restore => '恢复';
+
+  @override
+  String get todayGroup => '今天';
+
+  @override
+  String get yesterdayGroup => '昨天';
+
+  @override
+  String get earlierGroup => '更早';
+
+  @override
+  String get deleteForeverHint => '删除后无法恢复';
+
+  @override
+  String get holidayBadge => '休';
+
+  @override
+  String get workdayBadge => '班';
+
+  @override
+  String get about => '关于';
+
+  @override
+  String get version => '版本';
+
+  @override
+  String get dataLocation => '数据文件位置';
+
+  @override
+  String get openFolder => '打开文件夹 ›';
+
+  @override
+  String get restoreDefault => '恢复默认';
+
+  @override
+  String get customColor => '自定义颜色';
+
+  @override
+  String get tomorrowPreview => '明日';
+
+  @override
+  String plansCount(int count) {
+    return '$count 个计划';
+  }
+
+  @override
+  String remindersCount(int count) {
+    return '$count 个提醒';
+  }
+
+  @override
+  String get noSchedule => '无安排';
+
+  @override
+  String get toggleSidebar => '辅助栏';
 }

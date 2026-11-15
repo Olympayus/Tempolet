@@ -11,7 +11,9 @@ import 'core/platform.dart';
 import 'core/prefs.dart';
 import 'core/router/app_router.dart';
 import 'core/utils/dates.dart';
+import 'data/holidays/holiday_seed_service.dart';
 import 'data/repositories/event_repository.dart';
+import 'data/repositories/holiday_repository.dart';
 import 'desktop/tray_service.dart';
 import 'desktop/window_service.dart';
 import 'features/calendar/calendar_state.dart';
@@ -39,6 +41,17 @@ Future<void> runTempolet() async {
     ],
   );
 
+  // Import the bundled holiday data once per version. A failure here must not
+  // keep the calendar from opening.
+  try {
+    await HolidaySeedService(
+      repository: container.read(holidayRepositoryProvider),
+      prefs: prefs,
+    ).seedIfNeeded(assetPath: 'assets/holidays/2026.json', version: '2026');
+  } catch (error, stackTrace) {
+    debugPrint('Holiday seed failed: $error\n$stackTrace');
+  }
+
   // Desktop chrome: window close behaviour and the tray. Initialisation
   // order matters — window manager, then tray, then notifications.
   // Mobile targets have none of these plugins, so skip the whole block.
@@ -60,10 +73,7 @@ Future<void> runTempolet() async {
   }
 
   runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const TempoletApp(),
-    ),
+    UncontrolledProviderScope(container: container, child: const TempoletApp()),
   );
 
   final scheduler = container.read(notificationSchedulerProvider);

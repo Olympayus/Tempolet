@@ -38,6 +38,8 @@ class MonthPreviewDialog extends ConsumerWidget {
         ref.watch(eventsForDayProvider(date)).value ?? const <Event>[];
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
+    final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
+    final holiday = _holidayOn(holidays, date);
     final isToday = date == dateOnly(DateTime.now());
 
     void close() => Navigator.of(context).pop();
@@ -69,9 +71,21 @@ class MonthPreviewDialog extends ConsumerWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        '${AppFormats.monthDay(locale, date)} '
-                        '${AppFormats.weekday(locale, date)}',
+                      child: Text.rich(
+                        TextSpan(
+                          text:
+                              '${AppFormats.monthDay(locale, date)} '
+                              '${AppFormats.weekday(locale, date)}',
+                          children: [
+                            if (holiday != null)
+                              TextSpan(
+                                text: ' · ${holiday.name}',
+                                style: AppTextStyles.headline.copyWith(
+                                  color: palette.festival,
+                                ),
+                              ),
+                          ],
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.headline.copyWith(
@@ -305,4 +319,12 @@ class _PreviewRowState extends ConsumerState<_PreviewRow> {
       ),
     );
   }
+}
+
+Holiday? _holidayOn(List<Holiday> holidays, DateTime day) {
+  final target = dateOnly(day);
+  for (final holiday in holidays) {
+    if (dateOnly(holiday.date) == target) return holiday;
+  }
+  return null;
 }

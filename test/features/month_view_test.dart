@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,6 +84,34 @@ void main() {
     expect(find.textContaining('E3'), findsNothing);
     expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
     expect(find.textContaining('Oct'), findsNothing);
+  });
+
+  testWidgets('holiday info shares the day row and keeps both event rows', (
+    tester,
+  ) async {
+    await db
+        .into(db.holidays)
+        .insert(
+          HolidaysCompanion.insert(
+            date: DateTime(2026, 11, 11),
+            name: 'Test Holiday',
+            isWorkday: const Value(false),
+            source: const Value('seed'),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+    await seed('E1', startMinute: 540);
+    await seed('E2', startMinute: 600);
+    await seed('E3', startMinute: 660);
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    expect(find.text('Test Holiday'), findsOneWidget);
+    expect(find.text('Off'), findsOneWidget);
+    expect(find.text('E1'), findsOneWidget);
+    expect(find.text('E2'), findsOneWidget);
+    expect(find.text('E3'), findsNothing);
+    expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
   });
 
   testWidgets('single click opens preview without changing view mode', (

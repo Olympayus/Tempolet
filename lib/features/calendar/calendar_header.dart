@@ -6,6 +6,7 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
+import '../../data/database/database.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
 
@@ -42,6 +43,12 @@ class CalendarHeader extends ConsumerWidget {
       ),
       CalendarViewMode.day => AppFormats.dayTitle(locale, selected),
     };
+    // Only the day view's date title names the festival
+    // (`docs/design/03-calendar.md` D36).
+    final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
+    final holiday = mode == CalendarViewMode.day
+        ? _holidayOn(holidays, selected)
+        : null;
 
     void shift(int delta) {
       final days = ref.read(selectedDayProvider.notifier);
@@ -63,8 +70,19 @@ class CalendarHeader extends ConsumerWidget {
             child: Row(
               children: [
                 Flexible(
-                  child: Text(
-                    title,
+                  child: Text.rich(
+                    TextSpan(
+                      text: title,
+                      children: [
+                        if (holiday != null)
+                          TextSpan(
+                            text: ' · ${holiday.name}',
+                            style: AppTextStyles.title.copyWith(
+                              color: palette.festival,
+                            ),
+                          ),
+                      ],
+                    ),
                     key: const ValueKey('calendar-title'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -197,4 +215,12 @@ class CalendarHeader extends ConsumerWidget {
       ),
     );
   }
+}
+
+Holiday? _holidayOn(List<Holiday> holidays, DateTime day) {
+  final target = dateOnly(day);
+  for (final holiday in holidays) {
+    if (dateOnly(holiday.date) == target) return holiday;
+  }
+  return null;
 }

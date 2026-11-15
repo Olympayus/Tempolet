@@ -9,6 +9,7 @@ import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
 import 'calendar_state.dart';
 import 'category_marker.dart';
+import 'holiday_badge.dart';
 import 'month_model.dart';
 import 'month_preview_dialog.dart';
 
@@ -39,12 +40,16 @@ class MonthView extends ConsumerWidget {
         const <Event>[];
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
+    final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
     final today = dateOnly(DateTime.now());
 
     final eventsByDay = <DateTime, List<Event>>{};
     for (final event in events) {
       eventsByDay.putIfAbsent(dateOnly(event.date), () => []).add(event);
     }
+    final holidayByDay = <DateTime, Holiday>{
+      for (final holiday in holidays) dateOnly(holiday.date): holiday,
+    };
 
     void openPreview(DateTime day) {
       showDialog<void>(
@@ -105,6 +110,7 @@ class MonthView extends ConsumerWidget {
                                       isSelected: day == selected,
                                       events:
                                           eventsByDay[day] ?? const <Event>[],
+                                      holiday: holidayByDay[day],
                                       categories: categories,
                                       palette: palette,
                                       onTap: () => openPreview(day),
@@ -152,6 +158,7 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.events,
+    required this.holiday,
     required this.categories,
     required this.palette,
     required this.onTap,
@@ -162,6 +169,7 @@ class _DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final List<Event> events;
+  final Holiday? holiday;
   final List<Category> categories;
   final AppPalette palette;
   final VoidCallback onTap;
@@ -183,10 +191,11 @@ class _DayCell extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _DayNumber(
+            _DayRow(
               day: day,
               isToday: isToday,
               isSelected: isSelected,
+              holiday: holiday,
               palette: palette,
             ),
             const SizedBox(height: 2),
@@ -207,6 +216,62 @@ class _DayCell extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The day-number row: date, then the festival name and 休/班 pill when the
+/// date has holiday data. Holiday info stays on this row so both event rows
+/// remain available (`docs/design/03-calendar.md` §1.1).
+class _DayRow extends StatelessWidget {
+  const _DayRow({
+    required this.day,
+    required this.isToday,
+    required this.isSelected,
+    required this.holiday,
+    required this.palette,
+  });
+
+  final DateTime day;
+  final bool isToday;
+  final bool isSelected;
+  final Holiday? holiday;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final holiday = this.holiday;
+    return SizedBox(
+      height: 18,
+      child: Row(
+        children: [
+          _DayNumber(
+            day: day,
+            isToday: isToday,
+            isSelected: isSelected,
+            palette: palette,
+          ),
+          if (holiday != null) ...[
+            const SizedBox(width: 4),
+            // A 调休 workday shows the gray pill alone; only days off carry
+            // the festival name.
+            if (!holiday.isWorkday)
+              Flexible(
+                child: Text(
+                  holiday.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 11,
+                    color: palette.festival,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 3),
+            HolidayBadge(holiday: holiday, palette: palette),
+          ],
+        ],
       ),
     );
   }

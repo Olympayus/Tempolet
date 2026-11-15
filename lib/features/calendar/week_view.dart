@@ -12,6 +12,7 @@ import '../../data/repositories/event_repository.dart';
 import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
+import 'holiday_badge.dart';
 import 'lane_layout.dart';
 import 'now_line.dart';
 import 'plan_block.dart';
@@ -70,6 +71,10 @@ class _WeekViewState extends ConsumerState<WeekView> {
         const <Event>[];
     final today = dateOnly(DateTime.now());
     final todayIndex = days.indexWhere((day) => day == today);
+    final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
+    final holidayByDay = <DateTime, Holiday>{
+      for (final holiday in holidays) dateOnly(holiday.date): holiday,
+    };
 
     final byDay = <DateTime, List<Event>>{};
     for (final event in events) {
@@ -94,6 +99,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
                     child: _DayHeaderCell(
                       day: day,
                       today: today,
+                      holiday: holidayByDay[day],
                       locale: locale,
                       palette: palette,
                       onSelect: () => _selectDay(day),
@@ -169,11 +175,13 @@ class _WeekViewState extends ConsumerState<WeekView> {
 }
 
 /// Two-line day header: weekday at 11px and the date at 12px via
-/// [AppFormats]. Today's date sits on a solid accent pill.
+/// [AppFormats]. Today's date sits on a solid accent pill; dates with holiday
+/// data append the 休/班 pill, never the festival name.
 class _DayHeaderCell extends StatelessWidget {
   const _DayHeaderCell({
     required this.day,
     required this.today,
+    required this.holiday,
     required this.locale,
     required this.palette,
     required this.onSelect,
@@ -182,6 +190,7 @@ class _DayHeaderCell extends StatelessWidget {
 
   final DateTime day;
   final DateTime today;
+  final Holiday? holiday;
   final Locale locale;
   final AppPalette palette;
   final VoidCallback onSelect;
@@ -190,6 +199,7 @@ class _DayHeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isToday = day == today;
+    final holiday = this.holiday;
     return GestureDetector(
       key: ValueKey('week-day-${_isoDay(day)}'),
       behavior: HitTestBehavior.opaque,
@@ -210,25 +220,39 @@ class _DayHeaderCell extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: isToday
-                  ? BoxDecoration(
-                      color: palette.accent,
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    )
-                  : null,
-              child: Text(
-                AppFormats.monthDay(locale, day),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.secondary.copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  fontVariations: const [FontVariation('wght', 600)],
-                  color: isToday ? Colors.white : palette.ink,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: isToday
+                        ? BoxDecoration(
+                            color: palette.accent,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          )
+                        : null,
+                    child: Text(
+                      AppFormats.monthDay(locale, day),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.secondary.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        fontVariations: const [FontVariation('wght', 600)],
+                        color: isToday ? Colors.white : palette.ink,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                if (holiday != null) ...[
+                  const SizedBox(width: 4),
+                  HolidayBadge(holiday: holiday, palette: palette),
+                ],
+              ],
             ),
           ],
         ),

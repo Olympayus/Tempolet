@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -152,6 +154,53 @@ String _dateKey(DateTime day) =>
     '${day.year}-${day.month.toString().padLeft(2, '0')}-'
     '${day.day.toString().padLeft(2, '0')}';
 
+/// Fixed cell furniture; the events area has to share what is left
+/// (`docs/design/03-calendar.md` §1.1).
+const double _cellDayRowHeight = 32;
+const double _cellEventRowHeight = 18;
+
+/// Two full event rows are the design maximum; the overflow row is a compact
+/// 11px caption so it always has room of its own.
+const int _cellMaxEventRows = 2;
+const double _cellOverflowRowHeight = 11;
+
+/// How much of the events list a cell can actually show at its current
+/// height. At the 960×600 minimum a 6-week month leaves only 29px below the
+/// 32px day row (600 − 32 title bar − 64 page header − 14 view padding − 28
+/// weekday row = 462; /6 rows = 77; − 16 cell padding − 32 day row = 29), so
+/// one 18px event row plus an 11px ellipsis is the full budget. When even
+/// that does not fit, only the ellipsis renders.
+class _CellEventPlan {
+  const _CellEventPlan({
+    required this.visibleRows,
+    this.showOverflow = false,
+  });
+
+  final int visibleRows;
+  final bool showOverflow;
+}
+
+_CellEventPlan _planCellEvents(int total, double available) {
+  if (total == 0 || available <= 0) return const _CellEventPlan(visibleRows: 0);
+
+  final allRowsFit =
+      total <= _cellMaxEventRows && total * _cellEventRowHeight <= available;
+  if (allRowsFit) return _CellEventPlan(visibleRows: total);
+
+  if (available < _cellOverflowRowHeight) {
+    return const _CellEventPlan(visibleRows: 0);
+  }
+  // Reserve the ellipsis first, then fit whole rows into what remains.
+  final fitting = math.max(
+    0,
+    (available - _cellOverflowRowHeight) ~/ _cellEventRowHeight,
+  );
+  return _CellEventPlan(
+    visibleRows: math.min(math.min(_cellMaxEventRows, total), fitting),
+    showOverflow: true,
+  );
+}
+
 BoxDecoration _cellBorder(AppPalette palette, {Color? color}) => BoxDecoration(
   color: color,
   border: Border(
@@ -197,9 +246,6 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shown = events.take(2).toList();
-    final hasOverflow = events.length > shown.length;
-
     return GestureDetector(
       key: ValueKey('month-day-${_dateKey(day)}'),
       behavior: HitTestBehavior.opaque,
@@ -216,40 +262,53 @@ class _DayCell extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _DayRow(
-              day: day,
-              isToday: isToday,
-              holiday: holiday,
-              palette: palette,
+            SizedBox(
+              height: _cellDayRowHeight,
+              child: _DayRow(
+                day: day,
+                isToday: isToday,
+                holiday: holiday,
+                palette: palette,
+              ),
             ),
-            // The events area clips instead of overflowing when the window is
-            // shorter than the 8/10 + 32 row + 2×18 rows budget.
             Expanded(
-              child: SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final event in shown)
-                      _EventRow(
-                        event: event,
-                        color: categoryMarkerColor(
-                          event.categoryId,
-                          categories,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final plan = _planCellEvents(
+                    events.length,
+                    constraints.maxHeight,
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final event in events.take(plan.visibleRows))
+                        _EventRow(
+                          event: event,
+                          color: categoryMarkerColor(
+                            event.categoryId,
+                            categories,
+                          ),
+                          palette: palette,
                         ),
-                        palette: palette,
-                      ),
-                    if (hasOverflow)
-                      Text(
-                        '…',
-                        key: ValueKey('month-more-${_dateKey(day)}'),
-                        style: AppTextStyles.caption.copyWith(
-                          color: palette.sub,
-                          letterSpacing: 1,
+                      if (plan.showOverflow)
+                        SizedBox(
+                          height: _cellOverflowRowHeight,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '…',
+                              key: ValueKey('month-more-${_dateKey(day)}'),
+                              style: AppTextStyles.caption.copyWith(
+                                color: palette.sub,
+                                height: 1,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
+                    ],
+                  );
+                },
               ),
             ),
           ],

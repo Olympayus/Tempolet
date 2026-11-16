@@ -91,6 +91,14 @@ void main() {
   testWidgets('holiday info shares the day row and keeps both event rows', (
     tester,
   ) async {
+    // The 8/10 + 32 density needs a taller window to fit two event rows; keep
+    // the width under the sidebar breakpoint so the sidebar does not duplicate
+    // the same event titles in this assertion. The 960×600 minimum is covered
+    // by the height-aware test below.
+    tester.view.physicalSize = const Size(1100, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await db
         .into(db.holidays)
         .insert(
@@ -114,6 +122,42 @@ void main() {
     expect(find.text('E2'), findsOneWidget);
     expect(find.text('E3'), findsNothing);
     expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
+  });
+
+  testWidgets('960x600 keeps the overflow row and one event inside the cell', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(960, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (var i = 0; i < 5; i++) {
+      await seed('H$i', startMinute: 480 + i * 15);
+    }
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    expect(tester.takeException(), isNull);
+    final cell = find.byKey(const ValueKey('month-day-2026-11-11'));
+    final more = find.byKey(const ValueKey('month-more-2026-11-11'));
+    expect(more, findsOneWidget);
+
+    final cellRect = tester.getRect(cell);
+    final moreRect = tester.getRect(more);
+    expect(moreRect.top, greaterThanOrEqualTo(cellRect.top));
+    expect(moreRect.left, greaterThanOrEqualTo(cellRect.left));
+    expect(moreRect.right, lessThanOrEqualTo(cellRect.right));
+    expect(moreRect.bottom, lessThanOrEqualTo(cellRect.bottom));
+
+    // Only the rows that fit render; the first one must be fully inside the
+    // cell rather than clipped in half.
+    final first = find.text('H0');
+    expect(first, findsOneWidget);
+    expect(find.text('H1'), findsNothing);
+    final textRect = tester.getRect(first);
+    expect(textRect.top, greaterThanOrEqualTo(cellRect.top));
+    expect(textRect.bottom, lessThanOrEqualTo(cellRect.bottom));
+    expect(textRect.bottom, lessThanOrEqualTo(moreRect.top));
   });
 
   testWidgets('single click opens an anchored popover without changing view', (

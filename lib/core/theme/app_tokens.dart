@@ -28,10 +28,13 @@ class AppPalette {
   const AppPalette({
     required this.ink,
     required this.sub,
+    required this.subText,
     required this.subWeak,
+    required this.subMuted,
     required this.line,
     required this.lineStrong,
     required this.chip,
+    required this.block,
     required this.rail,
     required this.bg,
     required this.card,
@@ -49,10 +52,13 @@ class AppPalette {
   static const light = AppPalette(
     ink: Color(0xFF1C1C1E),
     sub: Color(0xFF8E8E93),
+    subText: Color(0xFF6E6E73),
     subWeak: Color(0xFFC7C7CC),
+    subMuted: Color(0xFFAEAEB2),
     line: Color(0xFFEDEDF0),
     lineStrong: Color(0xFFDCDCE1),
     chip: Color(0xFFF2F2F5),
+    block: Color(0xFFF7F7F9),
     rail: Color(0xFFF7F7F9),
     bg: Color(0xFFFFFFFF),
     card: Color(0xFFFFFFFF),
@@ -70,10 +76,13 @@ class AppPalette {
   static const dark = AppPalette(
     ink: Color(0xFFE9EBF0),
     sub: Color(0xFF8A919C),
+    subText: Color(0xFF9AA3AE),
     subWeak: Color(0xFF5A6068),
+    subMuted: Color(0xFF6F7680),
     line: Color(0x12FFFFFF),
     lineStrong: Color(0x24FFFFFF),
     chip: Color(0x0FFFFFFF),
+    block: Color(0xFF23262E),
     rail: Color(0xFF0C0D10),
     bg: Color(0xFF101114),
     card: Color(0xFF1B1E25),
@@ -93,8 +102,14 @@ class AppPalette {
   /// Secondary text, times and counts.
   final Color sub;
 
+  /// 13px explanatory and field-helper text.
+  final Color subText;
+
   /// Placeholders, empty states and free slots.
   final Color subWeak;
+
+  /// Third-level metadata (11px counts and units only).
+  final Color subMuted;
 
   /// Hairlines and in-component dividers.
   final Color line;
@@ -104,6 +119,9 @@ class AppPalette {
 
   /// Fills, input backgrounds and secondary buttons.
   final Color chip;
+
+  /// Paper block behind plan rows.
+  final Color block;
 
   /// Icon rail background.
   final Color rail;
@@ -142,10 +160,13 @@ class AppPalette {
   AppPalette withAccent(Color accent) => AppPalette(
     ink: ink,
     sub: sub,
+    subText: subText,
     subWeak: subWeak,
+    subMuted: subMuted,
     line: line,
     lineStrong: lineStrong,
     chip: chip,
+    block: block,
     rail: rail,
     bg: bg,
     card: card,
@@ -168,6 +189,7 @@ abstract final class AppTextStyles {
     fontFamilyFallback: ['NotoSansSC'],
     fontSize: 28,
     height: 34 / 28,
+    letterSpacing: -0.6,
     fontWeight: FontWeight.w700,
     fontVariations: [FontVariation('wght', 700)],
     fontFeatures: [FontFeature.tabularFigures()],
@@ -179,6 +201,7 @@ abstract final class AppTextStyles {
     fontFamilyFallback: ['NotoSansSC'],
     fontSize: 20,
     height: 26 / 20,
+    letterSpacing: -0.2,
     fontWeight: FontWeight.w700,
     fontVariations: [FontVariation('wght', 700)],
     fontFeatures: [FontFeature.tabularFigures()],
@@ -190,8 +213,33 @@ abstract final class AppTextStyles {
     fontFamilyFallback: ['NotoSansSC'],
     fontSize: 15,
     height: 20 / 15,
+    letterSpacing: -0.1,
     fontWeight: FontWeight.w700,
     fontVariations: [FontVariation('wght', 700)],
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Group headers in lists.
+  static const section = TextStyle(
+    fontFamily: 'Inter',
+    fontFamilyFallback: ['NotoSansSC'],
+    fontSize: 15,
+    height: 20 / 15,
+    letterSpacing: 0,
+    fontWeight: FontWeight.w600,
+    fontVariations: [FontVariation('wght', 600)],
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// List row titles.
+  static const rowTitle = TextStyle(
+    fontFamily: 'Inter',
+    fontFamilyFallback: ['NotoSansSC'],
+    fontSize: 14,
+    height: 20 / 14,
+    letterSpacing: 0,
+    fontWeight: FontWeight.w500,
+    fontVariations: [FontVariation('wght', 500)],
     fontFeatures: [FontFeature.tabularFigures()],
   );
 
@@ -201,6 +249,19 @@ abstract final class AppTextStyles {
     fontFamilyFallback: ['NotoSansSC'],
     fontSize: 13,
     height: 18 / 13,
+    letterSpacing: 0,
+    fontWeight: FontWeight.w400,
+    fontVariations: [FontVariation('wght', 400)],
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Explanatory and field-helper text.
+  static const hint = TextStyle(
+    fontFamily: 'Inter',
+    fontFamilyFallback: ['NotoSansSC'],
+    fontSize: 13,
+    height: 18 / 13,
+    letterSpacing: 0,
     fontWeight: FontWeight.w400,
     fontVariations: [FontVariation('wght', 400)],
     fontFeatures: [FontFeature.tabularFigures()],
@@ -212,6 +273,7 @@ abstract final class AppTextStyles {
     fontFamilyFallback: ['NotoSansSC'],
     fontSize: 12,
     height: 16 / 12,
+    letterSpacing: 0,
     fontWeight: FontWeight.w400,
     fontVariations: [FontVariation('wght', 400)],
     fontFeatures: [FontFeature.tabularFigures()],
@@ -223,10 +285,20 @@ abstract final class AppTextStyles {
     fontFamilyFallback: ['NotoSansSC'],
     fontSize: 11,
     height: 14 / 11,
+    letterSpacing: 0,
     fontWeight: FontWeight.w400,
     fontVariations: [FontVariation('wght', 400)],
     fontFeatures: [FontFeature.tabularFigures()],
   );
+}
+
+/// Fixed row, field and control heights from `docs/design/01-tokens.md`.
+abstract final class AppSizes {
+  static const double row = 46;
+  static const double rowTall = 64;
+  static const double field = 34;
+  static const double header = 64;
+  static const double control = 30;
 }
 
 /// Corner radii from `docs/design/01-tokens.md` §4.
@@ -237,6 +309,7 @@ abstract final class AppRadii {
   static const double block = 8;
   static const double segment = 9;
   static const double card = 10;
+  static const double group = 12;
   static const double dialog = 12;
   static const double window = 14;
   static const double pill = 999;

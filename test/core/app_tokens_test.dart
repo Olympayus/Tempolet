@@ -23,4 +23,26 @@ void main() {
     expect(AppTextStyles.display.fontSize, 28);
     expect(AppTextStyles.caption.fontSize, 11);
   });
+
+  test('v0.1.3 sizes and type additions', () {
+    expect(AppSizes.row, 46);
+    expect(AppSizes.rowTall, 64);
+    expect(AppSizes.field, 34);
+    expect(AppSizes.header, 64);
+    expect(AppSizes.control, 30);
+    expect(AppRadii.group, 12);
+    expect(AppTextStyles.section.fontSize, 15);
+    expect(AppTextStyles.section.fontWeight, FontWeight.w600);
+    expect(AppTextStyles.rowTitle.fontSize, 14);
+    expect(AppTextStyles.rowTitle.fontWeight, FontWeight.w500);
+    expect(AppTextStyles.hint.fontSize, 13);
+    expect(AppTextStyles.display.letterSpacing, -0.6);
+    expect(AppTextStyles.title.letterSpacing, -0.2);
+    expect(AppTextStyles.headline.letterSpacing, -0.1);
+    expect(AppTextStyles.body.letterSpacing, 0);
+    expect(AppPalette.light.block, const Color(0xFFF7F7F9));
+    expect(AppPalette.dark.block, const Color(0xFF23262E));
+    expect(AppPalette.light.subMuted, const Color(0xFFAEAEB2));
+    expect(AppPalette.dark.subMuted, const Color(0xFF6F7680));
+  });
 }

@@ -17,7 +17,7 @@ class RemindersHeader extends StatelessWidget {
     required this.onCreate,
   });
 
-  final VoidCallback onManageCategories;
+  final VoidCallback? onManageCategories;
   final VoidCallback onViewCompleted;
   final VoidCallback onCreate;
 
@@ -51,7 +51,13 @@ class RemindersHeader extends StatelessWidget {
               key: const ValueKey('reminders-manage-categories'),
               tooltip: l10n.manageCategories,
               onPressed: onManageCategories,
-              icon: Icon(LucideIcons.folderTree, size: 18, color: palette.sub),
+              icon: Icon(
+                LucideIcons.folderTree,
+                size: 18,
+                color: onManageCategories == null
+                    ? palette.subMuted
+                    : palette.sub,
+              ),
             ),
             const SizedBox(width: 8),
             AppIconButton(

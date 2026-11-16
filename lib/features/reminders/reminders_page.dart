@@ -28,9 +28,11 @@ const double _rowOuterInset = 8;
 const double _groupHeaderHeight = 34;
 const double _groupGap = 12;
 
-/// Category mode lists the coming year. Date mode (Task 15) owns the
-/// long-range month band.
-const int _upcomingHorizonDays = 366;
+/// Category mode asks for an effectively unbounded future window: a narrow
+/// horizon would silently drop far-off reminders and could show the empty
+/// state even though they exist. Date mode (Task 15) owns the long-range
+/// month band.
+const int _futureHorizonYears = 100;
 
 /// Stable group id for the overdue bucket (not a real category id).
 const String _overdueGroupId = '__overdue__';
@@ -116,9 +118,9 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       weekStart.day + 7,
     );
     final horizonEnd = DateTime(
-      today.year,
+      today.year + _futureHorizonYears,
       today.month,
-      today.day + _upcomingHorizonDays,
+      today.day,
     );
 
     final overdueAll =
@@ -187,10 +189,8 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 RemindersHeader(
-                  onManageCategories: () {
-                    // TODO(Task 16): navigate to /reminders/categories once
-                    // the category management page exists.
-                  },
+                  // Disabled until Task 16 wires /reminders/categories.
+                  onManageCategories: null,
                   onViewCompleted: () => context.go('/reminders/completed'),
                   onCreate: () => _openNew(today),
                 ),

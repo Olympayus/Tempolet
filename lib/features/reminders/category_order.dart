@@ -11,7 +11,8 @@ const String uncategorizedOrderId = '__uncategorized__';
 ///
 /// Items follow the ids in [order] first (unknown ids are ignored); remaining
 /// categories keep the repository order. A `null` entry is the system
-/// 未分类 group, appended at the end when [order] does not mention it.
+/// 未分类 group: it stays wherever [order] explicitly placed it, otherwise it
+/// is appended after every real category.
 List<Category?> applyCategoryOrder(
   List<String> order,
   List<Category> categories,
@@ -27,10 +28,10 @@ List<Category?> applyCategoryOrder(
     final category = byId[id];
     if (category != null && seen.add(id)) result.add(category);
   }
-  if (seen.add(uncategorizedOrderId)) result.add(null);
   for (final category in categories) {
     if (seen.add(category.id)) result.add(category);
   }
+  if (seen.add(uncategorizedOrderId)) result.add(null);
   return result;
 }
 

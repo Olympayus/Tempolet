@@ -7,6 +7,7 @@ import 'package:tempolet/app.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
+import 'package:tempolet/core/ui/app_buttons.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
@@ -115,6 +116,14 @@ void main() {
     expect(find.byKey(const ValueKey('reminders-new')), findsOneWidget);
     expect(find.byTooltip('分类管理'), findsOneWidget);
     expect(find.byTooltip('查看已完成'), findsOneWidget);
+    expect(
+      tester
+          .widget<AppIconButton>(
+            find.byKey(const ValueKey('reminders-manage-categories')),
+          )
+          .onPressed,
+      isNull,
+    );
 
     final overdueX = tester
         .getTopLeft(find.byKey(const ValueKey('reminders-stat-overdue')))
@@ -151,6 +160,65 @@ void main() {
       ]);
     },
   );
+
+  test('applyOrder defaults to real categories then uncategorized', () async {
+    final work = await categories.create(name: 'Work');
+    final personal = await categories.create(name: 'Personal');
+    final controller = container.read(categoryOrderProvider.notifier);
+
+    final ordered = controller.applyOrder([work, personal]);
+
+    expect(ordered.map((category) => category?.id ?? uncategorizedOrderId), [
+      work.id,
+      personal.id,
+      uncategorizedOrderId,
+    ]);
+  });
+
+  testWidgets('uncategorized group is last when no order is persisted', (
+    tester,
+  ) async {
+    final work = await categories.create(name: 'Work');
+    await seed('No category task', date: _today, startMinute: 600);
+    await seed(
+      'Work task',
+      date: _today,
+      startMinute: 700,
+      categoryId: work.id,
+    );
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final workY = tester
+        .getTopLeft(find.byKey(ValueKey('reminders-group-${work.id}')))
+        .dy;
+    final uncategorizedY = tester
+        .getTopLeft(
+          find.byKey(const ValueKey('reminders-group-$uncategorizedOrderId')),
+        )
+        .dy;
+    expect(workY, lessThan(uncategorizedY));
+  });
+
+  testWidgets('events far in the future still appear in their category group', (
+    tester,
+  ) async {
+    final work = await categories.create(name: 'Work');
+    final farFuture = DateTime(_today.year, _today.month + 18, _today.day);
+    await seed(
+      'Far future task',
+      date: farFuture,
+      startMinute: 600,
+      categoryId: work.id,
+    );
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    expect(find.text('Far future task'), findsOneWidget);
+    expect(find.byKey(const ValueKey('reminders-empty-title')), findsNothing);
+  });
 
   testWidgets('uncategorized can be ordered among real categories', (
     tester,

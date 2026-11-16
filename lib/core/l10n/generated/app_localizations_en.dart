@@ -205,4 +205,148 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get launchAtStartup => 'Launch at startup';
+
+  @override
+  String get newItem => 'New';
+
+  @override
+  String get editItem => 'Edit';
+
+  @override
+  String get create => 'Create';
+
+  @override
+  String get dateLabel => 'Date';
+
+  @override
+  String get yearUnit => 'y';
+
+  @override
+  String get monthUnit => 'm';
+
+  @override
+  String get dayUnit => 'd';
+
+  @override
+  String get timeLabel => 'Time';
+
+  @override
+  String get leadLabel => 'Remind';
+
+  @override
+  String get categoryLabel => 'Category';
+
+  @override
+  String get uncategorized => 'Uncategorized';
+
+  @override
+  String get noteOptional => 'Note (optional)';
+
+  @override
+  String get custom => 'Custom…';
+
+  @override
+  String get leadUnitDay => 'd';
+
+  @override
+  String get leadUnitHour => 'h';
+
+  @override
+  String get leadUnitMinute => 'm';
+
+  @override
+  String get leadBeforeSuffix => ' before';
+
+  @override
+  String itemsCount(int count) {
+    return '$count items';
+  }
+
+  @override
+  String get viewCompleted => 'View completed ›';
+
+  @override
+  String get addReminderOrPlan => '＋ Add reminder or plan';
+
+  @override
+  String get editInSidebar => 'Edit in sidebar ›';
+
+  @override
+  String get completedTitle => 'Completed';
+
+  @override
+  String get clear => 'Clear';
+
+  @override
+  String get restore => 'Restore';
+
+  @override
+  String get todayGroup => 'Today';
+
+  @override
+  String get yesterdayGroup => 'Yesterday';
+
+  @override
+  String get earlierGroup => 'Earlier';
+
+  @override
+  String get deleteForeverHint => 'This cannot be undone';
+
+  @override
+  String get holidayBadge => 'Off';
+
+  @override
+  String get workdayBadge => 'Work';
+
+  @override
+  String get about => 'About';
+
+  @override
+  String get version => 'Version';
+
+  @override
+  String get dataLocation => 'Data folder';
+
+  @override
+  String get openFolder => 'Open folder ›';
+
+  @override
+  String get restoreDefault => 'Restore default';
+
+  @override
+  String get customColor => 'Custom color';
+
+  @override
+  String get confirm => 'OK';
+
+  @override
+  String get tomorrowPreview => 'Tomorrow';
+
+  @override
+  String plansCount(int count) {
+    return '$count plans';
+  }
+
+  @override
+  String remindersCount(int count) {
+    return '$count reminders';
+  }
+
+  @override
+  String get noSchedule => 'Nothing scheduled';
+
+  @override
+  String get toggleSidebar => 'Sidebar';
+
+  @override
+  String get trayShow => 'Show main window';
+
+  @override
+  String get trayQuit => 'Quit';
+
+  @override
+  String get notifActionDone => 'Done';
+
+  @override
+  String get notifActionRemind => 'Remind in 10 minutes';
 }

@@ -1,30 +1,33 @@
+import 'package:drift/drift.dart' show Value;
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
-import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../core/utils/dates.dart';
+import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/models/event_status.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../notifications/notification_scheduler.dart';
 import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
-import 'event_detail_popover.dart';
+import 'holiday_badge.dart';
 import 'lane_layout.dart';
+import 'now_line.dart';
+import 'plan_block.dart';
+import 'reminder_card.dart';
 import 'time_grid.dart';
 
-/// Monday of the week containing [date].
-DateTime startOfWeek(DateTime date) {
-  final day = dateOnly(date);
-  return day.subtract(Duration(days: day.weekday - 1));
-}
-
+/// Seven-column week timeline (`docs/design/03-calendar.md` §2): a fixed
+/// two-line day bar, a left-fixed 44px axis and an hourly rule layer spanning
+/// all seven columns, with shared plan blocks and floating reminder cards.
+///
+/// The displayed week follows the globally selected day, so the page header's
+/// ‹ › / Today controls move the body too.
 class WeekView extends ConsumerStatefulWidget {
-  const WeekView({super.key, this.weekStart});
-
-  /// Any date inside the displayed week; normalised to its Monday.
-  final DateTime? weekStart;
+  const WeekView({super.key});
 
   @override
   ConsumerState<WeekView> createState() => _WeekViewState();
@@ -32,13 +35,6 @@ class WeekView extends ConsumerStatefulWidget {
 
 class _WeekViewState extends ConsumerState<WeekView> {
   final _scroll = ScrollController(initialScrollOffset: kDefaultScrollOffset);
-  late DateTime _start;
-
-  @override
-  void initState() {
-    super.initState();
-    _start = startOfWeek(widget.weekStart ?? ref.read(selectedDayProvider));
-  }
 
   @override
   void dispose() {
@@ -46,344 +42,586 @@ class _WeekViewState extends ConsumerState<WeekView> {
     super.dispose();
   }
 
-  void _shift(int weeks) {
-    setState(() => _start = _start.add(Duration(days: 7 * weeks)));
+  void _selectDay(DateTime day) {
+    ref.read(selectedDayProvider.notifier).select(day);
   }
 
   void _openDay(DateTime day) {
-    ref.read(selectedDayProvider.notifier).select(day);
+    _selectDay(day);
     ref.read(calendarViewModeProvider.notifier).set(CalendarViewMode.day);
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
-    final days = List.generate(7, (i) => _start.add(Duration(days: i)));
-    final end = _start.add(const Duration(days: 7));
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
+    final locale = Localizations.localeOf(context);
+    final selectedDay = dateOnly(ref.watch(selectedDayProvider));
+    final monday = startOfWeek(selectedDay);
+    final days = List.generate(
+      7,
+      (i) => DateTime(monday.year, monday.month, monday.day + i),
+    );
+    // Calendar-day arithmetic keeps the exclusive end DST-safe.
+    final end = DateTime(monday.year, monday.month, monday.day + 7);
     final events =
-        ref.watch(eventsInRangeProvider((start: _start, end: end))).value ??
-            const <Event>[];
-    final today = dateOnly(DateTime.now());
-    final mode = ref.watch(calendarViewModeProvider);
+        ref.watch(eventsInRangeProvider((start: monday, end: end))).value ??
+        const <Event>[];
+    final today = dateOnly(ref.watch(todayProvider));
+    final todayIndex = days.indexWhere((day) => day == today);
+    final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
+    final holidayByDay = <DateTime, Holiday>{
+      for (final holiday in holidays) dateOnly(holiday.date): holiday,
+    };
 
     final byDay = <DateTime, List<Event>>{};
     for (final event in events) {
+      // Completed items leave the timeline silently (they stay in the
+      // completed page), matching the day view.
+      if (event.isCompleted) continue;
       byDay.putIfAbsent(dateOnly(event.date), () => []).add(event);
     }
 
-    final narrow = MediaQuery.sizeOf(context).width < 560;
-    final segmented = SegmentedButton<CalendarViewMode>(
-      segments: [
-        ButtonSegment(value: CalendarViewMode.month, label: Text(l10n.month)),
-        ButtonSegment(value: CalendarViewMode.week, label: Text(l10n.week)),
-        ButtonSegment(value: CalendarViewMode.day, label: Text(l10n.day)),
-      ],
-      selected: {mode},
-      showSelectedIcon: false,
-      onSelectionChanged: (selection) =>
-          ref.read(calendarViewModeProvider.notifier).set(selection.first),
-    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columnWidth = (constraints.maxWidth - kAxisGutter) / 7;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-          child: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  '${DateFormat.MMMd(locale).format(_start)} – '
-                  '${DateFormat.MMMd(locale).format(days.last)}',
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_left, size: 20),
-                onPressed: () => _shift(-1),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_right, size: 20),
-                onPressed: () => _shift(1),
-              ),
-              const Spacer(),
-              if (!narrow) segmented,
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: () => setState(() {
-                  _start = startOfWeek(DateTime.now());
-                  ref.read(selectedDayProvider.notifier).select(today);
-                }),
-                child: Text(l10n.today),
-              ),
-            ],
-          ),
-        ),
-        if (narrow)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Align(alignment: Alignment.centerLeft, child: segmented),
-          ),
-        Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: Row(
-            children: [
-              const SizedBox(width: 26),
-              for (final day in days)
-                Expanded(
-                  child: InkWell(
-                    key: ValueKey(
-                      'week-day-${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}',
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => _openDay(day),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Column(
-                        children: [
-                          Text(
-                            DateFormat.E(locale).format(day),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            width: 22,
-                            height: 22,
-                            alignment: Alignment.center,
-                            decoration: day == today
-                                ? BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
-                                  )
-                                : null,
-                            child: Text(
-                              '${day.day}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: day == today
-                                    ? Theme.of(context).colorScheme.onPrimary
-                                    : Theme.of(context)
-                                        .colorScheme
-                                        .onSurface,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+        return Column(
+          children: [
+            Row(
+              children: [
+                const SizedBox(width: kAxisGutter),
+                for (final day in days)
+                  SizedBox(
+                    width: columnWidth,
+                    child: _DayHeaderCell(
+                      day: day,
+                      today: today,
+                      selected: day == selectedDay,
+                      holiday: holidayByDay[day],
+                      locale: locale,
+                      palette: palette,
+                      onSelect: () => _selectDay(day),
+                      onOpenDay: () => _openDay(day),
                     ),
                   ),
-                ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              const gutter = 26.0;
-              final columnWidth = (constraints.maxWidth - gutter) / 7;
-              return SingleChildScrollView(
+              ],
+            ),
+            Divider(height: 1, thickness: 1, color: palette.line),
+            Expanded(
+              child: SingleChildScrollView(
                 key: const ValueKey('week-scroll'),
                 controller: _scroll,
                 child: SizedBox(
                   height: kHoursInDay * kHourHeight,
                   child: Stack(
                     children: [
+                      if (todayIndex != -1)
+                        Positioned(
+                          key: const ValueKey('week-today-column'),
+                          left: kAxisGutter + todayIndex * columnWidth,
+                          width: columnWidth,
+                          top: 0,
+                          bottom: 0,
+                          child: ColoredBox(color: palette.todayColumn),
+                        ),
+                      for (var i = 1; i < 7; i++)
+                        Positioned(
+                          left: kAxisGutter + i * columnWidth - 0.5,
+                          width: 1,
+                          top: 0,
+                          bottom: 0,
+                          child: ColoredBox(color: palette.line),
+                        ),
+                      Positioned(
+                        right: 0,
+                        width: 1,
+                        top: 0,
+                        bottom: 0,
+                        child: ColoredBox(color: palette.line),
+                      ),
+                      // Hour rules and axis ticks span all seven columns as
+                      // their own layer, above the today tint.
                       const Positioned.fill(
-                        child: HourGrid(gutterWidth: gutter),
+                        child: HourGrid(gutterWidth: kAxisGutter),
                       ),
                       for (var i = 0; i < 7; i++)
                         Positioned(
-                          left: gutter + i * columnWidth,
+                          left: kAxisGutter + i * columnWidth,
                           width: columnWidth,
                           top: 0,
-                          height: kHoursInDay * kHourHeight,
-                          child: _DayColumn(
+                          bottom: 0,
+                          child: _WeekDayColumn(
                             day: days[i],
-                            events: byDay[dateOnly(days[i])] ?? const [],
+                            events: byDay[days[i]] ?? const [],
                             today: today,
-                            onOpenEvent: (event) =>
-                                showEventDetailPopover(context, event),
-                            onCreateReminder:
-                                (kind, start, endMinute) => showEventEditor(
-                              context,
-                              date: days[i],
-                              initialKind: kind,
-                              startMinute: start,
-                              endMinute: endMinute,
-                            ),
+                            columnWidth: columnWidth,
+                            palette: palette,
                           ),
                         ),
+                      // Owns its own clock and position; always visible.
+                      const NowLine(key: ValueKey('week-now-line')),
                     ],
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DayColumn extends StatelessWidget {
-  const _DayColumn({
-    required this.day,
-    required this.events,
-    required this.today,
-    required this.onOpenEvent,
-    required this.onCreateReminder,
-  });
-
-  final DateTime day;
-  final List<Event> events;
-  final DateTime today;
-  final void Function(Event) onOpenEvent;
-  final void Function(EventKind kind, int? start, int? end)
-      onCreateReminder;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final plans = events
-        .where((e) => e.kind == EventKind.plan.dbValue && e.startMinute != null)
-        .toList();
-    final reminders = events
-        .where((e) => e.kind != EventKind.plan.dbValue)
-        .toList();
-
-    final lanes = assignLanes([
-      for (final plan in plans)
-        TimeRange(
-          id: plan.id,
-          start: plan.startMinute!,
-          end: plan.endMinute,
-        ),
-    ]);
-    final laneTotal = laneCount(lanes);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final unit = constraints.maxWidth / (laneTotal == 0 ? 1 : laneTotal);
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (details) {
-                  final minute = yToMinute(details.localPosition.dy);
-                  onCreateReminder(EventKind.reminder, minute, null);
-                },
               ),
             ),
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: Container(
-                width: 0.6,
-                color: scheme.outlineVariant.withValues(alpha: .45),
-              ),
-            ),
-            for (final plan in plans)
-              Positioned(
-                left: (lanes[plan.id] ?? 0) * unit + 1,
-                width: unit - 2,
-                top: minuteToY(plan.startMinute!),
-                height: ((minuteToY(plan.endMinute ?? plan.startMinute! + 30) -
-                            minuteToY(plan.startMinute!))
-                        .clamp(14.0, kHoursInDay * kHourHeight)),
-                child: GestureDetector(
-                  onTap: () => onOpenEvent(plan),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    decoration: BoxDecoration(
-                      color: plan.isCompleted
-                          ? scheme.surfaceContainerHighest.withValues(alpha: .5)
-                          : scheme.primary.withValues(alpha: .13),
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(
-                        color: plan.isCompleted
-                            ? scheme.outlineVariant
-                            : scheme.primary.withValues(alpha: .4),
-                        width: 0.7,
-                      ),
-                    ),
-                    child: Text(
-                      plan.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: plan.isCompleted
-                            ? scheme.outline
-                            : scheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            for (final reminder in reminders)
-              if (reminder.startMinute != null)
-                Positioned(
-                  left: 1,
-                  right: 1,
-                  top: minuteToY(reminder.startMinute!) - 4,
-                  child: GestureDetector(
-                    onTap: () => onOpenEvent(reminder),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 3, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(
-                          color: eventStatus(reminder, today) ==
-                                  EventStatus.overdue
-                              ? scheme.error.withValues(alpha: .6)
-                              : scheme.outlineVariant,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x1114141E),
-                            blurRadius: 4,
-                            offset: Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        reminder.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: reminder.isCompleted
-                              ? scheme.outline
-                              : scheme.onSurface,
-                          decoration: reminder.isCompleted
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
           ],
         );
       },
     );
   }
 }
+
+/// Two-line day header: weekday at 11px and the date at 12px via
+/// [AppFormats]. Today's date sits on a solid accent pill; another selected
+/// day gets an accent ring so a single click visibly changes state even when
+/// the sidebar is closed. Dates with holiday data append the 休/班 pill, never
+/// the festival name.
+class _DayHeaderCell extends StatelessWidget {
+  const _DayHeaderCell({
+    required this.day,
+    required this.today,
+    required this.selected,
+    required this.holiday,
+    required this.locale,
+    required this.palette,
+    required this.onSelect,
+    required this.onOpenDay,
+  });
+
+  final DateTime day;
+  final DateTime today;
+  final bool selected;
+  final Holiday? holiday;
+  final Locale locale;
+  final AppPalette palette;
+  final VoidCallback onSelect;
+  final VoidCallback onOpenDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = day == today;
+    final holiday = this.holiday;
+    return GestureDetector(
+      key: ValueKey('week-day-${_isoDay(day)}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onSelect,
+      onDoubleTap: onOpenDay,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              AppFormats.weekday(locale, day),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 11,
+                color: palette.sub,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Container(
+                    key: ValueKey('week-day-date-${_isoDay(day)}'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: isToday
+                        ? BoxDecoration(
+                            color: palette.accent,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          )
+                        : selected
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                            border: Border.all(
+                              color: palette.accent,
+                              width: 1.5,
+                            ),
+                          )
+                        : null,
+                    child: Text(
+                      AppFormats.monthDay(locale, day),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.secondary.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        fontVariations: const [FontVariation('wght', 600)],
+                        color: isToday ? Colors.white : palette.ink,
+                      ),
+                    ),
+                  ),
+                ),
+                if (holiday != null) ...[
+                  const SizedBox(width: 4),
+                  HolidayBadge(holiday: holiday, palette: palette),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _PlanDragMode { move, resizeStart, resizeEnd }
+
+/// One day column inside the week grid: blank-slot tap/drag creation, lane
+/// split plans with drag-to-move and 8px edge resize, and floating reminders
+/// painted above the plan blocks.
+class _WeekDayColumn extends ConsumerStatefulWidget {
+  const _WeekDayColumn({
+    required this.day,
+    required this.events,
+    required this.today,
+    required this.columnWidth,
+    required this.palette,
+  });
+
+  final DateTime day;
+  final List<Event> events;
+  final DateTime today;
+  final double columnWidth;
+  final AppPalette palette;
+
+  @override
+  ConsumerState<_WeekDayColumn> createState() => _WeekDayColumnState();
+}
+
+class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
+  static const double _edgeZone = 8;
+  static const double _minimumDragMinutes = 5;
+
+  int? _dragStartMinute;
+  int? _dragCurrentMinute;
+
+  String? _dragEventId;
+  _PlanDragMode _dragMode = _PlanDragMode.move;
+  int? _originStart;
+  int? _originEnd;
+  int? _previewStart;
+  int? _previewEnd;
+  double _dragAccumulated = 0;
+
+  int _minuteAt(double localY) => yToMinute(localY).clamp(0, 1440);
+
+  Future<void> _openCreate({
+    required EventKind kind,
+    int? start,
+    int? end,
+  }) async {
+    await showEventEditor(
+      context,
+      date: widget.day,
+      initialKind: kind,
+      startMinute: start,
+      endMinute: end,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final plans = <Event>[];
+    final reminders = <Event>[];
+    for (final event in widget.events) {
+      if (event.startMinute == null) continue;
+      if (event.kind == EventKind.plan.dbValue) {
+        plans.add(event);
+      } else {
+        reminders.add(event);
+      }
+    }
+
+    final lanes = assignLanes([
+      for (final plan in plans)
+        TimeRange(id: plan.id, start: plan.startMinute!, end: plan.endMinute),
+    ]);
+    final laneTotal = laneCount(lanes);
+    final unit = widget.columnWidth / (laneTotal == 0 ? 1 : laneTotal);
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            key: ValueKey('week-column-${_isoDay(widget.day)}'),
+            behavior: HitTestBehavior.opaque,
+            // Begin the range at the press point, not after the drag slop,
+            // so a one-hour drag from 09:00 really means 09:00–10:00.
+            dragStartBehavior: DragStartBehavior.down,
+            onTapUp: (details) {
+              _openCreate(
+                kind: EventKind.reminder,
+                start: _minuteAt(details.localPosition.dy),
+              );
+            },
+            onVerticalDragStart: (details) {
+              final minute = _minuteAt(details.localPosition.dy);
+              setState(() {
+                _dragStartMinute = minute;
+                _dragCurrentMinute = minute;
+              });
+            },
+            onVerticalDragUpdate: (details) {
+              setState(() {
+                _dragCurrentMinute = _minuteAt(details.localPosition.dy);
+              });
+            },
+            onVerticalDragEnd: (_) {
+              final start = _dragStartMinute;
+              final current = _dragCurrentMinute;
+              setState(() {
+                _dragStartMinute = null;
+                _dragCurrentMinute = null;
+              });
+              if (start == null || current == null) return;
+              final selection = selectionFromDrag(start, current);
+              if (selection.end - selection.start < _minimumDragMinutes) {
+                // A tiny drag is a tap in disguise.
+                _openCreate(kind: EventKind.reminder, start: selection.start);
+                return;
+              }
+              _openCreate(
+                kind: EventKind.plan,
+                start: selection.start,
+                end: selection.end,
+              );
+            },
+          ),
+        ),
+        for (final plan in plans) _planLayer(plan, lanes[plan.id] ?? 0, unit),
+        // Reminders always float above plan blocks.
+        for (final reminder in reminders) _reminderLayer(reminder),
+        if (_dragStartMinute != null && _dragCurrentMinute != null)
+          _createPreview(),
+      ],
+    );
+  }
+
+  Widget _planLayer(Event event, int lane, double unit) {
+    final start = event.startMinute!;
+    final end = event.endMinute ?? start + 30;
+    final dragging = _dragEventId == event.id;
+    final shownStart = dragging ? (_previewStart ?? start) : start;
+    final shownEnd = dragging ? (_previewEnd ?? end) : end;
+    final top = minuteToY(shownStart);
+    final height = (minuteToY(shownEnd) - top).clamp(
+      16.0,
+      kHoursInDay * kHourHeight,
+    );
+    final left = lane * unit + 1;
+    final width = (unit - 2).clamp(1.0, widget.columnWidth);
+
+    return Positioned(
+      left: left,
+      width: width,
+      top: top,
+      height: height,
+      child: GestureDetector(
+        key: ValueKey('week-plan-${event.id}'),
+        behavior: HitTestBehavior.opaque,
+        // Start at the touch point, not after the drag slop: the 8px edge
+        // zones must match the pixels under the finger and the slop distance
+        // belongs to the move.
+        dragStartBehavior: DragStartBehavior.down,
+        onTap: () => showEventEditor(context, existing: event),
+        // Vertical drag rather than pan: inside the scrolling grid the
+        // scrollable's vertical recognizer wins any pan arena, so a child
+        // vertical recognizer is what keeps block moves on the block.
+        onVerticalDragStart: (details) =>
+            _startPlanDrag(event, start, end, details.localPosition.dy, height),
+        onVerticalDragUpdate: _updatePlanDrag,
+        onVerticalDragEnd: (_) => _commitPlanDrag(event, start, end),
+        child: PlanBlock(
+          key: ValueKey('plan-${event.id}'),
+          event: event,
+          overdue: eventStatus(event, widget.today) == EventStatus.overdue,
+          compact: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _reminderLayer(Event event) {
+    return Positioned(
+      left: 1,
+      right: 1,
+      top: minuteToY(event.startMinute!) - 6,
+      child: ReminderCard(
+        key: ValueKey('reminder-${event.id}'),
+        event: event,
+        overdue: eventStatus(event, widget.today) == EventStatus.overdue,
+        showCheckbox: true,
+        onTap: () => showEventEditor(context, existing: event),
+        onComplete: _completion(event),
+      ),
+    );
+  }
+
+  /// Captures the repository and sync bridge while building, before the
+  /// card's 120ms fade, so a mid-fade dismissal can neither lose the write
+  /// nor touch `ref` after disposal.
+  Future<void> Function() _completion(Event event) {
+    final repo = ref.read(eventRepositoryProvider);
+    final sync = ref.read(eventNotifierSyncProvider);
+    final completed = event.copyWith(isCompleted: true);
+    return () async {
+      await repo.setCompleted(event.id, true);
+      sync.afterCompletion(completed);
+    };
+  }
+
+  Widget _createPreview() {
+    final selection = selectionFromDrag(_dragStartMinute!, _dragCurrentMinute!);
+    final top = minuteToY(selection.start);
+    return Positioned(
+      left: 1,
+      right: 1,
+      top: top,
+      height: (minuteToY(selection.end) - top).clamp(
+        2.0,
+        kHoursInDay * kHourHeight,
+      ),
+      child: IgnorePointer(
+        child: Container(
+          key: const ValueKey('week-create-preview'),
+          decoration: BoxDecoration(
+            color: widget.palette.accent.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(AppRadii.block),
+          ),
+          child: CustomPaint(
+            painter: _DashedBorderPainter(color: widget.palette.accent),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _startPlanDrag(
+    Event event,
+    int start,
+    int end,
+    double localY,
+    double height,
+  ) {
+    final mode = localY <= _edgeZone
+        ? _PlanDragMode.resizeStart
+        : localY >= height - _edgeZone
+        ? _PlanDragMode.resizeEnd
+        : _PlanDragMode.move;
+    setState(() {
+      _dragEventId = event.id;
+      _dragMode = mode;
+      _originStart = start;
+      _originEnd = end;
+      _previewStart = start;
+      _previewEnd = end;
+      _dragAccumulated = 0;
+    });
+  }
+
+  void _updatePlanDrag(DragUpdateDetails details) {
+    if (_dragEventId == null) return;
+    _dragAccumulated += details.delta.dy * 60 / kHourHeight;
+    if (_dragAccumulated.abs() < _minimumDragMinutes) return;
+    final delta = _dragAccumulated.round();
+    final start = _originStart!;
+    final end = _originEnd!;
+    setState(() {
+      switch (_dragMode) {
+        case _PlanDragMode.move:
+          final duration = end - start;
+          final moved = snapMinutes((_previewStart ?? start) + delta)
+              .clamp(0, 1440 - duration);
+          _previewStart = moved;
+          _previewEnd = moved + duration;
+        case _PlanDragMode.resizeStart:
+          _previewStart = snapMinutes((_previewStart ?? start) + delta)
+              .clamp(0, end - 5);
+        case _PlanDragMode.resizeEnd:
+          _previewEnd = snapMinutes((_previewEnd ?? end) + delta)
+              .clamp(start + 5, 1440);
+      }
+    });
+    _dragAccumulated -= delta;
+  }
+
+  Future<void> _commitPlanDrag(
+    Event event,
+    int originalStart,
+    int originalEnd,
+  ) async {
+    final start = _previewStart;
+    final end = _previewEnd;
+    setState(() {
+      _dragEventId = null;
+      _originStart = null;
+      _originEnd = null;
+      _previewStart = null;
+      _previewEnd = null;
+      _dragAccumulated = 0;
+    });
+    if (start == null || end == null) return;
+    if (start == originalStart && end == originalEnd) return;
+    final updated = event.copyWith(
+      startMinute: Value(start),
+      endMinute: Value(end),
+      updatedAt: DateTime.now(),
+    );
+    await ref.read(eventRepositoryProvider).updateEvent(updated);
+    ref.read(eventNotifierSyncProvider).afterUpdate(updated);
+  }
+}
+
+/// 1px dashed border for the drag-created plan preview.
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Offset.zero & size,
+          const Radius.circular(AppRadii.block),
+        ),
+      );
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    const dash = 4.0;
+    const gap = 3.0;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+String _isoDay(DateTime day) =>
+    '${day.year}-${day.month.toString().padLeft(2, '0')}-'
+    '${day.day.toString().padLeft(2, '0')}';

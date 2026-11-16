@@ -32,10 +32,13 @@ class EventRepository {
     final start = dateOnly(startDay);
     final end = dateOnly(endDay);
     final query = _db.select(_db.events)
-      ..where((t) =>
-          t.deletedAt.isNull() &
-          t.date.isBiggerOrEqualValue(start) &
-          t.date.isSmallerThanValue(end))
+      ..where(
+        (t) =>
+            t.deletedAt.isNull() &
+            t.isCompleted.equals(false) &
+            t.date.isBiggerOrEqualValue(start) &
+            t.date.isSmallerThanValue(end),
+      )
       ..orderBy([
         (t) => OrderingTerm(expression: t.startMinute, nulls: NullsOrder.last),
         (t) => OrderingTerm(expression: t.id),
@@ -56,7 +59,9 @@ class EventRepository {
   }) async {
     final id = const Uuid().v4();
     final now = DateTime.now();
-    await _db.into(_db.events).insert(
+    await _db
+        .into(_db.events)
+        .insert(
           EventsCompanion.insert(
             id: id,
             title: title,
@@ -77,9 +82,26 @@ class EventRepository {
   }
 
   Future<Event?> getById(String id) async {
-    final rows =
-        await (_db.select(_db.events)..where((t) => t.id.equals(id))).get();
+    final rows = await (_db.select(
+      _db.events,
+    )..where((t) => t.id.equals(id))).get();
     return rows.isEmpty ? null : rows.first;
+  }
+
+  /// Completed, non-deleted events, most recently completed first — the only
+  /// surface where completed events survive.
+  Stream<List<Event>> watchCompleted() {
+    final query = _db.select(_db.events)
+      ..where((t) => t.deletedAt.isNull() & t.isCompleted.equals(true))
+      ..orderBy([
+        (t) => OrderingTerm(
+          expression: t.completedAt,
+          mode: OrderingMode.desc,
+          nulls: NullsOrder.last,
+        ),
+        (t) => OrderingTerm(expression: t.id),
+      ]);
+    return query.watch();
   }
 
   /// Unfinished, non-deleted events on or after [day] — used by startup
@@ -87,10 +109,12 @@ class EventRepository {
   Future<List<Event>> upcomingFrom(DateTime day) {
     final start = dateOnly(day);
     final query = _db.select(_db.events)
-      ..where((t) =>
-          t.deletedAt.isNull() &
-          t.isCompleted.equals(false) &
-          t.date.isBiggerOrEqualValue(start))
+      ..where(
+        (t) =>
+            t.deletedAt.isNull() &
+            t.isCompleted.equals(false) &
+            t.date.isBiggerOrEqualValue(start),
+      )
       ..orderBy([
         (t) => OrderingTerm(expression: t.date),
         (t) => OrderingTerm(expression: t.startMinute, nulls: NullsOrder.last),
@@ -142,23 +166,41 @@ class EventRepository {
       EventsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
     );
   }
+
+  /// Permanently removes a row (completed-page delete).
+  Future<void> hardDelete(String id) async {
+    await (_db.delete(_db.events)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// Permanently removes every completed row (completed-page clear).
+  Future<void> clearCompleted() async {
+    await (_db.delete(
+      _db.events,
+    )..where((t) => t.isCompleted.equals(true))).go();
+  }
 }
 
 final eventRepositoryProvider = Provider<EventRepository>(
   (ref) => EventRepository(ref.watch(databaseProvider)),
 );
 
-final eventsForDayProvider =
-    StreamProvider.family<List<Event>, DateTime>((ref, day) {
+final eventsForDayProvider = StreamProvider.family<List<Event>, DateTime>((
+  ref,
+  day,
+) {
   return ref.watch(eventRepositoryProvider).watchDay(day);
+});
+
+final completedEventsProvider = StreamProvider<List<Event>>((ref) {
+  return ref.watch(eventRepositoryProvider).watchCompleted();
 });
 
 /// Range key: [start] inclusive, [end] exclusive (both date-only).
 typedef DayRange = ({DateTime start, DateTime end});
 
-final eventsInRangeProvider =
-    StreamProvider.family<List<Event>, DayRange>((ref, range) {
-  return ref
-      .watch(eventRepositoryProvider)
-      .watchRange(range.start, range.end);
+final eventsInRangeProvider = StreamProvider.family<List<Event>, DayRange>((
+  ref,
+  range,
+) {
+  return ref.watch(eventRepositoryProvider).watchRange(range.start, range.end);
 });

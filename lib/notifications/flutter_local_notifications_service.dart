@@ -1,21 +1,33 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show Locale;
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../core/l10n/generated/app_localizations.dart';
 import 'notification_payload.dart';
 import 'notification_service.dart';
+
+/// Localized Windows toast action labels: mark done, snooze 10 minutes.
+(String, String) actionLabelsFor(Locale locale) {
+  final l10n = lookupAppLocalizations(locale);
+  return (l10n.notifActionDone, l10n.notifActionRemind);
+}
 
 /// Real notification backend (design spec §3.2). Windows is the v0.1.0
 /// target; Android settings are present so the shared code path compiles.
 class FlutterLocalNotificationsService implements NotificationService {
-  FlutterLocalNotificationsService([FlutterLocalNotificationsPlugin? plugin])
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+  FlutterLocalNotificationsService({
+    FlutterLocalNotificationsPlugin? plugin,
+    Locale Function()? locale,
+  })  : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+        _locale = locale ?? (() => const Locale('zh'));
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final Locale Function() _locale;
   final Map<int, Timer> _fallbackTimers = {};
   void Function(String payload)? _onTap;
 
@@ -84,16 +96,17 @@ class FlutterLocalNotificationsService implements NotificationService {
 
   NotificationDetails _details(ReminderNotification notification) {
     final eventId = eventIdFromPayload(notification.payload);
+    final (doneLabel, remindLabel) = actionLabelsFor(_locale());
     return NotificationDetails(
       windows: WindowsNotificationDetails(
         actions: [
           if (eventId != null) ...[
             WindowsAction(
-              content: '完成',
+              content: doneLabel,
               arguments: donePayload(eventId),
             ),
             WindowsAction(
-              content: '10 分钟后提醒',
+              content: remindLabel,
               arguments: snoozePayload(eventId),
             ),
           ],

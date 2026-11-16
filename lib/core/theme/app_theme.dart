@@ -1,31 +1,59 @@
 import 'package:flutter/material.dart';
 
-/// Dual-theme builder seeded by the user's accent color (design spec §4.2).
+import 'app_tokens.dart';
+
+/// Palette-driven dual theme builder (design spec `docs/design/01-tokens.md`).
 abstract final class AppTheme {
-  static ThemeData light(Color seed) => _build(seed, Brightness.light);
+  static ThemeData light(Color accent) => _build(accent, Brightness.light);
 
-  static ThemeData dark(Color seed) => _build(seed, Brightness.dark);
+  static ThemeData dark(Color accent) => _build(accent, Brightness.dark);
 
-  static ThemeData _build(Color seed, Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: seed,
+  static ThemeData _build(Color accent, Brightness brightness) {
+    final p =
+        (brightness == Brightness.light ? AppPalette.light : AppPalette.dark)
+            .withAccent(accent);
+    final scheme = ColorScheme(
       brightness: brightness,
+      primary: accent,
+      onPrimary: Colors.white,
+      secondary: p.sub,
+      onSecondary: p.ink,
+      error: p.danger,
+      onError: Colors.white,
+      surface: p.bg,
+      onSurface: p.ink,
+      outline: p.sub,
+      outlineVariant: p.lineStrong,
+      surfaceContainerLowest: p.card,
+      surfaceContainerLow: p.chip,
+      surfaceContainerHighest: p.chip,
+      onSurfaceVariant: p.sub,
     );
-    final cardShape =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
     return ThemeData(
       colorScheme: scheme,
-      scaffoldBackgroundColor: scheme.surface,
-      cardTheme: CardThemeData(shape: cardShape),
-      dialogTheme: DialogThemeData(shape: cardShape),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      scaffoldBackgroundColor: p.bg,
+      fontFamily: 'Inter',
+      fontFamilyFallback: const ['NotoSansSC'],
+      textTheme: const TextTheme(
+        displayLarge: AppTextStyles.display,
+        titleLarge: AppTextStyles.title,
+        titleMedium: AppTextStyles.headline,
+        bodyMedium: AppTextStyles.body,
+        bodySmall: AppTextStyles.secondary,
+        labelSmall: AppTextStyles.caption,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: p.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.dialog),
         ),
       ),
-      segmentedButtonTheme: SegmentedButtonThemeData(
-        style: SegmentedButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: p.card,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.field),
+          borderSide: BorderSide(color: p.lineStrong),
         ),
       ),
     );

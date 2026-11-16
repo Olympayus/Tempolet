@@ -1,51 +1,33 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
+import 'package:tempolet/core/prefs.dart';
 import 'package:tempolet/data/database/database.dart';
+import 'package:tempolet/data/repositories/event_repository.dart';
+import 'package:tempolet/features/calendar/calendar_page.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
-import 'package:tempolet/features/calendar/month_view.dart';
-
-Future<void> _seedEvent(
-  AppDatabase db, {
-  required String title,
-  required DateTime day,
-  required int startMinute,
-}) async {
-  final now = DateTime.now();
-  await db.into(db.events).insert(
-        EventsCompanion.insert(
-          id: title,
-          title: title,
-          kind: 'reminder',
-          date: DateTime(day.year, day.month, day.day),
-          startMinute: Value(startMinute),
-          notificationId: title.hashCode & 0x7FFFFFFF,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-}
+import 'package:tempolet/notifications/fake_notification_service.dart';
+import 'package:tempolet/notifications/notification_scheduler.dart';
 
 Future<void> _settle(WidgetTester tester) async {
-  // Drift streams resolve through real async I/O, which fake-async pumping
-  // does not drive on its own.
   await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 30)));
+    () => Future<void>.delayed(const Duration(milliseconds: 30)),
+  );
   await tester.pumpAndSettle();
 }
 
-Widget _app(AppDatabase db, ProviderContainer container, Widget child) {
+Widget _app(ProviderContainer container) {
   return UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
       locale: const Locale('en'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(body: child),
+      home: const CalendarPage(),
     ),
   );
 }
@@ -53,12 +35,23 @@ Widget _app(AppDatabase db, ProviderContainer container, Widget child) {
 void main() {
   late AppDatabase db;
   late ProviderContainer container;
+  late EventRepository repo;
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     db = AppDatabase(NativeDatabase.memory());
+    repo = EventRepository(db);
     container = ProviderContainer(
-      overrides: [databaseProvider.overrideWithValue(db)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        databaseProvider.overrideWithValue(db),
+        notificationServiceProvider.overrideWithValue(
+          FakeNotificationService(),
+        ),
+      ],
     );
+    container.read(selectedDayProvider.notifier).select(DateTime(2026, 11, 11));
   });
 
   tearDown(() async {
@@ -66,95 +59,128 @@ void main() {
     await db.close();
   });
 
-  group('month grid maths', () {
-    test('firstDayOfMonth normalises to the first', () {
-      expect(firstDayOfMonth(DateTime(2026, 11, 11, 5, 6)),
-          DateTime(2026, 11, 1));
-    });
+  Future<Event> seed(
+    String title, {
+    int? startMinute = 540,
+    String kind = 'reminder',
+  }) {
+    return repo.create(
+      title: title,
+      kind: kind,
+      date: DateTime(2026, 11, 11),
+      startMinute: startMinute,
+    );
+  }
 
-    test('2026-11 grid starts on Oct 26 and ends on Dec 6', () {
-      final days = monthGridDays(DateTime(2026, 11));
-      expect(days, hasLength(42));
-      expect(days.first, DateTime(2026, 10, 26));
-      expect(days.last, DateTime(2026, 12, 6));
-    });
-
-    test('2028-02 (leap) has 29 in-month days', () {
-      final days = monthGridDays(DateTime(2028, 2));
-      expect(
-        days.where((d) => d!.month == 2).length,
-        29,
-      );
-    });
-  });
-
-  testWidgets('cells show two rows plus a +N overflow marker', (tester) async {
-    await _seedEvent(db, title: 'E1', day: DateTime(2026, 11, 11), startMinute: 540);
-    await _seedEvent(db, title: 'E2', day: DateTime(2026, 11, 11), startMinute: 600);
-    await _seedEvent(db, title: 'E3', day: DateTime(2026, 11, 11), startMinute: 660);
-
-    await tester.pumpWidget(_app(db, container,
-        MonthView(month: DateTime(2026, 11))));
+  testWidgets('grid has no adjacent-month cells and shows an ellipsis', (
+    tester,
+  ) async {
+    await seed('E1', startMinute: 540);
+    await seed('E2', startMinute: 600);
+    await seed('E3', startMinute: 660);
+    await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    expect(find.textContaining('E1'), findsOneWidget);
-    expect(find.textContaining('E2'), findsOneWidget);
     expect(find.textContaining('E3'), findsNothing);
-    expect(find.text('+1'), findsOneWidget);
+    expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
+    expect(find.textContaining('Oct'), findsNothing);
   });
 
-  testWidgets('holidays render in red under the day number', (tester) async {
-    await db.into(db.holidays).insert(
+  testWidgets('holiday info shares the day row and keeps both event rows', (
+    tester,
+  ) async {
+    await db
+        .into(db.holidays)
+        .insert(
           HolidaysCompanion.insert(
             date: DateTime(2026, 11, 11),
             name: 'Test Holiday',
+            isWorkday: const Value(false),
+            source: const Value('seed'),
+            updatedAt: Value(DateTime.now()),
           ),
         );
-
-    await tester.pumpWidget(_app(db, container,
-        MonthView(month: DateTime(2026, 11))));
+    await seed('E1', startMinute: 540);
+    await seed('E2', startMinute: 600);
+    await seed('E3', startMinute: 660);
+    await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    final holiday = tester.widget<Text>(find.text('Test Holiday'));
-    expect(holiday.style?.color,
-        Theme.of(tester.element(find.text('Test Holiday'))).colorScheme.error);
+    expect(find.text('Test Holiday'), findsOneWidget);
+    expect(find.text('Off'), findsOneWidget);
+    expect(find.text('E1'), findsOneWidget);
+    expect(find.text('E2'), findsOneWidget);
+    expect(find.text('E3'), findsNothing);
+    expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
   });
 
-  testWidgets('tapping a day selects it and switches to the day view',
-      (tester) async {
-    await tester.pumpWidget(_app(db, container,
-        MonthView(month: DateTime(2026, 11))));
+  testWidgets('single click opens preview without changing view mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(container));
     await _settle(tester);
 
     await tester.tap(find.byKey(const ValueKey('day-2026-11-11')));
-    await _settle(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
 
-    expect(container.read(selectedDayProvider), DateTime(2026, 11, 11));
-    expect(container.read(calendarViewModeProvider), CalendarViewMode.day);
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+    expect(container.read(calendarViewModeProvider), CalendarViewMode.month);
   });
 
-  testWidgets('hovering a day shows a summary without changing selection',
-      (tester) async {
-    await _seedEvent(db, title: 'HoverRow', day: DateTime(2026, 11, 11), startMinute: 540);
-
-    await tester.pumpWidget(_app(db, container,
-        MonthView(month: DateTime(2026, 11))));
+  testWidgets('double click selects the day and opens the sidebar', (
+    tester,
+  ) async {
+    // Wide enough to host the 280px sidebar (the engine default 800px sits
+    // below the app's 960px minimum and would squeeze the header).
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    final before = container.read(selectedDayProvider);
-    final center = tester.getCenter(find.byKey(const ValueKey('day-2026-11-11')));
+    final cell = find.byKey(const ValueKey('day-2026-11-11'));
+    await tester.tap(cell);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(cell);
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
 
-    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await gesture.addPointer(location: Offset.zero);
-    addTearDown(gesture.removePointer);
-    await gesture.moveTo(center);
+    expect(container.read(selectedDayProvider), DateTime(2026, 11, 11));
+    expect(container.read(sidebarPreferenceProvider), isTrue);
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+  });
+
+  testWidgets('header navigation moves the month grid', (tester) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('day-2026-11-01')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('calendar-next')));
     await _settle(tester);
 
-    expect(find.byKey(const ValueKey('day-summary-popover')), findsOneWidget);
-    expect(container.read(selectedDayProvider), before);
+    expect(find.byKey(const ValueKey('day-2026-12-01')), findsOneWidget);
+    expect(find.byKey(const ValueKey('day-2026-11-01')), findsNothing);
+  });
 
-    await gesture.moveTo(const Offset(1, 1));
+  testWidgets('checking a preview row completes the event', (tester) async {
+    final event = await seed('Buy milk', startMinute: 540);
+    await tester.pumpWidget(_app(container));
     await _settle(tester);
-    expect(find.byKey(const ValueKey('day-summary-popover')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('day-2026-11-11')));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(ValueKey('preview-complete-${event.id}')));
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 30)),
+    );
+
+    expect(find.byKey(const ValueKey('editor-save')), findsNothing);
+    final completed = await tester.runAsync(() => repo.getById(event.id));
+    expect(completed!.isCompleted, isTrue);
   });
 }

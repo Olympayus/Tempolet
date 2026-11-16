@@ -18,20 +18,20 @@ class EventDraft {
     required this.date,
     this.startMinute,
     this.endMinute,
-    this.importance = 0,
     this.reminderOffsetMinutes,
+    this.categoryId,
   });
 
   factory EventDraft.fromEvent(Event event) => EventDraft(
-        title: event.title,
-        note: event.note,
-        kind: EventKind.fromDb(event.kind),
-        date: event.date,
-        startMinute: event.startMinute,
-        endMinute: event.endMinute,
-        importance: event.importance,
-        reminderOffsetMinutes: event.reminderOffsetMinutes,
-      );
+    title: event.title,
+    note: event.note,
+    kind: EventKind.fromDb(event.kind),
+    date: event.date,
+    startMinute: event.startMinute,
+    endMinute: event.endMinute,
+    reminderOffsetMinutes: event.reminderOffsetMinutes,
+    categoryId: event.categoryId,
+  );
 
   String title;
   String note;
@@ -39,10 +39,11 @@ class EventDraft {
   DateTime date;
   int? startMinute;
   int? endMinute;
-  int importance;
 
   /// null means "no notification" (see ledger ruling R6).
   int? reminderOffsetMinutes;
+
+  String? categoryId;
 }
 
 enum EventFormError { emptyTitle, missingStart, invalidRange }
@@ -64,7 +65,7 @@ List<EventFormError> validateDraft(EventDraft draft) {
   } else {
     if (!inRange(start)) errors.add(EventFormError.invalidRange);
     if (draft.kind == EventKind.plan) {
-      if (end == null || end <= start || !inRange(end)) {
+      if (end == null || end <= start || end > 1440 || !inRange(end)) {
         errors.add(EventFormError.invalidRange);
       }
     }

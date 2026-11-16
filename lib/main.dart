@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,11 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/legacy.dart' show windowManager;
 
 import 'app.dart';
+import 'core/l10n/generated/app_localizations.dart';
+import 'core/l10n/locale_controller.dart';
 import 'core/platform.dart';
 import 'core/prefs.dart';
 import 'core/router/app_router.dart';
 import 'core/utils/dates.dart';
+import 'data/holidays/holiday_seed_service.dart';
 import 'data/repositories/event_repository.dart';
+import 'data/repositories/holiday_repository.dart';
 import 'desktop/tray_service.dart';
 import 'desktop/window_service.dart';
 import 'features/calendar/calendar_state.dart';
@@ -26,8 +31,10 @@ Future<void> runTempolet() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
 
-  final service = FlutterLocalNotificationsService();
   late final ProviderContainer container;
+  final service = FlutterLocalNotificationsService(
+    locale: () => _activeLocale(container),
+  );
   await service.initialize(
     onTap: (payload) => _handleNotificationPayload(container, payload),
   );
@@ -39,36 +46,66 @@ Future<void> runTempolet() async {
     ],
   );
 
+  // Import the bundled holiday data once per version. A failure here must not
+  // keep the calendar from opening.
+  try {
+    await HolidaySeedService(
+      repository: container.read(holidayRepositoryProvider),
+      prefs: prefs,
+    ).seedIfNeeded(assetPath: 'assets/holidays/2026.json', version: '2026');
+  } catch (error, stackTrace) {
+    debugPrint('Holiday seed failed: $error\n$stackTrace');
+  }
+
   // Desktop chrome: window close behaviour and the tray. Initialisation
   // order matters — window manager, then tray, then notifications.
   // Mobile targets have none of these plugins, so skip the whole block.
   if (isDesktopTarget(defaultTargetPlatform)) {
-    final window = WindowService();
+    final window = WindowService(prefs: prefs);
     await window.initialize(
       minimizeToTray: () => container.read(minimizeToTrayEnabledProvider),
       onHidden: () async {},
     );
     final tray = TrayService();
+    final l10n = lookupAppLocalizations(_activeLocale(container));
     await tray.initialize(
       onShow: window.showWindow,
       onQuit: () async {
-        await tray.dispose();
-        await windowManager.destroy();
+        try {
+          await tray.dispose();
+          await window.persistBounds();
+        } catch (error, stackTrace) {
+          // Quitting must succeed even if the tray or bounds write fails.
+          debugPrint('Tray quit preparation failed: $error\n$stackTrace');
+        } finally {
+          await windowManager.destroy();
+        }
       },
+      showLabel: l10n.trayShow,
+      quitLabel: l10n.trayQuit,
     );
     await syncLaunchAtStartup(container.read(launchAtStartupEnabledProvider));
   }
 
   runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const TempoletApp(),
-    ),
+    UncontrolledProviderScope(container: container, child: const TempoletApp()),
   );
 
   final scheduler = container.read(notificationSchedulerProvider);
   unawaited(scheduler.reconcile());
   _scheduleDailySummary(container);
+}
+
+/// The locale actually shown by the app: the stored preference, otherwise the
+/// platform locale, resolved against the supported locales like MaterialApp.
+Locale _activeLocale(ProviderContainer container) {
+  final locale =
+      container.read(localeControllerProvider) ??
+      PlatformDispatcher.instance.locale;
+  for (final supported in AppLocalizations.supportedLocales) {
+    if (supported.languageCode == locale.languageCode) return supported;
+  }
+  return AppLocalizations.supportedLocales.first;
 }
 
 Future<void> _handleNotificationPayload(

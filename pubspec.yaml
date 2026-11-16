@@ -2,7 +2,7 @@ name: tempolet
 description: "轻量日历 + 提醒/计划 + 备忘录（本地优先，Windows 桌面 v0.1.0）"
 publish_to: 'none'
 
-version: 0.1.1+2
+version: 0.1.2+3
 
 environment:
   sdk: ^3.13.7
@@ -28,6 +28,7 @@ dependencies:
   launch_at_startup: ^0.5.1
   path_provider: ^2.1.6
   path: ^1.9.1
+  lucide_icons_flutter: ^4.0.3
 
 dev_dependencies:
   flutter_test:
@@ -56,3 +57,10 @@ flutter:
   assets:
     - assets/tray_icon.ico
     - assets/holidays/2026.json
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+    - family: NotoSansSC
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Variable.ttf

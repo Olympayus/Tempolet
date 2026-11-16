@@ -11,24 +11,39 @@ import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
 import '../../notifications/notification_scheduler.dart';
 import '../events/event_editor_sheet.dart';
+import '../events/event_list_row.dart';
 import 'calendar_state.dart';
 import 'category_marker.dart';
 
-/// 280px selected-day sidebar on the right of the calendar
-/// (`docs/design/02-shell-desktop.md` §5.1): the day's unfinished items with
-/// inline completion, an editor entry per row, the completed-list link in the
-/// header and a bottom add button.
+/// Sidebar width from `docs/design/10-ui-refinement.md` §9.12.
+const double _sidebarWidth = 300;
+
+/// Single-row header height (§9.12). Not a list row, so it is a file-local
+/// value rather than an [AppSizes] tier.
+const double _headerHeight = 60;
+
+/// Group title row from §9.12.
+const double _groupHeaderHeight = 34;
+
+/// Gap between the plans and reminders groups.
+const double _groupGap = 16;
+
+/// Sidebar row padding matches [EventListRow]'s own 16px inset.
+const double _rowPadding = 16;
+
+/// The completion hit target is 24×24 even though its glyph is 14.
+const double _checkHitSize = 24;
+
+/// 300px selected-day sidebar on the right of the calendar
+/// (`docs/design/10-ui-refinement.md` §9.12): a single-row date header with the
+/// completed-list chip, the day's unfinished items grouped plans-first, and a
+/// bottom add row.
 class CalendarSidebar extends ConsumerWidget {
   const CalendarSidebar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final palette =
-        (theme.brightness == Brightness.light
-                ? AppPalette.light
-                : AppPalette.dark)
-            .withAccent(theme.colorScheme.primary);
+    final palette = _paletteOf(context);
     final locale = Localizations.localeOf(context);
     final l10n = AppLocalizations.of(context);
     final day = ref.watch(selectedDayProvider);
@@ -38,100 +53,143 @@ class CalendarSidebar extends ConsumerWidget {
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
     // Completed items leave the sidebar silently, like every other surface.
     final pending = events.where((event) => !event.isCompleted).toList();
+    // The provider already orders by start time (all-day last); filtering
+    // preserves that order inside each group.
+    final plans = pending.where((event) => event.kind == 'plan').toList();
+    final reminders = pending.where((event) => event.kind != 'plan').toList();
     // Captured while building, before any 120ms fade, so a mid-fade dismissal
     // can neither lose the write nor touch `ref` after disposal.
     final repo = ref.read(eventRepositoryProvider);
     final sync = ref.read(eventNotifierSyncProvider);
 
+    Future<void> complete(Event event) async {
+      await repo.setCompleted(event.id, true);
+      sync.afterCompletion(event.copyWith(isCompleted: true));
+    }
+
     return Container(
-      width: 280,
+      width: _sidebarWidth,
       decoration: BoxDecoration(
         border: Border(left: BorderSide(color: palette.line)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${AppFormats.monthDay(locale, day)} '
-                    '${AppFormats.weekday(locale, day)} · '
-                    '${l10n.itemsCount(pending.length)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.secondary.copyWith(color: palette.ink),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                TextButton(
-                  key: const ValueKey('sidebar-completed-link'),
-                  onPressed: () => context.go('/calendar/completed'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: palette.sub,
-                    textStyle: AppTextStyles.caption,
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    minimumSize: const Size(0, 24),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    l10n.viewCompleted,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(height: 1, color: palette.line),
-          Expanded(
-            child: pending.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Text(
-                      l10n.noSchedule,
-                      style: AppTextStyles.secondary.copyWith(
-                        color: palette.subWeak,
+          SizedBox(
+            key: const ValueKey('sidebar-header'),
+            height: _headerHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _rowPadding),
+              child: Row(
+                children: [
+                  // Compact typography fits the 300px header in both locales;
+                  // scaleDown is a no-clip fallback for unusually wide fonts
+                  // (e.g. the default test font), never in the desktop build.
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _dateLabel(locale, day),
+                              maxLines: 1,
+                              style: AppTextStyles.headline.copyWith(
+                                color: palette.ink,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              AppFormats.weekday(locale, day),
+                              maxLines: 1,
+                              style: AppTextStyles.secondary.copyWith(
+                                color: palette.sub,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    itemCount: pending.length,
-                    itemBuilder: (context, index) {
-                      final event = pending[index];
-                      return _SidebarRow(
-                        key: ValueKey(event.id),
-                        event: event,
-                        color: categoryMarkerColor(
-                          event.categoryId,
-                          categories,
+                  ),
+                  const SizedBox(width: 8),
+                  _CompletedChip(
+                    key: const ValueKey('sidebar-completed-link'),
+                    label: _completedLabel(locale, l10n),
+                    onTap: () => context.go('/calendar/completed'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: pending.isEmpty
+                ? _EmptyState(locale: locale, palette: palette)
+                : ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      if (plans.isNotEmpty)
+                        _SidebarGroup(
+                          key: const ValueKey('sidebar-group-plan'),
+                          titleKey: const ValueKey('sidebar-group-title-plan'),
+                          title: l10n.kindPlan,
+                          count: plans.length,
+                          palette: palette,
+                          children: [
+                            for (final event in plans)
+                              _SidebarRow(
+                                key: ValueKey('sidebar-row-${event.id}'),
+                                event: event,
+                                color: categoryMarkerColor(
+                                  event.categoryId,
+                                  categories,
+                                ),
+                                onComplete: () => complete(event),
+                              ),
+                          ],
                         ),
-                        onComplete: () async {
-                          await repo.setCompleted(event.id, true);
-                          sync.afterCompletion(
-                            event.copyWith(isCompleted: true),
-                          );
-                        },
-                      );
-                    },
+                      if (plans.isNotEmpty && reminders.isNotEmpty)
+                        const SizedBox(height: _groupGap),
+                      if (reminders.isNotEmpty)
+                        _SidebarGroup(
+                          key: const ValueKey('sidebar-group-reminder'),
+                          titleKey: const ValueKey(
+                            'sidebar-group-title-reminder',
+                          ),
+                          title: l10n.kindReminder,
+                          count: reminders.length,
+                          palette: palette,
+                          children: [
+                            for (final event in reminders)
+                              _SidebarRow(
+                                key: ValueKey('sidebar-row-${event.id}'),
+                                event: event,
+                                color: categoryMarkerColor(
+                                  event.categoryId,
+                                  categories,
+                                ),
+                                onComplete: () => complete(event),
+                              ),
+                          ],
+                        ),
+                    ],
                   ),
           ),
           Container(height: 1, color: palette.line),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
+          SizedBox(
+            height: AppSizes.row,
             child: TextButton(
               key: const ValueKey('sidebar-add'),
               onPressed: () => showEventEditor(context, date: day),
               style: TextButton.styleFrom(
                 alignment: Alignment.centerLeft,
-                foregroundColor: palette.sub,
-                textStyle: AppTextStyles.secondary,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 30),
+                foregroundColor: palette.accent,
+                textStyle: AppTextStyles.body,
+                padding: const EdgeInsets.symmetric(horizontal: _rowPadding),
+                minimumSize: Size.zero,
+                shape: const RoundedRectangleBorder(),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
@@ -140,6 +198,150 @@ class CalendarSidebar extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Chinese keeps the short month/day form; English uses the year-bearing
+/// `Nov 17, 2026` from `docs/design/10-ui-refinement.md` §9.12.
+String _dateLabel(Locale locale, DateTime day) => locale.languageCode == 'zh'
+    ? AppFormats.monthDay(locale, day)
+    : AppFormats.dayTitle(locale, day);
+
+/// English needs the shorter `Completed` label to fit at 300px; the Chinese
+/// wording keeps its full text with the chevron painted as an icon instead of
+/// the literal `›` in the string.
+String _completedLabel(Locale locale, AppLocalizations l10n) =>
+    locale.languageCode == 'zh'
+    ? l10n.viewCompleted.replaceAll(' ›', '')
+    : l10n.completedTitle;
+
+class _CompletedChip extends StatefulWidget {
+  const _CompletedChip({super.key, required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_CompletedChip> createState() => _CompletedChipState();
+}
+
+class _CompletedChipState extends State<_CompletedChip> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _paletteOf(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: _hovering ? palette.hover : palette.chip,
+            borderRadius: BorderRadius.circular(AppRadii.chip),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.label,
+                maxLines: 1,
+                style: AppTextStyles.secondary.copyWith(color: palette.accent),
+              ),
+              const SizedBox(width: 4),
+              Icon(LucideIcons.chevronRight, size: 12, color: palette.accent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarGroup extends StatelessWidget {
+  const _SidebarGroup({
+    super.key,
+    required this.titleKey,
+    required this.title,
+    required this.count,
+    required this.palette,
+    required this.children,
+  });
+
+  final Key titleKey;
+  final String title;
+  final int count;
+  final AppPalette palette;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          key: titleKey,
+          height: _groupHeaderHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _rowPadding),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.section.copyWith(color: palette.ink),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$count',
+                  style: AppTextStyles.caption.copyWith(
+                    color: palette.subMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        ...children,
+      ],
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.locale, required this.palette});
+
+  final Locale locale;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final isZh = locale.languageCode == 'zh';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_rowPadding, 16, _rowPadding, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isZh ? '无安排' : 'No schedule',
+            style: AppTextStyles.rowTitle.copyWith(color: palette.sub),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            isZh
+                ? '添加提醒或计划，开始这一天。'
+                : 'Add a reminder or plan to start the day.',
+            style: AppTextStyles.body.copyWith(color: palette.subWeak),
           ),
         ],
       ),
@@ -178,85 +380,43 @@ class _SidebarRowState extends State<_SidebarRow> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette =
-        (theme.brightness == Brightness.light
-                ? AppPalette.light
-                : AppPalette.dark)
-            .withAccent(theme.colorScheme.primary);
-    final l10n = AppLocalizations.of(context);
     final event = widget.event;
-    final done = _completing;
-    final time = event.startMinute == null
-        ? l10n.allDay
-        : AppFormats.timeRange(event.startMinute, event.endMinute);
-
-    return GestureDetector(
-      key: ValueKey('sidebar-row-${event.id}'),
-      behavior: HitTestBehavior.opaque,
-      onTap: () => showEventEditor(context, existing: event),
-      child: AnimatedOpacity(
-        opacity: done ? 0.35 : 1,
-        duration: const Duration(milliseconds: 120),
-        child: SizedBox(
-          height: 30,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                GestureDetector(
-                  key: ValueKey('sidebar-complete-${event.id}'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _complete,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    alignment: Alignment.center,
-                    decoration: done
-                        ? BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: palette.accent,
-                          )
-                        : BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: palette.subWeak,
-                              width: 1.5,
-                            ),
-                          ),
-                    child: done
-                        ? const Icon(
-                            LucideIcons.check,
-                            size: 9,
-                            color: Colors.white,
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    event.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.body.copyWith(color: palette.ink),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  time,
-                  style: AppTextStyles.caption.copyWith(
-                    fontSize: 11,
-                    color: palette.sub,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                CategoryMarker(kind: event.kind, color: widget.color),
-              ],
+    return AnimatedOpacity(
+      opacity: _completing ? 0.35 : 1,
+      duration: const Duration(milliseconds: 120),
+      child: Stack(
+        children: [
+          EventListRow(
+            event: event,
+            color: widget.color,
+            showDate: false,
+            onTap: () => showEventEditor(context, existing: event),
+            onToggleComplete: _complete,
+          ),
+          // EventListRow owns the check circle but not a per-event key; this
+          // transparent 24px target keeps `sidebar-complete-<id>` tappable
+          // for the completion flow and its tests.
+          Positioned(
+            left: _rowPadding,
+            top: (AppSizes.row - _checkHitSize) / 2,
+            width: _checkHitSize,
+            height: _checkHitSize,
+            child: GestureDetector(
+              key: ValueKey('sidebar-complete-${event.id}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: _complete,
             ),
           ),
-        ),
+        ],
       ),
     );
   }
+}
+
+AppPalette _paletteOf(BuildContext context) {
+  final theme = Theme.of(context);
+  return (theme.brightness == Brightness.light
+          ? AppPalette.light
+          : AppPalette.dark)
+      .withAccent(theme.colorScheme.primary);
 }

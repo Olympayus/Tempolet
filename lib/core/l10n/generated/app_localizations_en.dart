@@ -286,7 +286,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String itemsCount(int count) {
-    return '$count items';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -315,7 +321,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String selectedCount(int count) {
-    return '$count selected';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -369,12 +381,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String plansCount(int count) {
-    return '$count plans';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count plans',
+      one: '1 plan',
+    );
+    return '$_temp0';
   }
 
   @override
   String remindersCount(int count) {
-    return '$count reminders';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count reminders',
+      one: '1 reminder',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String planNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'plans',
+      one: 'plan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'reminders',
+      one: 'reminder',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -442,4 +488,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get futureMonths => 'Next 6 months';
+
+  @override
+  String get completedChip => 'Completed';
+
+  @override
+  String get sidebarEmptyTitle => 'No schedule';
+
+  @override
+  String get sidebarEmptyHint => 'Add a reminder or plan to start the day.';
+
+  @override
+  String get plansGroupTitle => 'Plans';
+
+  @override
+  String get remindersGroupTitle => 'Reminders';
+
+  @override
+  String get dayOverviewTitle => 'Day overview';
+
+  @override
+  String get tomorrowPreviewTitle => 'Tomorrow preview';
 }

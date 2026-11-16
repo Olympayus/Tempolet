@@ -117,7 +117,7 @@ class CalendarSidebar extends ConsumerWidget {
                   const SizedBox(width: 8),
                   _CompletedChip(
                     key: const ValueKey('sidebar-completed-link'),
-                    label: _completedLabel(locale, l10n),
+                    label: l10n.completedChip,
                     onTap: () => context.go('/calendar/completed'),
                   ),
                 ],
@@ -126,7 +126,7 @@ class CalendarSidebar extends ConsumerWidget {
           ),
           Expanded(
             child: pending.isEmpty
-                ? _EmptyState(locale: locale, palette: palette)
+                ? _EmptyState(palette: palette)
                 : ListView(
                     padding: EdgeInsets.zero,
                     children: [
@@ -134,7 +134,7 @@ class CalendarSidebar extends ConsumerWidget {
                         _SidebarGroup(
                           key: const ValueKey('sidebar-group-plan'),
                           titleKey: const ValueKey('sidebar-group-title-plan'),
-                          title: l10n.kindPlan,
+                          title: l10n.plansGroupTitle,
                           count: plans.length,
                           palette: palette,
                           children: [
@@ -158,7 +158,7 @@ class CalendarSidebar extends ConsumerWidget {
                           titleKey: const ValueKey(
                             'sidebar-group-title-reminder',
                           ),
-                          title: l10n.kindReminder,
+                          title: l10n.remindersGroupTitle,
                           count: reminders.length,
                           palette: palette,
                           children: [
@@ -210,14 +210,6 @@ class CalendarSidebar extends ConsumerWidget {
 String _dateLabel(Locale locale, DateTime day) => locale.languageCode == 'zh'
     ? AppFormats.monthDay(locale, day)
     : AppFormats.dayTitle(locale, day);
-
-/// English needs the shorter `Completed` label to fit at 300px; the Chinese
-/// wording keeps its full text with the chevron painted as an icon instead of
-/// the literal `›` in the string.
-String _completedLabel(Locale locale, AppLocalizations l10n) =>
-    locale.languageCode == 'zh'
-    ? l10n.viewCompleted.replaceAll(' ›', '')
-    : l10n.completedTitle;
 
 class _CompletedChip extends StatefulWidget {
   const _CompletedChip({super.key, required this.label, required this.onTap});
@@ -319,28 +311,25 @@ class _SidebarGroup extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.locale, required this.palette});
+  const _EmptyState({required this.palette});
 
-  final Locale locale;
   final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
-    final isZh = locale.languageCode == 'zh';
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(_rowPadding, 16, _rowPadding, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            isZh ? '无安排' : 'No schedule',
+            l10n.sidebarEmptyTitle,
             style: AppTextStyles.rowTitle.copyWith(color: palette.sub),
           ),
           const SizedBox(height: 2),
           Text(
-            isZh
-                ? '添加提醒或计划，开始这一天。'
-                : 'Add a reminder or plan to start the day.',
+            l10n.sidebarEmptyHint,
             style: AppTextStyles.body.copyWith(color: palette.subWeak),
           ),
         ],

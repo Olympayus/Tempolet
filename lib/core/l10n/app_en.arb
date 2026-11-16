@@ -122,7 +122,7 @@
   "leadUnitHour": "h",
   "leadUnitMinute": "m",
   "leadBeforeSuffix": " before",
-  "itemsCount": "{count} items",
+  "itemsCount": "{count, plural, =1{1 item} other{{count} items}}",
   "@itemsCount": {
     "placeholders": {
       "count": {
@@ -138,7 +138,7 @@
   "restore": "Restore",
   "select": "Select",
   "selectAll": "Select all",
-  "selectedCount": "{count} selected",
+  "selectedCount": "{count, plural, =1{1 selected} other{{count} selected}}",
   "@selectedCount": {
     "placeholders": {
       "count": {
@@ -162,7 +162,7 @@
   "customColor": "Custom color",
   "confirm": "OK",
   "tomorrowPreview": "Tomorrow",
-  "plansCount": "{count} plans",
+  "plansCount": "{count, plural, =1{1 plan} other{{count} plans}}",
   "@plansCount": {
     "placeholders": {
       "count": {
@@ -170,8 +170,24 @@
       }
     }
   },
-  "remindersCount": "{count} reminders",
+  "remindersCount": "{count, plural, =1{1 reminder} other{{count} reminders}}",
   "@remindersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planNoun": "{count, plural, =1{plan} other{plans}}",
+  "@planNoun": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reminderNoun": "{count, plural, =1{reminder} other{reminders}}",
+  "@reminderNoun": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -199,5 +215,12 @@
   "viewCompletedShort": "View completed",
   "filterAll": "All",
   "restOfMonth": "Rest of month",
-  "futureMonths": "Next 6 months"
+  "futureMonths": "Next 6 months",
+  "completedChip": "Completed",
+  "sidebarEmptyTitle": "No schedule",
+  "sidebarEmptyHint": "Add a reminder or plan to start the day.",
+  "plansGroupTitle": "Plans",
+  "remindersGroupTitle": "Reminders",
+  "dayOverviewTitle": "Day overview",
+  "tomorrowPreviewTitle": "Tomorrow preview"
 }

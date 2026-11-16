@@ -402,8 +402,8 @@ void main() {
 
       await pumpDay(tester, day, locale: const Locale('en'));
 
-      expect(find.text('当日概览'), findsOneWidget);
-      expect(find.text('次日预览'), findsOneWidget);
+      expect(find.text('Day overview'), findsOneWidget);
+      expect(find.text('Tomorrow preview'), findsOneWidget);
       expect(find.text('本周'), findsNothing);
       // The count unit is one rich-text run whose plain text is `2 plans`;
       // the number must not also be painted as a separate leading Text.

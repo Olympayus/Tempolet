@@ -492,15 +492,6 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     return days;
   }
 
-  // TODO(Task 19): route the remaining-month range label through the shared
-  // date formatting pass.
-  String _rangeLabel(Locale locale, DateTime start, DateTime end) {
-    final startText = AppFormats.monthDay(locale, start);
-    return locale.languageCode == 'zh'
-        ? '$startText – ${end.day}日'
-        : '$startText – ${end.day}';
-  }
-
   Widget _dateMode({
     required DateTime today,
     required DateTime bandStart,
@@ -565,7 +556,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
         _monthSummary(
           keyString: 'remaining',
           label: l10n.restOfMonth,
-          rangeLabel: _rangeLabel(locale, days.first, days.last),
+          rangeLabel: AppFormats.dayRange(locale, days.first, days.last),
           count: count,
           palette: palette,
           l10n: l10n,
@@ -730,6 +721,9 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   }) {
     final key = _dayKey(day);
     final anchor = _anchorFor('day-$key');
+    // English date headers join date and weekday with the `·` separator;
+    // Chinese writes `11月17日 周一` with a plain space.
+    final showDotSeparator = locale.languageCode != 'zh';
 
     if (events.isEmpty) {
       return KeyedSubtree(
@@ -747,7 +741,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                     AppFormats.monthDay(locale, day),
                     style: AppTextStyles.body.copyWith(color: palette.sub),
                   ),
-                  if (locale.languageCode != 'zh') ...[
+                  if (showDotSeparator) ...[
                     const SizedBox(width: 4),
                     Text(
                       '·',
@@ -794,7 +788,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                     AppFormats.monthDay(locale, day),
                     style: AppTextStyles.section.copyWith(color: palette.ink),
                   ),
-                  if (locale.languageCode != 'zh') ...[
+                  if (showDotSeparator) ...[
                     const SizedBox(width: 4),
                     Text(
                       '·',

@@ -112,6 +112,8 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
     final dayEvents = _sorted(
       ref.watch(eventsForDayProvider(selected)).value ?? const <Event>[],
     );
+    // Intentional locale-aware join: Chinese keeps `11月17日 周一 · 3 项`,
+    // English uses the `·` separator between date, weekday and count.
     final separator = locale.languageCode == 'zh' ? ' ' : ' · ';
     final title =
         '${AppFormats.monthDay(locale, selected)}'

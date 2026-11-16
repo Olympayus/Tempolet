@@ -350,7 +350,6 @@ class _DayOverview extends ConsumerWidget {
                 : AppPalette.dark)
             .withAccent(theme.colorScheme.primary);
     final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context);
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
     final plans = events
@@ -375,10 +374,8 @@ class _DayOverview extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // TODO(Task 19): move the rail titles to l10n with the other new
-          // strings.
           Text(
-            '当日概览',
+            l10n.dayOverviewTitle,
             style: AppTextStyles.section.copyWith(color: palette.ink),
           ),
           const SizedBox(height: 12),
@@ -396,7 +393,6 @@ class _DayOverview extends ConsumerWidget {
                   count: plans,
                   plan: true,
                   l10n: l10n,
-                  locale: locale,
                   numberStyle: numberStyle,
                   labelStyle: labelStyle,
                 ),
@@ -406,7 +402,6 @@ class _DayOverview extends ConsumerWidget {
                   count: reminders,
                   plan: false,
                   l10n: l10n,
-                  locale: locale,
                   numberStyle: numberStyle,
                   labelStyle: labelStyle,
                 ),
@@ -415,7 +410,7 @@ class _DayOverview extends ConsumerWidget {
           ),
           const SizedBox(height: 28),
           Text(
-            '次日预览',
+            l10n.tomorrowPreviewTitle,
             style: AppTextStyles.section.copyWith(color: palette.ink),
           ),
           const SizedBox(height: 8),
@@ -522,13 +517,16 @@ class _PreviewRow extends StatelessWidget {
 /// rich-text run whose plain text is `2 plans` / `1 个计划`. The number span is
 /// 22/700 ink and the noun span is 11/`sub`, so `find.text` still matches the
 /// whole unit while only one span paints the count.
+///
+/// The count-free noun comes from the plural-aware `planNoun` / `reminderNoun`
+/// ARB keys; the leading space between the two spans lives here because the
+/// number itself is painted by the number span.
 class _CountUnit extends StatelessWidget {
   const _CountUnit({
     required this.textKey,
     required this.count,
     required this.plan,
     required this.l10n,
-    required this.locale,
     required this.numberStyle,
     required this.labelStyle,
   });
@@ -537,47 +535,21 @@ class _CountUnit extends StatelessWidget {
   final int count;
   final bool plan;
   final AppLocalizations l10n;
-  final Locale locale;
   final TextStyle numberStyle;
   final TextStyle labelStyle;
 
   @override
   Widget build(BuildContext context) {
+    final noun = plan ? l10n.planNoun(count) : l10n.reminderNoun(count);
     return Text.rich(
       TextSpan(
         children: [
           TextSpan(text: '$count', style: numberStyle),
-          TextSpan(
-            text: _countNoun(
-              count: count,
-              plan: plan,
-              l10n: l10n,
-              locale: locale,
-            ),
-            style: labelStyle,
-          ),
+          TextSpan(text: ' $noun', style: labelStyle),
         ],
       ),
       key: textKey,
       maxLines: 1,
     );
   }
-}
-
-/// Noun-only suffix for a count unit. The count itself is painted by the
-/// number span, so the existing `plansCount` / `remindersCount` ARB keys
-/// (which embed the count) are NOT suitable as this label.
-// TODO(Task 19): keep this noun-plural helper, or migrate the noun spans to
-// ARB with ICU plural; do not use the count-embedding keys for the label.
-String _countNoun({
-  required int count,
-  required bool plan,
-  required AppLocalizations l10n,
-  required Locale locale,
-}) {
-  if (locale.languageCode == 'zh') {
-    return ' 个${plan ? l10n.kindPlan : l10n.kindReminder}';
-  }
-  final noun = plan ? 'plan' : 'reminder';
-  return ' $noun${count == 1 ? '' : 's'}';
 }

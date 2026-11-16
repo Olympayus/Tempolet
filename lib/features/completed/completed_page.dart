@@ -193,6 +193,9 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
 
     Widget rowFor(Event event) {
       final at = event.completedAt;
+      // Intentional locale-aware join: Chinese writes `11月16日 10:02`, while
+      // English uses the `·` date/time separator (no comma) per the v0.1.3
+      // separator ruling.
       final separator = locale.languageCode == 'zh' ? ' ' : ' · ';
       final completionLabel = at == null
           ? ''

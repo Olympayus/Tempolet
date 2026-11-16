@@ -282,7 +282,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String itemsCount(int count) {
-    return '$count 项';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 项',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -311,7 +316,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String selectedCount(int count) {
-    return '已选 $count 项';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已选 $count 项',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -364,12 +374,42 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String plansCount(int count) {
-    return '$count 个计划';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个计划',
+    );
+    return '$_temp0';
   }
 
   @override
   String remindersCount(int count) {
-    return '$count 个提醒';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个提醒',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String planNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '个计划',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '个提醒',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -437,4 +477,25 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get futureMonths => '未来 6 个月';
+
+  @override
+  String get completedChip => '查看已完成';
+
+  @override
+  String get sidebarEmptyTitle => '无安排';
+
+  @override
+  String get sidebarEmptyHint => '添加提醒或计划，开始这一天。';
+
+  @override
+  String get plansGroupTitle => '计划';
+
+  @override
+  String get remindersGroupTitle => '提醒';
+
+  @override
+  String get dayOverviewTitle => '当日概览';
+
+  @override
+  String get tomorrowPreviewTitle => '次日预览';
 }

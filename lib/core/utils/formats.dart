@@ -49,6 +49,16 @@ abstract final class AppFormats {
   static String weekday(Locale locale, DateTime date) =>
       _isZh(locale) ? _zhWeekdays[date.weekday - 1] : _en('EEE', date);
 
+  /// Short same-month range used by compact summaries:
+  /// '11月18日 – 30日' / 'Nov 18 – 30'. The end day reuses the start's month
+  /// and year because callers keep the range inside one month.
+  static String dayRange(Locale locale, DateTime start, DateTime end) {
+    final startText = monthDay(locale, start);
+    return _isZh(locale)
+        ? '$startText – ${end.day}日'
+        : '$startText – ${end.day}';
+  }
+
   /// Range title for the week starting on [monday]:
   /// '2026年11月9日 – 15日' / 'Nov 9 – 15, 2026'.
   static String weekRange(Locale locale, DateTime monday) {

@@ -36,6 +36,7 @@ class EventListRow extends StatelessWidget {
     required this.color,
     this.showDate = false,
     this.timeColor,
+    this.timeSuffix,
     this.onTap,
     this.onToggleComplete,
     this.trailing,
@@ -51,6 +52,10 @@ class EventListRow extends StatelessWidget {
 
   /// Overrides the time's `sub` colour (e.g. overdue rows use `danger`).
   final Color? timeColor;
+
+  /// Appended to the time in the same 11px run (e.g. the date mode's `逾期`
+  /// marker). A row without a time still shows the suffix.
+  final String? timeSuffix;
 
   /// Opens the event editor.
   final VoidCallback? onTap;
@@ -75,12 +80,11 @@ class EventListRow extends StatelessWidget {
     // Chinese keeps `11月16日 09:00`; English uses the no-comma separator
     // `Nov 16 · 09:00` (v0.1.3 ruling, progress ledger Task 4).
     final dateSeparator = locale.languageCode == 'zh' ? ' ' : ' · ';
-    final timeText = showDate
-        ? [
-            AppFormats.monthDay(locale, event.date),
-            if (time.isNotEmpty) time,
-          ].join(dateSeparator)
-        : time;
+    final timeText = [
+      if (showDate) AppFormats.monthDay(locale, event.date),
+      if (time.isNotEmpty) time,
+      if (timeSuffix != null && timeSuffix!.isNotEmpty) timeSuffix!,
+    ].join(dateSeparator);
     final titleStyle = AppTextStyles.body.copyWith(
       color: palette.ink,
       decoration: event.isCompleted ? TextDecoration.lineThrough : null,

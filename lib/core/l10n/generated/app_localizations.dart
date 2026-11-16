@@ -853,6 +853,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'All'**
   String get filterAll;
+
+  /// No description provided for @restOfMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'Rest of month'**
+  String get restOfMonth;
+
+  /// No description provided for @futureMonths.
+  ///
+  /// In en, this message translates to:
+  /// **'Next 6 months'**
+  String get futureMonths;
 }
 
 class _AppLocalizationsDelegate

@@ -35,10 +35,15 @@ class HourGrid extends StatelessWidget {
     super.key,
     this.labelBuilder,
     this.gutterWidth = kAxisGutter,
+    this.labelRightPadding = 6,
   });
 
   final Widget Function(BuildContext context, int hour)? labelBuilder;
   final double gutterWidth;
+
+  /// Right padding inside the label gutter. The reminders left column uses 0
+  /// so an 11px `HH:MM` label plus its `left: 8` inset fits in a 40px gutter.
+  final double labelRightPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +68,7 @@ class HourGrid extends StatelessWidget {
                   SizedBox(
                     width: gutterWidth,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
+                      padding: EdgeInsets.only(right: labelRightPadding),
                       child: labelBuilder != null
                           ? labelBuilder!(context, hour)
                           : Text(

@@ -49,6 +49,13 @@ void _useWindow(WidgetTester tester, Size size) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
+/// The left column's timeline repeats event titles, so category-list
+/// assertions are scoped to the right-hand list.
+Finder _inCategoryList(Finder matching) => find.descendant(
+  of: find.byKey(const ValueKey('reminders-category-mode')),
+  matching: matching,
+);
+
 void main() {
   late AppDatabase db;
   late ProviderContainer container;
@@ -249,8 +256,8 @@ void main() {
         .dy;
     expect(uncategorizedY, lessThan(workY));
     expect(find.text('未分类'), findsOneWidget);
-    expect(find.text('No category task'), findsOneWidget);
-    expect(find.text('Work task'), findsOneWidget);
+    expect(_inCategoryList(find.text('No category task')), findsOneWidget);
+    expect(_inCategoryList(find.text('Work task')), findsOneWidget);
   });
 
   testWidgets('filter segmented hides plans and reminders', (tester) async {
@@ -266,25 +273,25 @@ void main() {
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
-    expect(find.text('Reminder A'), findsOneWidget);
-    expect(find.text('Plan A'), findsOneWidget);
+    expect(_inCategoryList(find.text('Reminder A')), findsOneWidget);
+    expect(_inCategoryList(find.text('Plan A')), findsOneWidget);
     expect(find.byKey(const ValueKey('reminders-filter')), findsOneWidget);
     expect(find.byKey(const ValueKey('reminders-mode')), findsOneWidget);
 
     await tester.tap(find.text('计划'));
     await _settle(tester);
-    expect(find.text('Plan A'), findsOneWidget);
-    expect(find.text('Reminder A'), findsNothing);
+    expect(_inCategoryList(find.text('Plan A')), findsOneWidget);
+    expect(_inCategoryList(find.text('Reminder A')), findsNothing);
 
     await tester.tap(find.text('提醒'));
     await _settle(tester);
-    expect(find.text('Reminder A'), findsOneWidget);
-    expect(find.text('Plan A'), findsNothing);
+    expect(_inCategoryList(find.text('Reminder A')), findsOneWidget);
+    expect(_inCategoryList(find.text('Plan A')), findsNothing);
 
     await tester.tap(find.text('全部'));
     await _settle(tester);
-    expect(find.text('Reminder A'), findsOneWidget);
-    expect(find.text('Plan A'), findsOneWidget);
+    expect(_inCategoryList(find.text('Reminder A')), findsOneWidget);
+    expect(_inCategoryList(find.text('Plan A')), findsOneWidget);
   });
 
   testWidgets('group toggle collapses and reopens its rows', (tester) async {
@@ -293,14 +300,14 @@ void main() {
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
-    expect(find.text('Collapsible task'), findsOneWidget);
+    expect(_inCategoryList(find.text('Collapsible task')), findsOneWidget);
     await tester.tap(
       find.byKey(
         const ValueKey('reminders-group-toggle-$uncategorizedOrderId'),
       ),
     );
     await _settle(tester);
-    expect(find.text('Collapsible task'), findsNothing);
+    expect(_inCategoryList(find.text('Collapsible task')), findsNothing);
 
     await tester.tap(
       find.byKey(
@@ -308,7 +315,7 @@ void main() {
       ),
     );
     await _settle(tester);
-    expect(find.text('Collapsible task'), findsOneWidget);
+    expect(_inCategoryList(find.text('Collapsible task')), findsOneWidget);
   });
 
   testWidgets('empty state offers a new action', (tester) async {
@@ -321,7 +328,7 @@ void main() {
     expect(find.byKey(const ValueKey('reminders-empty-new')), findsOneWidget);
   });
 
-  testWidgets('left column reserves the mini calendar and timeline skeleton', (
+  testWidgets('left column hosts the mini calendar and timeline', (
     tester,
   ) async {
     await tester.pumpWidget(_pageApp(container));
@@ -331,12 +338,9 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('reminders-left-column'))).width,
       204,
     );
-    expect(
-      tester.getSize(
-        find.byKey(const ValueKey('reminders-mini-calendar-placeholder')),
-      ),
-      const Size(180, 220),
-    );
+    final calendar = find.byKey(const ValueKey('reminders-mini-calendar'));
+    expect(calendar, findsOneWidget);
+    expect(tester.getSize(calendar).width, 180);
     expect(find.byKey(const ValueKey('reminders-timeline')), findsOneWidget);
   });
 
@@ -357,12 +361,12 @@ void main() {
   });
 
   testWidgets('row tap opens the shared event editor', (tester) async {
-    await seed('Open me', date: _today);
+    final event = await seed('Open me', date: _today);
 
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
-    await tester.tap(find.text('Open me'));
+    await tester.tap(find.byKey(ValueKey('reminders-row-${event.id}')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('editor-title')), findsOneWidget);

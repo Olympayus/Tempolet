@@ -406,4 +406,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filterAll => 'All';
+
+  @override
+  String get restOfMonth => 'Rest of month';
+
+  @override
+  String get futureMonths => 'Next 6 months';
 }

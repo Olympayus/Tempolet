@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/l10n/generated/app_localizations.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/utils/dates.dart';
-import '../../../core/utils/formats.dart';
 import '../../calendar/calendar_state.dart';
+import '../../calendar/mini_month_calendar.dart';
 import '../../calendar/month_model.dart';
 
 /// Segmented-field metrics from `docs/design/10-ui-refinement.md` §9.6.
@@ -297,9 +297,8 @@ class _Segment extends StatelessWidget {
 
 /// Compact month grid opened by [SegmentedDateField]'s calendar button.
 ///
-/// Renders only the target month via [monthWeeks]; the selected day is filled
-/// with the accent colour, today is outlined. Tapping a day pops the dialog
-/// with that date.
+/// Delegates the grid to the shared [MiniMonthCalendar] (`10-ui-refinement.md`
+/// §9.15) and pops the dialog with the picked day.
 class MiniCalendarPopover extends ConsumerStatefulWidget {
   const MiniCalendarPopover({super.key, required this.value});
 
@@ -311,163 +310,24 @@ class MiniCalendarPopover extends ConsumerStatefulWidget {
 }
 
 class _MiniCalendarPopoverState extends ConsumerState<MiniCalendarPopover> {
-  late DateTime _month;
-
-  @override
-  void initState() {
-    super.initState();
-    _month = DateTime(widget.value.year, widget.value.month, 1);
-  }
-
-  void _stepMonth(int delta) {
-    final next = DateTime(_month.year, _month.month + delta, 1);
-    if (next.year < 2000 || next.year > 2100) return;
-    setState(() => _month = next);
-  }
+  late DateTime _month = DateTime(widget.value.year, widget.value.month, 1);
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final p =
-        (theme.brightness == Brightness.light
-                ? AppPalette.light
-                : AppPalette.dark)
-            .withAccent(theme.colorScheme.primary);
-    final locale = Localizations.localeOf(context);
-    final selected = dateOnly(widget.value);
     final today = dateOnly(ref.watch(todayProvider));
 
     return SizedBox(
       width: 232,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                _MonthButton(
-                  icon: Icons.chevron_left,
-                  palette: p,
-                  onPressed: () => _stepMonth(-1),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      AppFormats.monthTitle(locale, _month),
-                      style: AppTextStyles.secondary.copyWith(
-                        color: p.ink,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                _MonthButton(
-                  icon: Icons.chevron_right,
-                  palette: p,
-                  onPressed: () => _stepMonth(1),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                for (var i = 0; i < 7; i++)
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        AppFormats.weekday(locale, DateTime(2024, 1, 1 + i)),
-                        style: AppTextStyles.caption.copyWith(color: p.sub),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            for (final week in monthWeeks(_month))
-              Row(
-                children: [
-                  for (final day in week)
-                    Expanded(
-                      child: day == null
-                          ? const SizedBox(height: 26)
-                          : _MiniDay(
-                              day: day,
-                              isSelected: day == selected,
-                              isToday: day == today,
-                              palette: p,
-                            ),
-                    ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MonthButton extends StatelessWidget {
-  const _MonthButton({
-    required this.icon,
-    required this.palette,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final AppPalette palette;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onPressed,
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 24, height: 24),
-      icon: Icon(icon, size: 16, color: palette.sub),
-    );
-  }
-}
-
-class _MiniDay extends StatelessWidget {
-  const _MiniDay({
-    required this.day,
-    required this.isSelected,
-    required this.isToday,
-    required this.palette,
-  });
-
-  final DateTime day;
-  final bool isSelected;
-  final bool isToday;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(1),
-      child: InkWell(
-        key: ValueKey('mini-day-${day.year}-${day.month}-${day.day}'),
-        borderRadius: BorderRadius.circular(AppRadii.chip),
-        onTap: () => Navigator.of(context).pop(day),
-        child: Container(
-          height: 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? palette.accent : null,
-            borderRadius: BorderRadius.circular(AppRadii.chip),
-            border: isToday && !isSelected
-                ? Border.all(color: palette.accent)
-                : null,
-          ),
-          child: Text(
-            '${day.day}',
-            style: AppTextStyles.caption.copyWith(
-              color: isSelected ? scheme.onPrimary : palette.ink,
-            ),
-          ),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: MiniMonthCalendar(
+          month: _month,
+          selected: widget.value,
+          today: today,
+          width: 212,
+          onSelect: (day) => Navigator.of(context).pop(day),
+          onMonthChanged: (month) =>
+              setState(() => _month = DateTime(month.year, month.month, 1)),
         ),
       ),
     );

@@ -402,4 +402,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get filterAll => '全部';
+
+  @override
+  String get restOfMonth => '本月剩余';
+
+  @override
+  String get futureMonths => '未来 6 个月';
 }

@@ -125,5 +125,7 @@
   "remindersEmptyBody": "新建一条提醒或计划，开始规划。",
   "manageCategories": "分类管理",
   "viewCompletedShort": "查看已完成",
-  "filterAll": "全部"
+  "filterAll": "全部",
+  "restOfMonth": "本月剩余",
+  "futureMonths": "未来 6 个月"
 }

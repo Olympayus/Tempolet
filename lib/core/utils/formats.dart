@@ -30,6 +30,11 @@ abstract final class AppFormats {
       ? '${date.year}年${date.month}月'
       : _en('MMMM y', date);
 
+  /// '11月' / 'Nov'
+  static String monthName(Locale locale, DateTime date) => _isZh(locale)
+      ? '${date.month}月'
+      : _en('MMM', date);
+
   /// '2026年11月13日' / 'Nov 13, 2026'
   static String dayTitle(Locale locale, DateTime date) => _isZh(locale)
       ? '${date.year}年${date.month}月${date.day}日'

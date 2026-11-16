@@ -157,7 +157,7 @@ void main() {
       final x = rect.center.dx;
       final startY = rect.top + (minuteToY(9 * 60) - offset);
 
-      await tester.dragFrom(Offset(x, startY), const Offset(0, 34));
+      await tester.dragFrom(Offset(x, startY), const Offset(0, 68));
       await _settle(tester);
 
       expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
@@ -183,7 +183,7 @@ void main() {
 
       await tester.drag(
         find.byKey(ValueKey('plan-${plan.id}')),
-        const Offset(0, 600),
+        const Offset(0, 1000),
       );
       await _settle(tester);
 
@@ -207,7 +207,7 @@ void main() {
 
       await tester.drag(
         find.byKey(ValueKey('plan-${plan.id}')),
-        const Offset(0, 34),
+        const Offset(0, 68),
       );
       await _settle(tester);
 

@@ -4,7 +4,7 @@ import '../../core/theme/app_tokens.dart';
 import '../../core/utils/dates.dart';
 
 /// Vertical scale of the time grid. Shared by day and week views.
-const double kHourHeight = 34;
+const double kHourHeight = 68;
 
 double minuteToY(int minute) => minute * kHourHeight / 60;
 
@@ -22,7 +22,8 @@ int yToMinute(double dy) => snapMinutes((dy * 60 / kHourHeight).round());
 const int kHoursInDay = 24;
 
 /// Width of the hour-label gutter along the left edge of the time grid.
-const double kAxisGutter = 34;
+/// 44px keeps `07:00` on one line with breathing room after the tick.
+const double kAxisGutter = 44;
 
 /// Vertical offset of the default viewport (07:00).
 const double kDefaultScrollOffset = 7 * kHourHeight;

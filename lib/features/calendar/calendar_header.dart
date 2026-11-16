@@ -89,94 +89,96 @@ class CalendarHeader extends ConsumerWidget {
                     style: AppTextStyles.title,
                   ),
                 ),
-                const SizedBox(width: 24),
-                SegmentedButton<CalendarViewMode>(
-                  segments: [
-                    ButtonSegment(
-                      value: CalendarViewMode.month,
-                      label: Text(l10n.month),
-                    ),
-                    ButtonSegment(
-                      value: CalendarViewMode.week,
-                      label: Text(l10n.week),
-                    ),
-                    ButtonSegment(
-                      value: CalendarViewMode.day,
-                      label: Text(l10n.day),
-                    ),
-                  ],
-                  selected: {mode},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (selection) => ref
-                      .read(calendarViewModeProvider.notifier)
-                      .set(selection.first),
-                  style: ButtonStyle(
-                    visualDensity: const VisualDensity(
-                      horizontal: -2,
-                      vertical: -3.5,
-                    ),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    padding: const WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(horizontal: 12),
-                    ),
-                    textStyle: const WidgetStatePropertyAll(
-                      AppTextStyles.secondary,
-                    ),
-                    foregroundColor: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.selected)
-                          ? palette.ink
-                          : palette.sub,
-                    ),
-                    backgroundColor: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.selected)
-                          ? palette.card
-                          : Colors.transparent,
-                    ),
-                    side: WidgetStatePropertyAll(
-                      BorderSide(color: palette.lineStrong),
-                    ),
-                    shape: WidgetStatePropertyAll(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadii.segment),
-                      ),
-                    ),
+                const SizedBox(width: 8),
+                IconButton(
+                  key: const ValueKey('calendar-prev'),
+                  onPressed: () => shift(-1),
+                  icon: const Icon(LucideIcons.chevronLeft, size: 18),
+                  color: palette.sub,
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 28,
                   ),
                 ),
+                IconButton(
+                  key: const ValueKey('calendar-next'),
+                  onPressed: () => shift(1),
+                  icon: const Icon(LucideIcons.chevronRight, size: 18),
+                  color: palette.sub,
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 28,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => ref
+                      .read(selectedDayProvider.notifier)
+                      .select(dateOnly(DateTime.now())),
+                  style: TextButton.styleFrom(
+                    foregroundColor: palette.ink,
+                    textStyle: AppTextStyles.body,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(l10n.today),
+                ),
+                const Spacer(),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          TextButton(
-            onPressed: () => ref
-                .read(selectedDayProvider.notifier)
-                .select(dateOnly(DateTime.now())),
-            style: TextButton.styleFrom(
-              foregroundColor: palette.ink,
-              textStyle: AppTextStyles.body,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              minimumSize: const Size(0, 28),
+          SegmentedButton<CalendarViewMode>(
+            segments: [
+              ButtonSegment(
+                value: CalendarViewMode.month,
+                label: Text(l10n.month),
+              ),
+              ButtonSegment(
+                value: CalendarViewMode.week,
+                label: Text(l10n.week),
+              ),
+              ButtonSegment(value: CalendarViewMode.day, label: Text(l10n.day)),
+            ],
+            selected: {mode},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) => ref
+                .read(calendarViewModeProvider.notifier)
+                .set(selection.first),
+            style: ButtonStyle(
+              visualDensity: const VisualDensity(
+                horizontal: -2,
+                vertical: -3.5,
+              ),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 12),
+              ),
+              textStyle: const WidgetStatePropertyAll(AppTextStyles.secondary),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? palette.ink
+                    : palette.sub,
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? palette.card
+                    : Colors.transparent,
+              ),
+              side: WidgetStatePropertyAll(
+                BorderSide(color: palette.lineStrong),
+              ),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.segment),
+                ),
+              ),
             ),
-            child: Text(l10n.today),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            key: const ValueKey('calendar-prev'),
-            onPressed: () => shift(-1),
-            icon: const Icon(LucideIcons.chevronLeft, size: 18),
-            color: palette.sub,
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-          ),
-          IconButton(
-            key: const ValueKey('calendar-next'),
-            onPressed: () => shift(1),
-            icon: const Icon(LucideIcons.chevronRight, size: 18),
-            color: palette.sub,
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 28, height: 28),
           ),
           const SizedBox(width: 8),
           FilledButton.icon(

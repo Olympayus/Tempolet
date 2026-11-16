@@ -21,7 +21,7 @@ import 'reminder_card.dart';
 import 'time_grid.dart';
 
 /// Seven-column week timeline (`docs/design/03-calendar.md` §2): a fixed
-/// two-line day bar, a left-fixed 34px axis and an hourly rule layer spanning
+/// two-line day bar, a left-fixed 44px axis and an hourly rule layer spanning
 /// all seven columns, with shared plan blocks and floating reminder cards.
 ///
 /// The displayed week follows the globally selected day, so the page header's
@@ -60,7 +60,8 @@ class _WeekViewState extends ConsumerState<WeekView> {
                 : AppPalette.dark)
             .withAccent(theme.colorScheme.primary);
     final locale = Localizations.localeOf(context);
-    final monday = startOfWeek(ref.watch(selectedDayProvider));
+    final selectedDay = dateOnly(ref.watch(selectedDayProvider));
+    final monday = startOfWeek(selectedDay);
     final days = List.generate(
       7,
       (i) => DateTime(monday.year, monday.month, monday.day + i),
@@ -100,6 +101,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
                     child: _DayHeaderCell(
                       day: day,
                       today: today,
+                      selected: day == selectedDay,
                       holiday: holidayByDay[day],
                       locale: locale,
                       palette: palette,
@@ -176,12 +178,15 @@ class _WeekViewState extends ConsumerState<WeekView> {
 }
 
 /// Two-line day header: weekday at 11px and the date at 12px via
-/// [AppFormats]. Today's date sits on a solid accent pill; dates with holiday
-/// data append the 休/班 pill, never the festival name.
+/// [AppFormats]. Today's date sits on a solid accent pill; another selected
+/// day gets an accent ring so a single click visibly changes state even when
+/// the sidebar is closed. Dates with holiday data append the 休/班 pill, never
+/// the festival name.
 class _DayHeaderCell extends StatelessWidget {
   const _DayHeaderCell({
     required this.day,
     required this.today,
+    required this.selected,
     required this.holiday,
     required this.locale,
     required this.palette,
@@ -191,6 +196,7 @@ class _DayHeaderCell extends StatelessWidget {
 
   final DateTime day;
   final DateTime today;
+  final bool selected;
   final Holiday? holiday;
   final Locale locale;
   final AppPalette palette;
@@ -226,6 +232,7 @@ class _DayHeaderCell extends StatelessWidget {
               children: [
                 Flexible(
                   child: Container(
+                    key: ValueKey('week-day-date-${_isoDay(day)}'),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
                       vertical: 1,
@@ -234,6 +241,14 @@ class _DayHeaderCell extends StatelessWidget {
                         ? BoxDecoration(
                             color: palette.accent,
                             borderRadius: BorderRadius.circular(AppRadii.pill),
+                          )
+                        : selected
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                            border: Border.all(
+                              color: palette.accent,
+                              width: 1.5,
+                            ),
                           )
                         : null,
                     child: Text(
@@ -344,7 +359,7 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
             key: ValueKey('week-column-${_isoDay(widget.day)}'),
             behavior: HitTestBehavior.opaque,
             // Begin the range at the press point, not after the drag slop,
-            // so a 34px drag from 09:00 really means 09:00–10:00.
+            // so a one-hour drag from 09:00 really means 09:00–10:00.
             dragStartBehavior: DragStartBehavior.down,
             onTapUp: (details) {
               _openCreate(

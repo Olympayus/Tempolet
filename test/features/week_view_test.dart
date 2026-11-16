@@ -128,6 +128,22 @@ void main() {
       },
     );
 
+    testWidgets('selected day shows an accent ring in the week header', (
+      tester,
+    ) async {
+      await pumpWeek(tester, DateTime(2026, 11, 11));
+
+      await tester.tap(find.byKey(const ValueKey('week-day-2026-11-12')));
+      await tester.pump(const Duration(milliseconds: 350));
+
+      final pill = tester.widget<Container>(
+        find.byKey(const ValueKey('week-day-date-2026-11-12')),
+      );
+      final decoration = pill.decoration! as BoxDecoration;
+      expect(decoration.border, isNotNull);
+      expect(decoration.color, isNull);
+    });
+
     testWidgets('today column has a tint', (tester) async {
       await pumpWeek(tester, dateOnly(DateTime.now()));
 
@@ -199,7 +215,7 @@ void main() {
       );
       await tester.dragFrom(
         Offset(column.left + 20, column.top + minuteToY(9 * 60)),
-        const Offset(0, 34),
+        const Offset(0, 68),
       );
       await _settle(tester);
 
@@ -222,7 +238,7 @@ void main() {
       final gesture = await tester.startGesture(
         Offset(column.left + 20, column.top + minuteToY(9 * 60)),
       );
-      await gesture.moveBy(const Offset(0, 34));
+      await gesture.moveBy(const Offset(0, 68));
       await tester.pump();
 
       final preview = tester.widget<Container>(
@@ -274,7 +290,7 @@ void main() {
 
       await tester.drag(
         find.byKey(ValueKey('week-plan-${plan.id}')),
-        const Offset(0, 34),
+        const Offset(0, 68),
       );
       await _settle(tester);
 
@@ -298,7 +314,7 @@ void main() {
 
       await tester.drag(
         find.byKey(ValueKey('week-plan-${plan.id}')),
-        const Offset(0, 34),
+        const Offset(0, 68),
       );
       await _settle(tester);
 
@@ -356,7 +372,7 @@ void main() {
       final gesture = await tester.startGesture(
         Offset(rect.center.dx, rect.bottom - 2),
       );
-      await gesture.moveBy(const Offset(0, 34));
+      await gesture.moveBy(const Offset(0, 68));
       await gesture.up();
       await _settle(tester);
 

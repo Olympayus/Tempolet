@@ -5,20 +5,20 @@ import 'package:tempolet/features/calendar/now_line.dart';
 import 'package:tempolet/features/calendar/time_grid.dart';
 
 void main() {
-  test('time grid is 34px per hour starting at 07:00', () {
-    expect(kHourHeight, 34);
-    expect(kDefaultScrollOffset, 7 * 34);
-    expect(minuteToY(90), 51);
+  test('time grid is 68px per hour starting at 07:00', () {
+    expect(kHourHeight, 68);
+    expect(kDefaultScrollOffset, 7 * 68);
+    expect(minuteToY(90), 102);
   });
 
-  test('yToMinute inverts the 34px scale', () {
-    expect(yToMinute(34), 60);
-    expect(yToMinute(51), 90);
+  test('yToMinute inverts the 68px scale', () {
+    expect(yToMinute(68), 60);
+    expect(yToMinute(102), 90);
     expect(yToMinute(0), 0);
   });
 
-  test('axis gutter is 34px and is the HourGrid default', () {
-    expect(kAxisGutter, 34);
+  test('axis gutter is 44px and is the HourGrid default', () {
+    expect(kAxisGutter, 44);
     expect(const HourGrid().gutterWidth, kAxisGutter);
   });
 
@@ -91,7 +91,9 @@ void main() {
 
     testWidgets('cancels its minute timer when disposed', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: Stack(children: [NowLine()]))),
+        const MaterialApp(
+          home: Scaffold(body: Stack(children: [NowLine()])),
+        ),
       );
       await tester.pump(const Duration(minutes: 1));
 

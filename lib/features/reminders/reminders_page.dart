@@ -141,44 +141,53 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   void _locateDate(DateTime picked) {
     if (_mode != RemindersMode.date) return;
     final today = dateOnly(ref.read(todayProvider));
+    final overdue =
+        ref.read(overdueEventsProvider(today)).value ?? const <Event>[];
+    final bandStart = overdue.isEmpty ? today : dateOnly(overdue.first.date);
     final bandEnd = DateTime(today.year, today.month, today.day + 6);
     final target = dateOnly(picked);
     final afterBand = DateTime(bandEnd.year, bandEnd.month, bandEnd.day + 1);
     final currentMonthEnd = DateTime(today.year, today.month + 1, 1);
+    final sixMonthsEnd = DateTime(today.year, today.month + 7, 1);
+
+    // Read the exact range the date-mode page already watches. A cold
+    // `ref.read` of an unwatched family instance would be AsyncLoading and
+    // silently look empty on the first pick.
+    final events = _filtered(
+      ref
+              .read(rangeEventsProvider((start: bandStart, end: sixMonthsEnd)))
+              .value ??
+          const <Event>[],
+    );
 
     String? monthKey;
-    DateTime? rangeStart;
-    DateTime? rangeEnd;
+    bool Function(Event)? isInMonth;
     if (target.isAfter(bandEnd)) {
       if (target.isBefore(currentMonthEnd)) {
         monthKey = 'remaining';
-        rangeStart = afterBand;
-        rangeEnd = currentMonthEnd;
+        isInMonth = (event) {
+          final day = dateOnly(event.date);
+          return !day.isBefore(afterBand) && day.isBefore(currentMonthEnd);
+        };
       } else {
         for (var i = 1; i <= 6; i++) {
           final month = DateTime(today.year, today.month + i, 1);
           if (month.year == target.year && month.month == target.month) {
             monthKey = _monthKey(month);
-            rangeStart = _later(month, afterBand);
-            rangeEnd = DateTime(month.year, month.month + 1, 1);
+            isInMonth = (event) {
+              final day = dateOnly(event.date);
+              return day.year == month.year && day.month == month.month;
+            };
             break;
           }
         }
       }
     }
 
-    if (monthKey != null) {
-      if (rangeStart == null ||
-          rangeEnd == null ||
-          !rangeStart.isBefore(rangeEnd)) {
-        return;
-      }
-      final rangeEvents =
-          ref
-              .read(rangeEventsProvider((start: rangeStart, end: rangeEnd)))
-              .value ??
-          const <Event>[];
-      if (_filtered(rangeEvents).isEmpty) return;
+    if (monthKey != null && isInMonth != null) {
+      // Match the summary row's expandability: remaining days for the current
+      // month, the whole month for future summaries.
+      if (!events.any(isInMonth)) return;
       if (!_expandedMonths.contains(monthKey)) {
         setState(() => _expandedMonths.add(monthKey!));
       }
@@ -287,10 +296,11 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       );
     } else {
       // The band starts on the oldest overdue day (or today) and always runs
-      // through today+6. The future-months summaries extend the query to the
-      // end of the six-month window.
-      final earliestOverdue = ref.watch(earliestOverdueProvider(today)).value;
-      final bandStart = dateOnly(earliestOverdue ?? today);
+      // through today+6. Deriving it from the already-watched overdue stream
+      // keeps it responsive when that event is completed or deleted.
+      final bandStart = overdueAll.isEmpty
+          ? today
+          : dateOnly(overdueAll.first.date);
       final bandEnd = DateTime(today.year, today.month, today.day + 6);
       final sixMonthsEnd = DateTime(today.year, today.month + 7, 1);
       final raw =
@@ -522,8 +532,11 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       bandDay = DateTime(day.year, day.month, day.day + 1);
     }
 
-    void addExpansion(String key, List<DateTime> days) {
-      if (!_expandedMonths.contains(key) || days.isEmpty) return;
+    int countEvents(List<DateTime> days) =>
+        days.fold<int>(0, (sum, day) => sum + (eventsByDay[day]?.length ?? 0));
+
+    void addExpansion(String key, List<DateTime> days, int count) {
+      if (count <= 0 || !_expandedMonths.contains(key) || days.isEmpty) return;
       for (final day in days) {
         children.add(
           _dateDay(
@@ -545,18 +558,18 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
 
     if (afterBand.isBefore(currentMonthEnd)) {
       final days = _daysBetween(afterBand, currentMonthEnd);
+      final count = countEvents(days);
       children.add(
         _monthSummary(
           keyString: 'remaining',
           label: l10n.restOfMonth,
           rangeLabel: _rangeLabel(locale, days.first, days.last),
-          days: days,
-          eventsByDay: eventsByDay,
+          count: count,
           palette: palette,
           l10n: l10n,
         ),
       );
-      addExpansion('remaining', days);
+      addExpansion('remaining', days, count);
     }
 
     children.add(const SizedBox(height: 12));
@@ -584,22 +597,24 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     for (var i = 1; i <= 6; i++) {
       final month = DateTime(today.year, today.month + i, 1);
       final monthEnd = DateTime(month.year, month.month + 1, 1);
-      final start = _later(month, afterBand);
-      final days = start.isBefore(monthEnd)
-          ? _daysBetween(start, monthEnd)
+      final expansionStart = _later(month, afterBand);
+      final expansionDays = expansionStart.isBefore(monthEnd)
+          ? _daysBetween(expansionStart, monthEnd)
           : const <DateTime>[];
+      // The summary reflects the whole month, including days that already sit
+      // in the band; only the expansion excludes those days to avoid repeats.
+      final monthCount = countEvents(_daysBetween(month, monthEnd));
       final key = _monthKey(month);
       children.add(
         _monthSummary(
           keyString: key,
           label: AppFormats.monthTitle(locale, month),
-          days: days,
-          eventsByDay: eventsByDay,
+          count: monthCount,
           palette: palette,
           l10n: l10n,
         ),
       );
-      addExpansion(key, days);
+      addExpansion(key, expansionDays, monthCount);
     }
 
     return SingleChildScrollView(
@@ -616,16 +631,11 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   Widget _monthSummary({
     required String keyString,
     required String label,
-    required List<DateTime> days,
-    required Map<DateTime, List<Event>> eventsByDay,
+    required int count,
     required AppPalette palette,
     required AppLocalizations l10n,
     String? rangeLabel,
   }) {
-    final count = days.fold<int>(
-      0,
-      (sum, day) => sum + (eventsByDay[day]?.length ?? 0),
-    );
     final expandable = count > 0;
     final expanded = expandable && _expandedMonths.contains(keyString);
     final labelColor = expandable ? palette.ink : palette.subWeak;
@@ -739,9 +749,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                     const SizedBox(width: 4),
                     Text(
                       '·',
-                      style: AppTextStyles.caption.copyWith(
-                        color: palette.sub,
-                      ),
+                      style: AppTextStyles.caption.copyWith(color: palette.sub),
                     ),
                   ],
                   const SizedBox(width: 6),

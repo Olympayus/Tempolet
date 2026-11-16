@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
+import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
@@ -39,10 +40,11 @@ void main() {
   late AppDatabase db;
   late ProviderContainer container;
   late EventRepository repo;
+  late SharedPreferences prefs;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+    prefs = await SharedPreferences.getInstance();
     db = AppDatabase(NativeDatabase.memory());
     repo = EventRepository(db);
     container = ProviderContainer(
@@ -61,6 +63,22 @@ void main() {
     container.dispose();
     await db.close();
   });
+
+  /// Rebuilds the container around a different wall-clock day; the database
+  /// and repository stay in place.
+  void setToday(DateTime day) {
+    container.dispose();
+    container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        databaseProvider.overrideWithValue(db),
+        notificationServiceProvider.overrideWithValue(
+          FakeNotificationService(),
+        ),
+        todayProvider.overrideWithValue(day),
+      ],
+    );
+  }
 
   Future<Event> seed(
     String title, {
@@ -252,6 +270,148 @@ void main() {
     expect(find.byKey(const ValueKey('date-group-2026-12-05')), findsOneWidget);
   });
 
+  testWidgets('a mini-calendar pick inside the month remainder expands it', (
+    tester,
+  ) async {
+    await seed('Late month', date: DateTime(2026, 11, 25), startMinute: 600);
+
+    await openDateMode(tester);
+
+    await tester.tap(find.byKey(const ValueKey('mini-day-2026-11-25')));
+    await _settle(tester);
+
+    expect(find.byKey(const ValueKey('date-group-2026-11-25')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('reminders-date-mode')),
+        matching: find.text('Late month'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'a future month straddling the band keeps its whole-month count',
+    (tester) async {
+      setToday(DateTime(2026, 11, 28));
+      await seed('Band dec', date: DateTime(2026, 12, 2), startMinute: 600);
+
+      await openDateMode(tester);
+
+      // 12-02 sits inside the band (11-28 through 12-04).
+      expect(
+        find.byKey(const ValueKey('date-group-2026-12-02')),
+        findsOneWidget,
+      );
+
+      final row = find.byKey(const ValueKey('month-summary-2026-12'));
+      expect(row, findsOneWidget);
+      final label = tester.widget<Text>(
+        find.byKey(const ValueKey('month-summary-2026-12-label')),
+      );
+      expect(label.style?.color, AppPalette.light.ink);
+      expect(
+        find.descendant(of: row, matching: find.text('无安排')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text('1 项')),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+      await tester.tap(row);
+      await _settle(tester);
+
+      // The month expands; the band-covered 12-02 stays in the band and the
+      // expansion starts on 12-05.
+      expect(
+        find.byKey(const ValueKey('empty-day-2026-12-05')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'a mini-calendar pick after the band expands a partially covered future month',
+    (tester) async {
+      setToday(DateTime(2026, 11, 28));
+      await seed('Band dec', date: DateTime(2026, 12, 2), startMinute: 600);
+
+      await openDateMode(tester);
+
+      await tester.tap(find.byKey(const ValueKey('mini-month-next')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const ValueKey('mini-day-2026-12-05')));
+      await _settle(tester);
+
+      expect(
+        find.byKey(const ValueKey('empty-day-2026-12-05')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('completing the earliest overdue event shrinks the band start', (
+    tester,
+  ) async {
+    final earliest = await seed(
+      'Earliest',
+      date: DateTime(2026, 11, 13),
+      startMinute: 600,
+    );
+    await seed('Later', date: DateTime(2026, 11, 15), startMinute: 600);
+
+    await openDateMode(tester);
+    expect(find.byKey(const ValueKey('date-group-2026-11-13')), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(ValueKey('date-row-${earliest.id}')),
+        matching: find.byType(AppCheckCircle),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.byKey(const ValueKey('date-group-2026-11-13')), findsNothing);
+    expect(find.byKey(const ValueKey('date-group-2026-11-14')), findsNothing);
+    expect(find.byKey(const ValueKey('date-group-2026-11-15')), findsOneWidget);
+  });
+
+  testWidgets('completing the only event in an expanded month collapses it', (
+    tester,
+  ) async {
+    final event = await seed(
+      'December task',
+      date: DateTime(2026, 12, 5),
+      startMinute: 600,
+    );
+
+    await openDateMode(tester);
+    final row = find.byKey(const ValueKey('month-summary-2026-12'));
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
+    await tester.tap(row);
+    await _settle(tester);
+    expect(find.byKey(ValueKey('date-row-${event.id}')), findsOneWidget);
+
+    final rowEvent = find.byKey(ValueKey('date-row-${event.id}'));
+    await tester.ensureVisible(rowEvent);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: rowEvent, matching: find.byType(AppCheckCircle)),
+    );
+    await _settle(tester);
+
+    final label = tester.widget<Text>(
+      find.byKey(const ValueKey('month-summary-2026-12-label')),
+    );
+    expect(label.style?.color, AppPalette.light.subWeak);
+    expect(find.byKey(const ValueKey('date-group-2026-12-05')), findsNothing);
+    expect(find.byKey(const ValueKey('empty-day-2026-12-05')), findsNothing);
+  });
+
   testWidgets('the left column hosts the shared mini calendar and timeline', (
     tester,
   ) async {
@@ -283,9 +443,7 @@ void main() {
     expect(tick.left - timelineLeft, 8);
     expect(tick.right - timelineLeft, lessThanOrEqualTo(40));
 
-    final event = find.byKey(
-      ValueKey('reminders-timeline-event-${timed.id}'),
-    );
+    final event = find.byKey(ValueKey('reminders-timeline-event-${timed.id}'));
     expect(event, findsOneWidget);
     expect(tester.getTopLeft(event).dx - timelineLeft, 44);
   });

@@ -37,7 +37,12 @@ class EventListRow extends StatelessWidget {
     this.showDate = false,
     this.timeColor,
     this.timeSuffix,
+    this.timeLabel,
+    this.titleColor,
+    this.metadata,
+    this.checked,
     this.onTap,
+    this.onLongPress,
     this.onToggleComplete,
     this.trailing,
   });
@@ -57,8 +62,28 @@ class EventListRow extends StatelessWidget {
   /// marker). A row without a time still shows the suffix.
   final String? timeSuffix;
 
+  /// Replaces the computed event time with [timeLabel] (e.g. the completed
+  /// page shows when the item was completed). [showDate] and [timeSuffix] are
+  /// ignored when this is set.
+  final String? timeLabel;
+
+  /// Overrides the title colour; defaults to `ink`.
+  final Color? titleColor;
+
+  /// Optional 11px metadata rendered between the title and the time (e.g. the
+  /// completed page's kind label).
+  final Widget? metadata;
+
+  /// Overrides the completion circle's state (e.g. multi-select rows show the
+  /// selection instead of completion).
+  final bool? checked;
+
   /// Opens the event editor.
   final VoidCallback? onTap;
+
+  /// Enters multi-select on the completed page. Only meaningful when the row
+  /// is not already in a selection.
+  final VoidCallback? onLongPress;
 
   /// Toggles [Event.isCompleted]; when null the circle is display-only.
   final VoidCallback? onToggleComplete;
@@ -80,13 +105,15 @@ class EventListRow extends StatelessWidget {
     // Chinese keeps `11月16日 09:00`; English uses the no-comma separator
     // `Nov 16 · 09:00` (v0.1.3 ruling, progress ledger Task 4).
     final dateSeparator = locale.languageCode == 'zh' ? ' ' : ' · ';
-    final timeText = [
-      if (showDate) AppFormats.monthDay(locale, event.date),
-      if (time.isNotEmpty) time,
-      if (timeSuffix != null && timeSuffix!.isNotEmpty) timeSuffix!,
-    ].join(dateSeparator);
+    final timeText =
+        timeLabel ??
+        [
+          if (showDate) AppFormats.monthDay(locale, event.date),
+          if (time.isNotEmpty) time,
+          if (timeSuffix != null && timeSuffix!.isNotEmpty) timeSuffix!,
+        ].join(dateSeparator);
     final titleStyle = AppTextStyles.body.copyWith(
-      color: palette.ink,
+      color: titleColor ?? palette.ink,
       decoration: event.isCompleted ? TextDecoration.lineThrough : null,
     );
 
@@ -112,12 +139,13 @@ class EventListRow extends StatelessWidget {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onTap,
+              onLongPress: onLongPress,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: _rowPadding),
                 child: Row(
                   children: [
                     AppCheckCircle(
-                      checked: event.isCompleted,
+                      checked: checked ?? event.isCompleted,
                       onTap: onToggleComplete,
                     ),
                     const SizedBox(width: _gap),
@@ -158,7 +186,11 @@ class EventListRow extends StatelessWidget {
                         style: titleStyle,
                       ),
                     ),
-                    const SizedBox(width: _gap),
+                    if (metadata != null) ...[
+                      const SizedBox(width: 12),
+                      metadata!,
+                    ],
+                    SizedBox(width: metadata != null ? 12 : _gap),
                     Text(
                       timeText,
                       maxLines: 1,

@@ -11,6 +11,7 @@ import 'package:tempolet/core/utils/dates.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/completed/completed_page.dart';
+import 'package:tempolet/features/events/event_list_row.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -133,14 +134,155 @@ void main() {
     expect(find.text('Earlier task'), findsOneWidget);
     expect(find.text('计划'), findsOneWidget);
     expect(find.text('提醒'), findsNWidgets(2));
-    expect(find.text('09:30'), findsOneWidget);
-    expect(find.text('18:00'), findsOneWidget);
-    expect(find.text('12:00'), findsOneWidget);
+    // Every completed row carries its full completion date and time, even
+    // though the group header already names the day (user requirement,
+    // design spec §7.5).
+    expect(find.textContaining('09:30'), findsOneWidget);
+    expect(find.textContaining('18:00'), findsOneWidget);
+    expect(find.textContaining('12:00'), findsOneWidget);
 
     double rowTop(String id) =>
         tester.getTopLeft(find.byKey(ValueKey('completed-restore-$id'))).dy;
     expect(rowTop(newest.id), lessThan(rowTop(middle.id)));
     expect(rowTop(middle.id), lessThan(rowTop(oldest.id)));
+  });
+
+  testWidgets('restore is a text link and rows show completion dates', (
+    tester,
+  ) async {
+    final event = await seed('Dated task');
+    await completeAt(event.id, DateTime(2026, 11, 16, 10, 2));
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final restore = find.byKey(ValueKey('completed-restore-${event.id}'));
+    expect(restore, findsOneWidget);
+    expect(find.textContaining('11月16日 10:02'), findsOneWidget);
+
+    final label = tester.widget<Text>(
+      find.descendant(of: restore, matching: find.text('恢复')),
+    );
+    expect(label.style?.fontSize, 13);
+    expect(
+      label.style?.color,
+      Theme.of(tester.element(restore)).colorScheme.primary,
+    );
+  });
+
+  testWidgets('long press enters multi-select with select all and delete', (
+    tester,
+  ) async {
+    final today = dateOnly(DateTime.now());
+    final first = await seed('Done one');
+    final second = await seed('Done two');
+    await completeAt(first.id, DateTime(today.year, today.month, today.day, 9));
+    await completeAt(
+      second.id,
+      DateTime(today.year, today.month, today.day, 10),
+    );
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('completed-selection-bar')), findsNothing);
+
+    await tester.longPress(find.byType(EventListRow).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('全选'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+    expect(find.text('恢复'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('completed-selection-bar')),
+      findsOneWidget,
+    );
+    // The pressed row starts selected; the normal header actions give way to
+    // the selection header.
+    expect(find.text('已选 1 项'), findsOneWidget);
+    expect(find.text('完成'), findsOneWidget);
+    expect(find.text('清空'), findsNothing);
+
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('completed-selection-bar')), findsNothing);
+    expect(find.text('清空'), findsOneWidget);
+  });
+
+  testWidgets('multi-select delete confirms, cancels and removes selected', (
+    tester,
+  ) async {
+    final today = dateOnly(DateTime.now());
+    final first = await seed('Batch A');
+    final second = await seed('Batch B');
+    final kept = await seed('Batch C');
+    await completeAt(first.id, DateTime(today.year, today.month, today.day, 9));
+    await completeAt(
+      second.id,
+      DateTime(today.year, today.month, today.day, 10),
+    );
+    await completeAt(kept.id, DateTime(today.year, today.month, today.day, 11));
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.longPress(find.text('Batch A'));
+    await tester.pumpAndSettle();
+    // Select only the first two rows; the third stays unselected.
+    await tester.tap(find.text('Batch B'));
+    await tester.pumpAndSettle();
+    expect(find.text('已选 2 项'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('completed-batch-delete')));
+    await tester.pumpAndSettle();
+    expect(find.text('删除后无法恢复'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('completed-confirm-delete')));
+    await _settle(tester);
+
+    expect(find.text('Batch A'), findsNothing);
+    expect(find.text('Batch B'), findsNothing);
+    expect(find.text('Batch C'), findsOneWidget);
+    expect(await tester.runAsync(() => repo.getById(first.id)), isNull);
+    expect(await tester.runAsync(() => repo.getById(second.id)), isNull);
+    expect(await tester.runAsync(() => repo.getById(kept.id)), isNotNull);
+    expect(
+      notifications.cancelled,
+      containsAll([first.notificationId, second.notificationId]),
+    );
+    expect(notifications.cancelled, isNot(contains(kept.notificationId)));
+  });
+
+  testWidgets('multi-select restore returns every selected item', (
+    tester,
+  ) async {
+    final today = dateOnly(DateTime.now());
+    final first = await seed('Restore A');
+    final second = await seed('Restore B');
+    await completeAt(first.id, DateTime(today.year, today.month, today.day, 9));
+    await completeAt(
+      second.id,
+      DateTime(today.year, today.month, today.day, 10),
+    );
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const ValueKey('completed-select')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('completed-select-all')));
+    await tester.pumpAndSettle();
+    expect(find.text('已选 2 项'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('completed-batch-restore')));
+    await _settle(tester);
+
+    final restoredFirst = await tester.runAsync(() => repo.getById(first.id));
+    final restoredSecond = await tester.runAsync(() => repo.getById(second.id));
+    expect(restoredFirst!.isCompleted, isFalse);
+    expect(restoredFirst.completedAt, isNull);
+    expect(restoredSecond!.isCompleted, isFalse);
+    expect(find.text('还没有已完成事项'), findsOneWidget);
+    expect(find.byKey(const ValueKey('completed-selection-bar')), findsNothing);
   });
 
   testWidgets('restore clears the completion and returns the item to its day', (

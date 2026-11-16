@@ -136,6 +136,18 @@
   "completedTitle": "Completed",
   "clear": "Clear",
   "restore": "Restore",
+  "select": "Select",
+  "selectAll": "Select all",
+  "selectedCount": "{count} selected",
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "completedEmptyTitle": "Nothing completed yet",
+  "completedEmptyHint": "Completed reminders and plans show up here.",
   "todayGroup": "Today",
   "yesterdayGroup": "Yesterday",
   "earlierGroup": "Earlier",

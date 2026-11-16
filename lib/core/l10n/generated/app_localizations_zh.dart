@@ -304,6 +304,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get restore => '恢复';
 
   @override
+  String get select => '选择';
+
+  @override
+  String get selectAll => '全选';
+
+  @override
+  String selectedCount(int count) {
+    return '已选 $count 项';
+  }
+
+  @override
+  String get completedEmptyTitle => '还没有已完成事项';
+
+  @override
+  String get completedEmptyHint => '完成后的事项会出现在这里';
+
+  @override
   String get todayGroup => '今天';
 
   @override

@@ -662,6 +662,36 @@ abstract class AppLocalizations {
   /// **'Restore'**
   String get restore;
 
+  /// No description provided for @select.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get select;
+
+  /// No description provided for @selectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get selectAll;
+
+  /// No description provided for @selectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String selectedCount(int count);
+
+  /// No description provided for @completedEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing completed yet'**
+  String get completedEmptyTitle;
+
+  /// No description provided for @completedEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed reminders and plans show up here.'**
+  String get completedEmptyHint;
+
   /// No description provided for @todayGroup.
   ///
   /// In en, this message translates to:

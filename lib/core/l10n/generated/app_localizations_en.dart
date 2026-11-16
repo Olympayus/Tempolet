@@ -308,6 +308,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get restore => 'Restore';
 
   @override
+  String get select => 'Select';
+
+  @override
+  String get selectAll => 'Select all';
+
+  @override
+  String selectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get completedEmptyTitle => 'Nothing completed yet';
+
+  @override
+  String get completedEmptyHint =>
+      'Completed reminders and plans show up here.';
+
+  @override
   String get todayGroup => 'Today';
 
   @override

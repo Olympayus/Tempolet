@@ -277,6 +277,12 @@ void main() {
 
     await openDateMode(tester);
 
+    final list = tester.widget<SingleChildScrollView>(
+      find.byKey(const ValueKey('reminders-date-mode')),
+    );
+    final controller = list.controller!;
+    expect(controller.offset, 0);
+
     await tester.tap(find.byKey(const ValueKey('mini-day-2026-11-25')));
     await _settle(tester);
 
@@ -288,6 +294,9 @@ void main() {
       ),
       findsOneWidget,
     );
+    // The first expansion builds the day anchor in the same pass, so the
+    // post-frame ensureVisible must have scrolled the date list.
+    expect(controller.offset, greaterThan(0));
   });
 
   testWidgets(
@@ -365,6 +374,8 @@ void main() {
 
     await openDateMode(tester);
     expect(find.byKey(const ValueKey('date-group-2026-11-13')), findsOneWidget);
+    // 11-14 is inside the original band as an empty day.
+    expect(find.byKey(const ValueKey('empty-day-2026-11-14')), findsOneWidget);
 
     await tester.tap(
       find.descendant(
@@ -375,7 +386,10 @@ void main() {
     await _settle(tester);
 
     expect(find.byKey(const ValueKey('date-group-2026-11-13')), findsNothing);
-    expect(find.byKey(const ValueKey('date-group-2026-11-14')), findsNothing);
+    // The band now starts on 11-15, so neither former band day is rendered at
+    // all (an old band start of 11-13 would render both as empty-day rows).
+    expect(find.byKey(const ValueKey('empty-day-2026-11-13')), findsNothing);
+    expect(find.byKey(const ValueKey('empty-day-2026-11-14')), findsNothing);
     expect(find.byKey(const ValueKey('date-group-2026-11-15')), findsOneWidget);
   });
 

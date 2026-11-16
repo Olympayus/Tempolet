@@ -193,10 +193,13 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       }
     }
 
-    final anchor = _dayAnchors['day-${_dayKey(target)}'];
+    // Register the anchor before rebuilding: on the first expansion the day
+    // row does not exist yet, so looking it up synchronously would yield null
+    // and the post-frame callback would never scroll.
+    final anchor = _anchorFor('day-${_dayKey(target)}');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final context = anchor?.currentContext;
+      final context = anchor.currentContext;
       if (context == null) return;
       Scrollable.ensureVisible(
         context,

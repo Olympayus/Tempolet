@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
+import 'package:tempolet/core/ui/app_dropdown.dart';
 import 'package:tempolet/features/events/fields/lead_field.dart';
 
 Widget _host(int? value, ValueChanged<int?> onChanged) {
@@ -85,7 +86,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_host(90, (_) {}));
 
-    final dropdown = tester.widget<DropdownButton<int?>>(
+    final dropdown = tester.widget<AppDropdown<int?>>(
       find.byKey(const ValueKey('lead-dropdown')),
     );
     expect(dropdown.value, 90);

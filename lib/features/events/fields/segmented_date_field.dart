@@ -9,6 +9,12 @@ import '../../../core/utils/formats.dart';
 import '../../calendar/calendar_state.dart';
 import '../../calendar/month_model.dart';
 
+/// Segmented-field metrics from `docs/design/10-ui-refinement.md` §9.6.
+const double _segmentHeight = 28;
+
+/// Selected-segment fill: `rgba(0,0,0,.06)`.
+const Color _selectedSegmentFill = Color(0x0F000000);
+
 /// Year / month / day segmented input with a mini-calendar popover.
 ///
 /// Each segment is a compact numeric field; Tab moves to the next segment and
@@ -210,7 +216,7 @@ class _SegmentedDateFieldState extends State<SegmentedDateField> {
               tooltip: l10n.dateLabel,
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+              constraints: const BoxConstraints.tightFor(width: 24, height: 24),
               icon: Icon(Icons.calendar_today_outlined, size: 15, color: p.sub),
             ),
           ],
@@ -241,43 +247,50 @@ class _Segment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: TextField(
-        key: fieldKey,
-        controller: controller,
-        focusNode: focusNode,
-        keyboardType: TextInputType.number,
-        textAlign: TextAlign.center,
-        maxLength: maxLength,
-        textInputAction: TextInputAction.next,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(maxLength),
-        ],
-        onChanged: (_) => onChanged(),
-        onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-        style: AppTextStyles.secondary.copyWith(color: palette.ink),
-        decoration: InputDecoration(
-          isDense: true,
-          counterText: '',
-          filled: true,
-          fillColor: palette.card,
-          contentPadding: const EdgeInsets.symmetric(vertical: 7),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            borderSide: BorderSide(color: palette.lineStrong),
+    return ListenableBuilder(
+      listenable: focusNode,
+      builder: (context, _) {
+        final focused = focusNode.hasFocus;
+        return SizedBox(
+          width: width,
+          height: _segmentHeight,
+          child: TextField(
+            key: fieldKey,
+            controller: controller,
+            focusNode: focusNode,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            maxLength: maxLength,
+            textInputAction: TextInputAction.next,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(maxLength),
+            ],
+            onChanged: (_) => onChanged(),
+            onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+            style: AppTextStyles.body.copyWith(color: palette.ink),
+            decoration: InputDecoration(
+              isDense: true,
+              counterText: '',
+              filled: true,
+              fillColor: focused ? _selectedSegmentFill : palette.chip,
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.chip),
+                borderSide: BorderSide(color: palette.lineStrong),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.chip),
+                borderSide: BorderSide(color: palette.accent),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.chip),
+                borderSide: BorderSide(color: palette.lineStrong),
+              ),
+            ),
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            borderSide: BorderSide(color: palette.accent),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            borderSide: BorderSide(color: palette.lineStrong),
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

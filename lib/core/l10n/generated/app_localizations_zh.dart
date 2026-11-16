@@ -233,7 +233,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get leadLabel => '提醒';
 
   @override
+  String get leadHelp => '提前多久发送提醒';
+
+  @override
   String get categoryLabel => '分类';
+
+  @override
+  String get categoryHelp => '用于标记与筛选';
 
   @override
   String get uncategorized => '未分类';

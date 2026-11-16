@@ -524,11 +524,23 @@ abstract class AppLocalizations {
   /// **'Remind'**
   String get leadLabel;
 
+  /// No description provided for @leadHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'How early to send a reminder'**
+  String get leadHelp;
+
   /// No description provided for @categoryLabel.
   ///
   /// In en, this message translates to:
   /// **'Category'**
   String get categoryLabel;
+
+  /// No description provided for @categoryHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for labels and filtering'**
+  String get categoryHelp;
 
   /// No description provided for @uncategorized.
   ///

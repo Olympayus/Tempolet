@@ -234,7 +234,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get leadLabel => 'Remind';
 
   @override
+  String get leadHelp => 'How early to send a reminder';
+
+  @override
   String get categoryLabel => 'Category';
+
+  @override
+  String get categoryHelp => 'Used for labels and filtering';
 
   @override
   String get uncategorized => 'Uncategorized';

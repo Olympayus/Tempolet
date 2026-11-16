@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
+import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/core/utils/dates.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
@@ -36,11 +37,15 @@ String _stepperText(WidgetTester tester, String key) {
   return formatMinuteOfDay(field.value!);
 }
 
-Widget _app(ProviderContainer container, Widget home) {
+Widget _app(
+  ProviderContainer container,
+  Widget home, {
+  Locale locale = const Locale('zh'),
+}) {
   return UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
-      locale: const Locale('zh'),
+      locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: home,
@@ -48,8 +53,8 @@ Widget _app(ProviderContainer container, Widget home) {
   );
 }
 
-/// Gives the test a desktop-width window so the 216px stats rail (shown from
-/// 1100px) is part of the layout.
+/// Gives the test a desktop-width window so the 216px day overview rail
+/// (shown from 1100px) is part of the layout.
 void _useWideWindow(WidgetTester tester) {
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
@@ -110,9 +115,15 @@ void main() {
     );
   }
 
-  Future<void> pumpDay(WidgetTester tester, DateTime day) async {
+  Future<void> pumpDay(
+    WidgetTester tester,
+    DateTime day, {
+    Locale locale = const Locale('zh'),
+  }) async {
     container.read(selectedDayProvider.notifier).select(day);
-    await tester.pumpWidget(_app(container, const Scaffold(body: DayView())));
+    await tester.pumpWidget(
+      _app(container, const Scaffold(body: DayView()), locale: locale),
+    );
     await _settle(tester);
   }
 
@@ -127,24 +138,27 @@ void main() {
       expect(scroll.controller!.offset, closeTo(kDefaultScrollOffset, 0.5));
     });
 
-    testWidgets('tapping an empty slot opens a reminder at the snapped minute',
-        (tester) async {
-      await pumpDay(tester, DateTime(2026, 11, 11));
+    testWidgets(
+      'tapping an empty slot opens a reminder at the snapped minute',
+      (tester) async {
+        await pumpDay(tester, DateTime(2026, 11, 11));
 
-      final rect = tester.getRect(find.byKey(const ValueKey('day-scroll')));
-      final x = rect.center.dx;
-      final y = rect.top + (minuteToY(9 * 60) - kDefaultScrollOffset);
+        final rect = tester.getRect(find.byKey(const ValueKey('day-scroll')));
+        final x = rect.center.dx;
+        final y = rect.top + (minuteToY(9 * 60) - kDefaultScrollOffset);
 
-      await tester.tapAt(Offset(x, y));
-      await _settle(tester);
+        await tester.tapAt(Offset(x, y));
+        await _settle(tester);
 
-      expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
-      expect(find.byKey(const ValueKey('end-stepper')), findsNothing);
-      expect(find.text('09:00'), findsWidgets);
-    });
+        expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
+        expect(find.byKey(const ValueKey('end-stepper')), findsNothing);
+        expect(find.text('09:00'), findsWidgets);
+      },
+    );
 
-    testWidgets('dragging an empty slot opens a plan over the dragged range',
-        (tester) async {
+    testWidgets('dragging an empty slot opens a plan over the dragged range', (
+      tester,
+    ) async {
       await pumpDay(tester, DateTime(2026, 11, 11));
 
       final rect = tester.getRect(find.byKey(const ValueKey('day-scroll')));
@@ -192,31 +206,30 @@ void main() {
       expect(rows.endMinute, 1440);
     });
 
-    testWidgets('dragging a plan re-registers its notification at the new time',
-        (tester) async {
-      final day = DateTime(2030, 1, 2);
-      final plan = await seed(
-        title: 'Notify me',
-        day: day,
-        kind: 'plan',
-        startMinute: 540,
-        endMinute: 600,
-        reminderOffsetMinutes: 10,
-      );
-      await pumpDay(tester, day);
+    testWidgets(
+      'dragging a plan re-registers its notification at the new time',
+      (tester) async {
+        final day = DateTime(2030, 1, 2);
+        final plan = await seed(
+          title: 'Notify me',
+          day: day,
+          kind: 'plan',
+          startMinute: 540,
+          endMinute: 600,
+          reminderOffsetMinutes: 10,
+        );
+        await pumpDay(tester, day);
 
-      await tester.drag(
-        find.byKey(ValueKey('plan-${plan.id}')),
-        const Offset(0, 68),
-      );
-      await _settle(tester);
+        await tester.drag(
+          find.byKey(ValueKey('plan-${plan.id}')),
+          const Offset(0, 68),
+        );
+        await _settle(tester);
 
-      expect(notifications.scheduled, hasLength(1));
-      expect(
-        notifications.scheduled.single.at,
-        DateTime(2030, 1, 2, 9, 50),
-      );
-    });
+        expect(notifications.scheduled, hasLength(1));
+        expect(notifications.scheduled.single.at, DateTime(2030, 1, 2, 9, 50));
+      },
+    );
 
     testWidgets('overlapping plans split into lanes', (tester) async {
       final first = await seed(
@@ -235,9 +248,7 @@ void main() {
       );
       await pumpDay(tester, DateTime(2026, 11, 11));
 
-      final timeline = tester.getRect(
-        find.byKey(const ValueKey('day-scroll')),
-      );
+      final timeline = tester.getRect(find.byKey(const ValueKey('day-scroll')));
       final firstRect = tester.getRect(
         find.byKey(ValueKey('plan-${first.id}')),
       );
@@ -267,7 +278,9 @@ void main() {
       expect(find.text('Deep work'), findsWidgets);
     });
 
-    testWidgets('completing a reminder removes it from the day', (tester) async {
+    testWidgets('completing a reminder removes it from the day', (
+      tester,
+    ) async {
       final reminder = await seed(
         title: 'Call back',
         day: DateTime(2026, 11, 11),
@@ -275,61 +288,55 @@ void main() {
       );
       await pumpDay(tester, DateTime(2026, 11, 11));
 
-      expect(
-        find.byKey(ValueKey('reminder-${reminder.id}')),
-        findsOneWidget,
-      );
+      expect(find.byKey(ValueKey('reminder-${reminder.id}')), findsOneWidget);
 
       await tester.tap(find.byKey(ValueKey('complete-${reminder.id}')));
       await tester.pump(const Duration(milliseconds: 150));
       await _settle(tester);
 
-      expect(
-        find.byKey(ValueKey('reminder-${reminder.id}')),
-        findsNothing,
-      );
+      expect(find.byKey(ValueKey('reminder-${reminder.id}')), findsNothing);
       final rows = await tester.runAsync(() => db.select(db.events).get());
       expect(rows!.single.isCompleted, isTrue);
     });
 
-    testWidgets('yesterday\'s events are marked overdue with the danger token',
-        (tester) async {
-      final yesterday = dateOnly(DateTime.now()).subtract(
-        const Duration(days: 1),
-      );
-      await seed(
-        title: 'Old reminder',
-        day: yesterday,
-        startMinute: 750,
-      );
-      await seed(
-        title: 'Old plan',
-        day: yesterday,
-        kind: 'plan',
-        startMinute: 540,
-        endMinute: 600,
-      );
+    testWidgets(
+      'yesterday\'s events are marked overdue with the danger token',
+      (tester) async {
+        final yesterday = dateOnly(DateTime.now())
+            .subtract(const Duration(days: 1));
+        await seed(title: 'Old reminder', day: yesterday, startMinute: 750);
+        await seed(
+          title: 'Old plan',
+          day: yesterday,
+          kind: 'plan',
+          startMinute: 540,
+          endMinute: 600,
+        );
 
-      await pumpDay(tester, yesterday);
+        await pumpDay(tester, yesterday);
 
-      final reminderTime = tester.widget<Text>(find.text('12:30'));
-      expect(reminderTime.style?.color, AppPalette.light.danger);
-      final planTime = tester.widget<Text>(find.text('09:00–10:00'));
-      expect(planTime.style?.color, AppPalette.light.danger);
-    });
+        final reminderTime = tester.widget<Text>(find.text('12:30'));
+        expect(reminderTime.style?.color, AppPalette.light.danger);
+        final planTime = tester.widget<Text>(find.text('09:00–10:00'));
+        expect(planTime.style?.color, AppPalette.light.danger);
+      },
+    );
 
     testWidgets('shows the now line only on today', (tester) async {
       await pumpDay(tester, dateOnly(DateTime.now()));
       expect(find.byKey(const ValueKey('day-now-line')), findsOneWidget);
 
       // Switching to another day disposes the today-only now line.
-      container.read(selectedDayProvider.notifier).select(DateTime(2026, 11, 11));
+      container
+          .read(selectedDayProvider.notifier)
+          .select(DateTime(2026, 11, 11));
       await _settle(tester);
       expect(find.byKey(const ValueKey('day-now-line')), findsNothing);
     });
 
-    testWidgets('follows the day selected by the shared header arrows',
-        (tester) async {
+    testWidgets('follows the day selected by the shared header arrows', (
+      tester,
+    ) async {
       await seed(
         title: 'FirstDay',
         day: DateTime(2026, 11, 11),
@@ -360,8 +367,38 @@ void main() {
       expect(find.text('SecondDay'), findsOneWidget);
     });
 
-    testWidgets('renders plan, reminder and the stats rail on wide windows',
-        (tester) async {
+    testWidgets('right rail is a day overview without a week block', (
+      tester,
+    ) async {
+      _useWideWindow(tester);
+      final day = DateTime(2026, 11, 11);
+      await seed(
+        title: 'PlanA',
+        day: day,
+        kind: 'plan',
+        startMinute: 540,
+        endMinute: 600,
+      );
+      await seed(
+        title: 'PlanB',
+        day: day,
+        kind: 'plan',
+        startMinute: 660,
+        endMinute: 720,
+      );
+
+      await pumpDay(tester, day, locale: const Locale('en'));
+
+      expect(find.text('当日概览'), findsOneWidget);
+      expect(find.text('次日预览'), findsOneWidget);
+      expect(find.text('本周'), findsNothing);
+      // Plural text still runs through the Task 19 l10n migration.
+      expect(find.text('2 plans'), findsOneWidget);
+    });
+
+    testWidgets('renders plan, reminder and the day overview on wide windows', (
+      tester,
+    ) async {
       _useWideWindow(tester);
       final today = dateOnly(DateTime.now());
       final plan = await seed(
@@ -381,16 +418,19 @@ void main() {
 
       expect(find.byKey(ValueKey('plan-${plan.id}')), findsOneWidget);
       expect(find.byKey(ValueKey('reminder-${reminder.id}')), findsOneWidget);
+      expect(find.text('当日概览'), findsOneWidget);
+      expect(find.text('次日预览'), findsOneWidget);
+      // Chinese count output is preserved verbatim.
       expect(find.text('1 个计划'), findsOneWidget);
       expect(find.text('1 个提醒'), findsOneWidget);
-      expect(find.text('明日'), findsOneWidget);
+      expect(find.text('明日'), findsNothing);
 
       // Dispose the today-only now line before the test ends so its periodic
       // timer is cancelled.
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('stats rail stays hidden below 1100px', (tester) async {
+    testWidgets('day overview stays hidden below 1100px', (tester) async {
       await seed(
         title: 'PlanOne',
         day: DateTime(2026, 11, 11),
@@ -401,15 +441,15 @@ void main() {
 
       await pumpDay(tester, DateTime(2026, 11, 11));
 
-      expect(find.text('1 个计划'), findsNothing);
-      expect(find.text('明日'), findsNothing);
+      expect(find.text('当日概览'), findsNothing);
+      expect(find.text('次日预览'), findsNothing);
     });
 
-    testWidgets('tomorrow preview caps at six rows', (tester) async {
+    testWidgets('next-day preview caps at three rows', (tester) async {
       _useWideWindow(tester);
       final day = DateTime(2026, 11, 11);
       final tomorrow = DateTime(2026, 11, 12);
-      for (var i = 1; i <= 7; i++) {
+      for (var i = 1; i <= 4; i++) {
         await seed(
           title: 'Tomorrow$i',
           day: tomorrow,
@@ -419,9 +459,60 @@ void main() {
 
       await pumpDay(tester, day);
 
-      expect(find.text('明日'), findsOneWidget);
-      expect(find.text('Tomorrow6'), findsOneWidget);
-      expect(find.text('Tomorrow7'), findsNothing);
+      expect(find.text('次日预览'), findsOneWidget);
+      expect(find.text('Tomorrow1'), findsOneWidget);
+      expect(find.text('Tomorrow3'), findsOneWidget);
+      expect(find.text('Tomorrow4'), findsNothing);
+    });
+
+    testWidgets('overview rows are read-only compact rows', (tester) async {
+      _useWideWindow(tester);
+      final day = DateTime(2026, 11, 11);
+      final tomorrow = DateTime(2026, 11, 12);
+      final plan = await seed(
+        title: 'PreviewPlan',
+        day: tomorrow,
+        kind: 'plan',
+        startMinute: 540,
+        endMinute: 600,
+      );
+      final reminder = await seed(
+        title: 'PreviewReminder',
+        day: tomorrow,
+        startMinute: 750,
+      );
+
+      await pumpDay(tester, day);
+
+      final rail = find.byKey(const ValueKey('day-overview'));
+      expect(tester.getSize(rail).width, 216);
+      // No check circle in the read-only preview.
+      expect(
+        find.descendant(of: rail, matching: find.byType(AppCheckCircle)),
+        findsNothing,
+      );
+      // Plans use the horizontal 9×2.5 compact bar; reminders use a 6px dot.
+      expect(
+        tester.getSize(find.byKey(ValueKey('overview-plan-marker-${plan.id}'))),
+        const Size(9, 2.5),
+      );
+      expect(
+        tester.getSize(
+          find.byKey(ValueKey('overview-reminder-marker-${reminder.id}')),
+        ),
+        const Size(6, 6),
+      );
+      // Rows are 34 high.
+      expect(
+        tester.getSize(find.byKey(ValueKey('overview-row-${plan.id}'))).height,
+        34,
+      );
+      // Count numerals are 22/700.
+      final count = tester.widget<Text>(
+        find.byKey(const ValueKey('overview-plans-count')),
+      );
+      expect(count.style?.fontSize, 22);
+      expect(count.style?.fontWeight, FontWeight.w700);
     });
   });
 }

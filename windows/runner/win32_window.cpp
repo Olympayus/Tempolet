@@ -176,18 +176,31 @@ LRESULT CALLBACK AppChromeChildProc(HWND child,
 
 /// Makes |child| step aside for the app-drawn title bar. Idempotent.
 void AttachAppChromeHitTest(HWND child) {
-  if (child != nullptr) {
-    SetWindowSubclass(child, AppChromeChildProc, kAppChromeSubclassId, 0);
+  if (child == nullptr) {
+    return;
+  }
+  if (!SetWindowSubclass(child, AppChromeChildProc, kAppChromeSubclassId, 0)) {
+    // Without the subclass the Flutter view keeps every hit test and the title
+    // bar stops working; say so instead of failing silently.
+    OutputDebugStringW(
+        L"tempolet: SetWindowSubclass failed for the Flutter view\n");
   }
 }
 
 /// DWM attributes for the frameless window: Windows 11 rounded corners and a
-/// frame extended into the client area so the compositor keeps drawing the
+/// frame extended into the client area so the compositor would keep drawing the
 /// window shadow.
 ///
-/// window_manager 0.6 applies its own frame extent when the title bar style is
-/// set from Dart, after this runs; this is the runner-side baseline the brief
-/// asks for, and the rounded-corner preference outlives it.
+/// Caveat, not yet GUI-verified: window_manager 0.6 (nativeapi) applies its own
+/// frame extent when the title bar style is set from Dart, after this runs. It
+/// resets the margins to 0 for a window without a visual effect, disables
+/// non-client rendering for an explicit-frameless window and draws the shadow
+/// from its own layered-window implementation instead. The corner preference
+/// attribute is not touched by nativeapi and persists, but with NC rendering
+/// disabled the rounded corners may not be rendered. Treat this as the runner's
+/// baseline call only: acceptance item 6 (rounded corners + shadow) is a
+/// PENDING-MANUAL check; if it fails, annotate docs/design/10-ui-refinement.md
+/// §4 as the plan requires.
 void ApplyTitleBarDwm(HWND window) {
   const int corner = kDwmWindowCornerRound;
   DwmSetWindowAttribute(window, kDwmwaWindowCornerPreference, &corner,
@@ -390,6 +403,10 @@ Win32Window::MessageHandler(HWND hwnd,
       break;
 
     case WM_ACTIVATE:
+      if (LOWORD(wparam) == WA_INACTIVE) {
+        tracking_nc_mouse_ = false;
+        UpdateTitleBarHover(TitleBarButton::kNone);
+      }
       if (child_content_ != nullptr) {
         SetFocus(child_content_);
       }
@@ -431,6 +448,9 @@ Win32Window::MessageHandler(HWND hwnd,
     // Flutter paints the buttons; the system runs their commands so the
     // minimize animation, Snap and the close-to-tray path stay native.
     case WM_NCLBUTTONDOWN:
+      if (!HasAppDrawnTitleBar(hwnd)) {
+        break;
+      }
       switch (wparam) {
         case HTMAXBUTTON:
           PostMessage(hwnd, WM_SYSCOMMAND,
@@ -440,7 +460,11 @@ Win32Window::MessageHandler(HWND hwnd,
           PostMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
           return 0;
         case HTCLOSE:
-          PostMessage(hwnd, WM_CLOSE, 0, 0);
+          // SC_CLOSE, not WM_CLOSE: window_manager/nativeapi treats WM_CLOSE as
+          // the mandatory close path and destroys the window, while SC_CLOSE is
+          // the cancellable request its prevent-close/tray handling intercepts
+          // (cnativeapi window_close_windows.cpp). Same as the native button.
+          PostMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
           return 0;
         default:
           break;
@@ -451,12 +475,17 @@ Win32Window::MessageHandler(HWND hwnd,
     // hover paint. WM_NCMOUSELEAVE (armed below) and moves into the client
     // area clear it again.
     case WM_NCMOUSEMOVE: {
+      if (!HasAppDrawnTitleBar(hwnd)) {
+        break;
+      }
       POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
       ScreenToClient(hwnd, &point);
       RECT client = {};
       GetClientRect(hwnd, &client);
       TitleBarButton button = TitleBarButton::kNone;
-      if (HasAppDrawnTitleBar(hwnd)) {
+      // Same precedence as WM_NCHITTEST: the resize border wins, so the outer
+      // 8px of a button does not light up while a click there resizes.
+      if (!IsOverResizeBorder(hwnd, point, client)) {
         switch (TitleBarZoneAt(hwnd, point, client)) {
           case TitleBarZone::kMinimize:
             button = TitleBarButton::kMinimize;
@@ -540,9 +569,20 @@ void Win32Window::ResizeChildContent() {
   if (child_content_ == nullptr) {
     return;
   }
-  RECT rect = GetClientArea();
-  MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
-             rect.bottom - rect.top, TRUE);
+  RECT client = GetClientArea();
+  // WM_SIZE and WM_WINDOWPOSCHANGED both arrive for one resize; only move the
+  // child when it does not already cover the client area.
+  RECT content = {};
+  if (GetWindowRect(child_content_, &content)) {
+    MapWindowPoints(HWND_DESKTOP, window_handle_,
+                    reinterpret_cast<POINT*>(&content), 2);
+    if (content.left == client.left && content.top == client.top &&
+        content.right == client.right && content.bottom == client.bottom) {
+      return;
+    }
+  }
+  MoveWindow(child_content_, client.left, client.top, client.right - client.left,
+             client.bottom - client.top, TRUE);
 }
 
 void Win32Window::UpdateTitleBarHover(TitleBarButton button) {

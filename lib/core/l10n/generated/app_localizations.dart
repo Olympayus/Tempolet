@@ -404,6 +404,42 @@ abstract class AppLocalizations {
   /// **'Notifications require the app to keep running'**
   String get notificationsRequireAppOpen;
 
+  /// No description provided for @notificationsWindowsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows doesn\'t ask for notification permission; if reminders don\'t appear, allow notifications in system settings'**
+  String get notificationsWindowsNote;
+
+  /// No description provided for @accentHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for today, selections and primary buttons'**
+  String get accentHint;
+
+  /// No description provided for @defaultRemindHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Lead time used when creating a new reminder'**
+  String get defaultRemindHint;
+
+  /// No description provided for @overdueSummaryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarises unfinished items every morning'**
+  String get overdueSummaryHint;
+
+  /// No description provided for @closeToTrayHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps running in the tray after the window closes'**
+  String get closeToTrayHint;
+
+  /// No description provided for @launchAtStartupHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts automatically after you sign in to Windows'**
+  String get launchAtStartupHint;
+
   /// No description provided for @invalidTitle.
   ///
   /// In en, this message translates to:

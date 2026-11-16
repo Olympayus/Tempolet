@@ -11,10 +11,19 @@ import '../../../core/ui/app_dropdown.dart';
 /// (N may exceed 1440). The dropdown's "Custom…" entry uses an internal
 /// sentinel; it never leaves this widget.
 class LeadField extends StatefulWidget {
-  const LeadField({super.key, this.value, required this.onChanged});
+  const LeadField({
+    super.key,
+    this.value,
+    required this.onChanged,
+    this.triggerHeight = AppSizes.field,
+  });
 
   final int? value;
   final ValueChanged<int?> onChanged;
+
+  /// Height of the preset dropdown's trigger; the editor aligns it with the
+  /// 34px fields while settings uses its own 36px control height.
+  final double triggerHeight;
 
   @override
   State<LeadField> createState() => _LeadFieldState();
@@ -160,10 +169,7 @@ class _LeadFieldState extends State<LeadField> {
           label: l10n.remindMinutesBefore(minutes),
         ),
       if (_value != null && !_isPreset && _value != _customSentinel)
-        AppDropdownItem(
-          value: _value,
-          label: _formatLead(l10n, _value!),
-        ),
+        AppDropdownItem(value: _value, label: _formatLead(l10n, _value!)),
       AppDropdownItem(value: _customSentinel, label: l10n.custom),
     ];
 
@@ -174,7 +180,7 @@ class _LeadFieldState extends State<LeadField> {
         AppDropdown<int?>(
           key: const ValueKey('lead-dropdown'),
           value: _dropdownValue,
-          triggerHeight: AppSizes.field,
+          triggerHeight: widget.triggerHeight,
           semanticLabel: l10n.leadLabel,
           items: items,
           onChanged: _onPresetSelected,

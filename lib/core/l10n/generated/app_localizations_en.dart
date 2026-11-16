@@ -170,6 +170,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Notifications require the app to keep running';
 
   @override
+  String get notificationsWindowsNote =>
+      'Windows doesn\'t ask for notification permission; if reminders don\'t appear, allow notifications in system settings';
+
+  @override
+  String get accentHint => 'Used for today, selections and primary buttons';
+
+  @override
+  String get defaultRemindHint => 'Lead time used when creating a new reminder';
+
+  @override
+  String get overdueSummaryHint => 'Summarises unfinished items every morning';
+
+  @override
+  String get closeToTrayHint =>
+      'Keeps running in the tray after the window closes';
+
+  @override
+  String get launchAtStartupHint =>
+      'Starts automatically after you sign in to Windows';
+
+  @override
   String get invalidTitle => 'Please enter a title';
 
   @override

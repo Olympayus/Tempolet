@@ -169,6 +169,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsRequireAppOpen => '通知需要应用保持运行';
 
   @override
+  String get notificationsWindowsNote => 'Windows 不会弹权限请求；收不到提醒请在系统设置中允许通知';
+
+  @override
+  String get accentHint => '用于今天、选中状态与主按钮';
+
+  @override
+  String get defaultRemindHint => '新建提醒时默认使用的提前量';
+
+  @override
+  String get overdueSummaryHint => '每天早上汇总未完成事项';
+
+  @override
+  String get closeToTrayHint => '关闭窗口后继续在托盘运行';
+
+  @override
+  String get launchAtStartupHint => '登录 Windows 后自动启动';
+
+  @override
   String get invalidTitle => '请输入标题';
 
   @override

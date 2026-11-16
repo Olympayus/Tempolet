@@ -5,8 +5,8 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_settings.dart';
 
-/// The accent row's only control: a 16px color dot that opens the picker
-/// (design decision D30 — no preset swatches).
+/// The accent row's color dot that opens the picker (design decision D30 —
+/// no preset swatches). The row supplies the HEX value and chevron.
 class AccentSwatch extends StatelessWidget {
   const AccentSwatch({super.key, required this.color, required this.onTap});
 
@@ -21,8 +21,8 @@ class AccentSwatch extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 16,
-          height: 16,
+          width: 18,
+          height: 18,
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,

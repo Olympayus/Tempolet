@@ -133,6 +133,44 @@ void main() {
     expect(events.map((e) => e.title), ['inside']);
   });
 
+  test('overdue query returns incomplete events before today', () async {
+    await repo.create(
+      title: 'old',
+      kind: 'reminder',
+      date: DateTime(2026, 11, 10),
+      startMinute: 540,
+    );
+    await repo.create(
+      title: 'done',
+      kind: 'reminder',
+      date: DateTime(2026, 11, 10),
+      startMinute: 600,
+    );
+    final done = await repo.eventsOnDay(DateTime(2026, 11, 10));
+    await repo.setCompleted(done.firstWhere((e) => e.title == 'done').id, true);
+    final overdue = await repo.watchOverdue(DateTime(2026, 11, 16)).first;
+    expect(overdue.map((e) => e.title), ['old']);
+  });
+
+  test('earliest overdue date finds the oldest day', () async {
+    await repo.create(
+      title: 'a',
+      kind: 'reminder',
+      date: DateTime(2026, 11, 2),
+      startMinute: 0,
+    );
+    await repo.create(
+      title: 'b',
+      kind: 'reminder',
+      date: DateTime(2026, 11, 9),
+      startMinute: 0,
+    );
+    expect(
+      await repo.earliestOverdueDate(DateTime(2026, 11, 16)),
+      DateTime(2026, 11, 2),
+    );
+  });
+
   test('stableNotificationId is deterministic and non-negative', () {
     const uuid = '6f1c2b0e-1111-4c2a-9d3f-abcdefabcdef';
     expect(stableNotificationId(uuid), stableNotificationId(uuid));

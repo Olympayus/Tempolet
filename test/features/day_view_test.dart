@@ -71,6 +71,19 @@ void _useShorterWindow(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
+/// Plain text of every Text/Text.rich inside the day overview rail.
+List<String> _railTexts(WidgetTester tester) {
+  return tester
+      .widgetList<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('day-overview')),
+          matching: find.byType(Text),
+        ),
+      )
+      .map((text) => text.data ?? text.textSpan?.toPlainText() ?? '')
+      .toList();
+}
+
 void main() {
   late AppDatabase db;
   late ProviderContainer container;
@@ -392,8 +405,16 @@ void main() {
       expect(find.text('当日概览'), findsOneWidget);
       expect(find.text('次日预览'), findsOneWidget);
       expect(find.text('本周'), findsNothing);
-      // Plural text still runs through the Task 19 l10n migration.
+      // The count unit is one rich-text run whose plain text is `2 plans`;
+      // the number must not also be painted as a separate leading Text.
+      final unit = tester.widget<Text>(
+        find.byKey(const ValueKey('overview-plans-count')),
+      );
+      expect(unit.textSpan!.toPlainText(), '2 plans');
       expect(find.text('2 plans'), findsOneWidget);
+      final railTexts = _railTexts(tester);
+      expect(railTexts.where((text) => text == '2 plans'), hasLength(1));
+      expect(railTexts.where((text) => text == '2'), isEmpty);
     });
 
     testWidgets('renders plan, reminder and the day overview on wide windows', (
@@ -420,9 +441,21 @@ void main() {
       expect(find.byKey(ValueKey('reminder-${reminder.id}')), findsOneWidget);
       expect(find.text('当日概览'), findsOneWidget);
       expect(find.text('次日预览'), findsOneWidget);
-      // Chinese count output is preserved verbatim.
+      // Chinese count output is preserved verbatim, with the number rendered
+      // exactly once inside each unit.
       expect(find.text('1 个计划'), findsOneWidget);
       expect(find.text('1 个提醒'), findsOneWidget);
+      final planUnit = tester.widget<Text>(
+        find.byKey(const ValueKey('overview-plans-count')),
+      );
+      final reminderUnit = tester.widget<Text>(
+        find.byKey(const ValueKey('overview-reminders-count')),
+      );
+      expect(planUnit.textSpan!.toPlainText(), '1 个计划');
+      expect(reminderUnit.textSpan!.toPlainText(), '1 个提醒');
+      final railTexts = _railTexts(tester);
+      expect(railTexts.where((text) => text == '1 个计划'), hasLength(1));
+      expect(railTexts.where((text) => text == '1'), isEmpty);
       expect(find.text('明日'), findsNothing);
 
       // Dispose the today-only now line before the test ends so its periodic
@@ -507,12 +540,18 @@ void main() {
         tester.getSize(find.byKey(ValueKey('overview-row-${plan.id}'))).height,
         34,
       );
-      // Count numerals are 22/700.
+      // Count unit: one rich-text run; number span 22/700, noun span 11/sub.
       final count = tester.widget<Text>(
         find.byKey(const ValueKey('overview-plans-count')),
       );
-      expect(count.style?.fontSize, 22);
-      expect(count.style?.fontWeight, FontWeight.w700);
+      final spans = (count.textSpan! as TextSpan).children!.cast<TextSpan>();
+      expect(spans, hasLength(2));
+      expect(spans.first.text, '0');
+      expect(spans.first.style?.fontSize, 22);
+      expect(spans.first.style?.fontWeight, FontWeight.w700);
+      expect(spans.last.style?.fontSize, 11);
+      expect(spans.last.style?.color, AppPalette.light.sub);
+      expect(count.textSpan!.toPlainText(), '0 个计划');
     });
   });
 }

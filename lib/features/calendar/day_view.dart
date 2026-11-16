@@ -391,38 +391,24 @@ class _DayOverview extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(
-                  '$plans',
-                  key: const ValueKey('overview-plans-count'),
-                  style: numberStyle,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  _countLabel(
-                    count: plans,
-                    plan: true,
-                    l10n: l10n,
-                    locale: locale,
-                  ),
-                  key: const ValueKey('overview-plans-label'),
-                  style: labelStyle,
+                _CountUnit(
+                  textKey: const ValueKey('overview-plans-count'),
+                  count: plans,
+                  plan: true,
+                  l10n: l10n,
+                  locale: locale,
+                  numberStyle: numberStyle,
+                  labelStyle: labelStyle,
                 ),
                 const SizedBox(width: 24),
-                Text(
-                  '$reminders',
-                  key: const ValueKey('overview-reminders-count'),
-                  style: numberStyle,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  _countLabel(
-                    count: reminders,
-                    plan: false,
-                    l10n: l10n,
-                    locale: locale,
-                  ),
-                  key: const ValueKey('overview-reminders-label'),
-                  style: labelStyle,
+                _CountUnit(
+                  textKey: const ValueKey('overview-reminders-count'),
+                  count: reminders,
+                  plan: false,
+                  l10n: l10n,
+                  locale: locale,
+                  numberStyle: numberStyle,
+                  labelStyle: labelStyle,
                 ),
               ],
             ),
@@ -532,18 +518,66 @@ class _PreviewRow extends StatelessWidget {
   }
 }
 
-/// English plural count until Task 19 migrates the day overview to ICU plural
-/// ARB keys. Chinese keeps the existing l10n output (`N 个计划` / `N 个提醒`).
-// TODO(Task 19): replace with `plansCount` / `remindersCount` ICU plurals.
-String _countLabel({
+/// One overview count unit with the number rendered exactly once: a single
+/// rich-text run whose plain text is `2 plans` / `1 个计划`. The number span is
+/// 22/700 ink and the noun span is 11/`sub`, so `find.text` still matches the
+/// whole unit while only one span paints the count.
+class _CountUnit extends StatelessWidget {
+  const _CountUnit({
+    required this.textKey,
+    required this.count,
+    required this.plan,
+    required this.l10n,
+    required this.locale,
+    required this.numberStyle,
+    required this.labelStyle,
+  });
+
+  final Key textKey;
+  final int count;
+  final bool plan;
+  final AppLocalizations l10n;
+  final Locale locale;
+  final TextStyle numberStyle;
+  final TextStyle labelStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: '$count', style: numberStyle),
+          TextSpan(
+            text: _countNoun(
+              count: count,
+              plan: plan,
+              l10n: l10n,
+              locale: locale,
+            ),
+            style: labelStyle,
+          ),
+        ],
+      ),
+      key: textKey,
+      maxLines: 1,
+    );
+  }
+}
+
+/// Noun-only suffix for a count unit. The count itself is painted by the
+/// number span, so the existing `plansCount` / `remindersCount` ARB keys
+/// (which embed the count) are NOT suitable as this label.
+// TODO(Task 19): keep this noun-plural helper, or migrate the noun spans to
+// ARB with ICU plural; do not use the count-embedding keys for the label.
+String _countNoun({
   required int count,
   required bool plan,
   required AppLocalizations l10n,
   required Locale locale,
 }) {
   if (locale.languageCode == 'zh') {
-    return plan ? l10n.plansCount(count) : l10n.remindersCount(count);
+    return ' 个${plan ? l10n.kindPlan : l10n.kindReminder}';
   }
   final noun = plan ? 'plan' : 'reminder';
-  return '$count $noun${count == 1 ? '' : 's'}';
+  return ' $noun${count == 1 ? '' : 's'}';
 }

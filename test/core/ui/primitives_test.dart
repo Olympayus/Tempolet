@@ -32,6 +32,38 @@ void main() {
     expect(picked, 'b');
   });
 
+  testWidgets('segmented is intrinsic and equal-width inside an unbounded Row', (
+    tester,
+  ) async {
+    var picked = 'short';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              AppSegmented<String>(
+                values: const ['short', 'much longer'],
+                labelFor: (v) => Text(v),
+                selected: 'short',
+                onChanged: (v) => picked = v,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    final control = tester.getSize(find.byType(AppSegmented<String>));
+    expect(control.height, 28);
+    final short = tester.getSize(find.widgetWithText(Container, 'short'));
+    final long = tester.getSize(find.widgetWithText(Container, 'much longer'));
+    expect(short.width, long.width);
+    // Intrinsic width, not stretched to the 800px test surface.
+    expect(control.width, lessThan(800));
+    await tester.tap(find.text('much longer'));
+    expect(picked, 'much longer');
+  });
+
   testWidgets('switch is 40x24 and toggles', (tester) async {
     var on = false;
     await tester.pumpWidget(

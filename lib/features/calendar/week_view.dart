@@ -8,17 +8,23 @@ import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/models/event_status.dart';
+import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
 import '../../notifications/notification_scheduler.dart';
 import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
+import 'category_marker.dart';
 import 'holiday_badge.dart';
 import 'lane_layout.dart';
 import 'now_line.dart';
 import 'plan_block.dart';
 import 'reminder_card.dart';
 import 'time_grid.dart';
+
+/// Column width below which week reminder cards switch to their compact
+/// two-line anatomy (`docs/design/10-ui-refinement.md` §3.1).
+const double kWeekTwoLineCardBreakpoint = 150;
 
 /// Seven-column week timeline (`docs/design/03-calendar.md` §2): a fixed
 /// two-line day bar, a left-fixed 44px axis and an hourly rule layer spanning
@@ -89,6 +95,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columnWidth = (constraints.maxWidth - kAxisGutter) / 7;
+        final narrowColumns = columnWidth < kWeekTwoLineCardBreakpoint;
 
         return Column(
           children: [
@@ -160,6 +167,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
                             events: byDay[days[i]] ?? const [],
                             today: today,
                             columnWidth: columnWidth,
+                            narrow: narrowColumns,
                             palette: palette,
                           ),
                         ),
@@ -177,11 +185,12 @@ class _WeekViewState extends ConsumerState<WeekView> {
   }
 }
 
-/// Two-line day header: weekday at 11px and the date at 12px via
+/// Two-line 52px day header: weekday at 11px and the date at 12px via
 /// [AppFormats]. Today's date sits on a solid accent pill; another selected
-/// day gets an accent ring so a single click visibly changes state even when
-/// the sidebar is closed. Dates with holiday data append the 休/班 pill, never
-/// the festival name.
+/// day gets an `accentTint` pill with ink text and no stroke, so a single
+/// click visibly changes state even when the sidebar is closed. When a day is
+/// both today and selected, today wins. Dates with holiday data append the
+/// 休/班 pill, never the festival name.
 class _DayHeaderCell extends StatelessWidget {
   const _DayHeaderCell({
     required this.day,
@@ -212,65 +221,69 @@ class _DayHeaderCell extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onSelect,
       onDoubleTap: onOpenDay,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              AppFormats.weekday(locale, day),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 11,
-                color: palette.sub,
+      child: SizedBox(
+        height: 52,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                AppFormats.weekday(locale, day),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 11,
+                  color: palette.sub,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Container(
-                    key: ValueKey('week-day-date-${_isoDay(day)}'),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 1,
-                    ),
-                    decoration: isToday
-                        ? BoxDecoration(
-                            color: palette.accent,
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                          )
-                        : selected
-                        ? BoxDecoration(
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                            border: Border.all(
+              const SizedBox(height: 2),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Container(
+                      key: ValueKey('week-day-date-${_isoDay(day)}'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: isToday
+                          ? BoxDecoration(
                               color: palette.accent,
-                              width: 1.5,
-                            ),
-                          )
-                        : null,
-                    child: Text(
-                      AppFormats.monthDay(locale, day),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.secondary.copyWith(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        fontVariations: const [FontVariation('wght', 600)],
-                        color: isToday ? Colors.white : palette.ink,
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.pill,
+                              ),
+                            )
+                          : selected
+                          ? BoxDecoration(
+                              color: palette.accentTint,
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.pill,
+                              ),
+                            )
+                          : null,
+                      child: Text(
+                        AppFormats.monthDay(locale, day),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.secondary.copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontVariations: const [FontVariation('wght', 600)],
+                          color: isToday ? Colors.white : palette.ink,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (holiday != null) ...[
-                  const SizedBox(width: 4),
-                  HolidayBadge(holiday: holiday, palette: palette),
+                  if (holiday != null) ...[
+                    const SizedBox(width: 4),
+                    HolidayBadge(holiday: holiday, palette: palette),
+                  ],
                 ],
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -288,6 +301,7 @@ class _WeekDayColumn extends ConsumerStatefulWidget {
     required this.events,
     required this.today,
     required this.columnWidth,
+    required this.narrow,
     required this.palette,
   });
 
@@ -295,6 +309,9 @@ class _WeekDayColumn extends ConsumerStatefulWidget {
   final List<Event> events;
   final DateTime today;
   final double columnWidth;
+
+  /// Narrow columns swap floating reminders to the compact two-line card.
+  final bool narrow;
   final AppPalette palette;
 
   @override
@@ -455,18 +472,27 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
   }
 
   Widget _reminderLayer(Event event) {
+    final overdue = eventStatus(event, widget.today) == EventStatus.overdue;
+    void onTap() => showEventEditor(context, existing: event);
     return Positioned(
       left: 1,
       right: 1,
       top: minuteToY(event.startMinute!) - 6,
-      child: ReminderCard(
-        key: ValueKey('reminder-${event.id}'),
-        event: event,
-        overdue: eventStatus(event, widget.today) == EventStatus.overdue,
-        showCheckbox: true,
-        onTap: () => showEventEditor(context, existing: event),
-        onComplete: _completion(event),
-      ),
+      child: widget.narrow
+          ? _TwoLineReminderCard(
+              key: ValueKey('reminder-${event.id}'),
+              event: event,
+              palette: widget.palette,
+              onTap: onTap,
+            )
+          : ReminderCard(
+              key: ValueKey('reminder-${event.id}'),
+              event: event,
+              overdue: overdue,
+              showCheckbox: true,
+              onTap: onTap,
+              onComplete: _completion(event),
+            ),
     );
   }
 
@@ -582,6 +608,86 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
     );
     await ref.read(eventRepositoryProvider).updateEvent(updated);
     ref.read(eventNotifierSyncProvider).afterUpdate(updated);
+  }
+}
+
+/// Compact two-line reminder for week columns narrower than
+/// [kWeekTwoLineCardBreakpoint]: an 11/700 single-line title over a 10px
+/// time and category marker. The completion circle is dropped — a narrow
+/// column cannot fit it, and week cards float above the grid rather than
+/// owning a check target of their own.
+class _TwoLineReminderCard extends ConsumerWidget {
+  const _TwoLineReminderCard({
+    super.key,
+    required this.event,
+    required this.palette,
+    this.onTap,
+  });
+
+  final Event event;
+  final AppPalette palette;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categories =
+        ref.watch(allCategoriesProvider).value ?? const <Category>[];
+    final startMinute = event.startMinute;
+    final time = startMinute == null ? '' : formatMinuteOfDay(startMinute);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        key: const ValueKey('week-card-two-line'),
+        constraints: const BoxConstraints(minHeight: 30),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(AppRadii.segment),
+          border: Border.all(color: palette.line),
+          boxShadow: kCardShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              event.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                fontVariations: const [FontVariation('wght', 700)],
+                color: palette.ink,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    time,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 10,
+                      color: palette.sub,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                CategoryMarker(
+                  kind: event.kind,
+                  color: categoryMarkerColor(event.categoryId, categories),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -56,6 +56,14 @@ class Win32Window {
   RECT GetClientArea();
 
  protected:
+  // A button in the app-drawn title bar (see win32_window.cpp).
+  enum class TitleBarButton {
+    kNone,
+    kMinimize,
+    kMaximize,
+    kClose,
+  };
+
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
   // inheriting classes can handle.
@@ -63,6 +71,10 @@ class Win32Window {
                                  UINT const message,
                                  WPARAM const wparam,
                                  LPARAM const lparam) noexcept;
+
+  // Called when the pointer moves onto, between, or off the app-drawn title
+  // bar buttons. Only fires when the button changes; kNone means "no button".
+  virtual void OnTitleBarHover(TitleBarButton button) {}
 
   // Called when CreateAndShow is called, allowing subclass window-related
   // setup. Subclasses should return false if setup fails.
@@ -90,6 +102,14 @@ class Win32Window {
   // Update the window frame's theme to match the system theme.
   static void UpdateTheme(HWND const window);
 
+  // Sizes and positions the hosted content over the current client area. The
+  // client area also changes when the frame is removed without a window size
+  // change, which sends no WM_SIZE.
+  void ResizeChildContent();
+
+  // Stores |button| and notifies the subclass when it changed.
+  void UpdateTitleBarHover(TitleBarButton button);
+
   bool quit_on_close_ = false;
 
   // window handle for top level window.
@@ -97,6 +117,12 @@ class Win32Window {
 
   // window handle for hosted content.
   HWND child_content_ = nullptr;
+
+  // Button under the pointer, reported through OnTitleBarHover.
+  TitleBarButton title_bar_button_ = TitleBarButton::kNone;
+
+  // Whether TrackMouseEvent is armed for WM_NCMOUSELEAVE.
+  bool tracking_nc_mouse_ = false;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_

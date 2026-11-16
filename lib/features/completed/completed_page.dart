@@ -193,14 +193,26 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
 
     Widget rowFor(Event event) {
       final at = event.completedAt;
-      // Intentional locale-aware join: Chinese writes `11月16日 10:02`, while
+      // Intentional locale-aware join: Chinese writes `11月16日 09:00`, while
       // English uses the `·` date/time separator (no comma) per the v0.1.3
       // separator ruling.
       final separator = locale.languageCode == 'zh' ? ' ' : ' · ';
+      final kindLabel = event.kind == 'plan'
+          ? l10n.kindPlan
+          : l10n.kindReminder;
+      final ownTime = AppFormats.timeRange(event.startMinute, event.endMinute);
+      final ownDate = AppFormats.monthDay(locale, event.date);
+      // Every row says what the item was and when it was scheduled, then when
+      // it was completed (`10-ui-refinement` §9.5).
+      final ownSchedule = ownTime.isEmpty
+          ? '$kindLabel · $ownDate'
+          : '$kindLabel · $ownDate$separator$ownTime';
       final completionLabel = at == null
           ? ''
-          : '${AppFormats.monthDay(locale, at)}$separator'
-                '${formatMinuteOfDay(at.hour * 60 + at.minute)}';
+          : l10n.completedAt(
+              AppFormats.monthDay(locale, at),
+              formatMinuteOfDay(at.hour * 60 + at.minute),
+            );
       return Padding(
         key: ValueKey('completed-row-${event.id}'),
         padding: const EdgeInsets.symmetric(horizontal: _rowOuterInset),
@@ -209,7 +221,7 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
           color: categoryMarkerColor(event.categoryId, categories),
           titleColor: palette.sub,
           metadata: Text(
-            event.kind == 'plan' ? l10n.kindPlan : l10n.kindReminder,
+            ownSchedule,
             style: AppTextStyles.caption.copyWith(color: palette.sub),
           ),
           timeLabel: completionLabel,
@@ -331,7 +343,7 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
               Expanded(
                 child: events.isEmpty
                     ? Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
                         child: Align(
                           alignment: Alignment.topLeft,
                           child: Column(

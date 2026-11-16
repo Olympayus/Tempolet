@@ -303,6 +303,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get completedTitle => '已完成';
 
   @override
+  String completedAt(String date, String time) {
+    return '$date $time 完成';
+  }
+
+  @override
   String get clear => '清空';
 
   @override

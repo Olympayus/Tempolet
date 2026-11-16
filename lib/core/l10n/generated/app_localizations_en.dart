@@ -308,6 +308,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get completedTitle => 'Completed';
 
   @override
+  String completedAt(String date, String time) {
+    return 'completed $date · $time';
+  }
+
+  @override
   String get clear => 'Clear';
 
   @override

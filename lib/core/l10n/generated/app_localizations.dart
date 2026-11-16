@@ -650,6 +650,12 @@ abstract class AppLocalizations {
   /// **'Completed'**
   String get completedTitle;
 
+  /// No description provided for @completedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'completed {date} · {time}'**
+  String completedAt(String date, String time);
+
   /// No description provided for @clear.
   ///
   /// In en, this message translates to:

@@ -22,11 +22,14 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Widget _pageApp(ProviderContainer container) {
+Widget _pageApp(
+  ProviderContainer container, {
+  Locale locale = const Locale('zh'),
+}) {
   return UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
-      locale: const Locale('zh'),
+      locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const CompletedPage(),
@@ -72,11 +75,12 @@ void main() {
     String kind = 'reminder',
     int? startMinute = 540,
     int? endMinute,
+    DateTime? date,
   }) {
     return repo.create(
       title: title,
       kind: kind,
-      date: dateOnly(DateTime.now()),
+      date: date ?? dateOnly(DateTime.now()),
       startMinute: startMinute,
       endMinute: endMinute,
       reminderOffsetMinutes: 0,
@@ -132,14 +136,18 @@ void main() {
     expect(find.text('Today task'), findsOneWidget);
     expect(find.text('Yesterday task'), findsOneWidget);
     expect(find.text('Earlier task'), findsOneWidget);
-    expect(find.text('计划'), findsOneWidget);
-    expect(find.text('提醒'), findsNWidgets(2));
+    // Each row names the item's kind and its own schedule, not just the
+    // completion day (`10-ui-refinement` §9.5).
+    final todayLabel = '${today.month}月${today.day}日';
+    expect(find.text('计划 · $todayLabel 10:00–11:00'), findsOneWidget);
+    expect(find.text('提醒 · $todayLabel 09:00'), findsNWidgets(2));
     // Every completed row carries its full completion date and time, even
     // though the group header already names the day (user requirement,
     // design spec §7.5).
     expect(find.textContaining('09:30'), findsOneWidget);
     expect(find.textContaining('18:00'), findsOneWidget);
     expect(find.textContaining('12:00'), findsOneWidget);
+    expect(find.textContaining(' 完成'), findsNWidgets(3));
 
     double rowTop(String id) =>
         tester.getTopLeft(find.byKey(ValueKey('completed-restore-$id'))).dy;
@@ -159,6 +167,12 @@ void main() {
     final restore = find.byKey(ValueKey('completed-restore-${event.id}'));
     expect(restore, findsOneWidget);
     expect(find.textContaining('11月16日 10:02'), findsOneWidget);
+    expect(find.text('11月16日 10:02 完成'), findsOneWidget);
+    final today = dateOnly(DateTime.now());
+    expect(
+      find.text('提醒 · ${today.month}月${today.day}日 09:00'),
+      findsOneWidget,
+    );
 
     final label = tester.widget<Text>(
       find.descendant(of: restore, matching: find.text('恢复')),
@@ -168,6 +182,24 @@ void main() {
       label.style?.color,
       Theme.of(tester.element(restore)).colorScheme.primary,
     );
+  });
+
+  testWidgets('English completed rows use the no-comma separator', (
+    tester,
+  ) async {
+    _useWindow(tester, const Size(1600, 900));
+    final event = await seed(
+      'English task',
+      date: DateTime(2026, 11, 13),
+      startMinute: 540,
+    );
+    await completeAt(event.id, DateTime(2026, 11, 16, 16, 20));
+
+    await tester.pumpWidget(_pageApp(container, locale: const Locale('en')));
+    await _settle(tester);
+
+    expect(find.text('Reminder · Nov 13 · 09:00'), findsOneWidget);
+    expect(find.text('completed Nov 16 · 16:20'), findsOneWidget);
   });
 
   testWidgets('long press enters multi-select with select all and delete', (

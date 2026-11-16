@@ -134,6 +134,17 @@
   "addReminderOrPlan": "＋ Add reminder or plan",
   "editInSidebar": "Edit in sidebar ›",
   "completedTitle": "Completed",
+  "completedAt": "completed {date} · {time}",
+  "@completedAt": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "clear": "Clear",
   "restore": "Restore",
   "select": "Select",

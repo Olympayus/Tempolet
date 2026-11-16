@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/app_icons.dart';
 
 /// Fixed width of the icon rail (`docs/design/02-shell-desktop.md` §1,
 /// `docs/design/10-ui-refinement.md` §7.1; v0.1.3 widens 54 → 56).
@@ -52,7 +52,10 @@ class IconRail extends StatelessWidget {
           children: [
             _RailDestination(
               key: const ValueKey('rail-calendar'),
-              icon: LucideIcons.calendar,
+              icon: AppIcon.calendar(
+                size: 18,
+                color: selectedIndex == 0 ? p.accent : p.sub,
+              ),
               label: l10n.navCalendar,
               palette: p,
               selected: selectedIndex == 0,
@@ -61,7 +64,10 @@ class IconRail extends StatelessWidget {
             const SizedBox(height: _destinationGap),
             _RailDestination(
               key: const ValueKey('rail-reminders'),
-              icon: LucideIcons.bell,
+              icon: AppIcon.bell(
+                size: 18,
+                color: selectedIndex == 1 ? p.accent : p.sub,
+              ),
               label: l10n.navReminders,
               palette: p,
               selected: selectedIndex == 1,
@@ -70,7 +76,10 @@ class IconRail extends StatelessWidget {
             const Spacer(),
             _RailDestination(
               key: const ValueKey('rail-settings'),
-              icon: LucideIcons.slidersHorizontal,
+              icon: AppIcon.settings(
+                size: 18,
+                color: selectedIndex == 2 ? p.accent : p.sub,
+              ),
               label: l10n.navSettings,
               palette: p,
               selected: selectedIndex == 2,
@@ -93,7 +102,7 @@ class _RailDestination extends StatelessWidget {
     required this.onTap,
   });
 
-  final IconData icon;
+  final Widget icon;
   final String label;
   final AppPalette palette;
   final bool selected;
@@ -115,11 +124,7 @@ class _RailDestination extends StatelessWidget {
           child: SizedBox(
             width: _destinationSize,
             height: _destinationSize,
-            child: Icon(
-              icon,
-              size: 18,
-              color: selected ? palette.accent : palette.sub,
-            ),
+            child: Center(child: icon),
           ),
         ),
       ),

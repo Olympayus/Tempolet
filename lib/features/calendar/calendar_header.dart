@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
+import '../../core/ui/app_icons.dart';
 import '../../core/ui/app_segmented.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
@@ -106,12 +107,12 @@ class CalendarHeader extends ConsumerWidget {
                 AppIconButton(
                   key: const ValueKey('calendar-prev'),
                   onPressed: () => shift(-1),
-                  icon: const Icon(LucideIcons.chevronLeft),
+                  icon: const AppIcon.chevronLeft(),
                 ),
                 AppIconButton(
                   key: const ValueKey('calendar-next'),
                   onPressed: () => shift(1),
-                  icon: const Icon(LucideIcons.chevronRight),
+                  icon: const AppIcon.chevronRight(),
                 ),
                 const SizedBox(width: 8),
                 AppButton.secondary(
@@ -144,7 +145,10 @@ class CalendarHeader extends ConsumerWidget {
           AppButton.primary(
             key: const ValueKey('calendar-new'),
             label: l10n.newItem,
-            leadingIcon: const Icon(LucideIcons.plus, size: 16),
+            leadingIcon: const AppIcon.plus(
+              size: 16,
+              color: Colors.white,
+            ),
             onPressed: () => showEventEditor(context, date: selected),
           ),
           if (mode != CalendarViewMode.day) ...[

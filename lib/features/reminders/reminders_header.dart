@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
+import '../../core/ui/app_icons.dart';
 
 /// 64px page header for `/reminders` (`10-ui-refinement.md` §9.7).
 ///
@@ -70,7 +71,10 @@ class RemindersHeader extends StatelessWidget {
             AppButton.primary(
               key: const ValueKey('reminders-new'),
               label: l10n.newItem,
-              leadingIcon: const Icon(LucideIcons.plus, size: 16),
+              leadingIcon: const AppIcon.plus(
+                size: 16,
+                color: Colors.white,
+              ),
               onPressed: onCreate,
             ),
           ],

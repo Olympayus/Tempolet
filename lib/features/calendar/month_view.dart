@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/app_popover.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -11,17 +12,29 @@ import 'calendar_state.dart';
 import 'category_marker.dart';
 import 'holiday_badge.dart';
 import 'month_model.dart';
-import 'month_preview_dialog.dart';
+import 'month_preview_popover.dart';
 
 /// Current-month grid: only real dates of the selected month, with blank
 /// leading/trailing cells and no hovering summary (`docs/design/03-calendar.md`
-/// §1). A single click opens [MonthPreviewDialog]; a double click selects the
-/// day and opens the sidebar.
-class MonthView extends ConsumerWidget {
+/// §1). A single click opens the anchored [MonthPreviewPopover]; a double
+/// click selects the day and opens the sidebar.
+class MonthView extends ConsumerStatefulWidget {
   const MonthView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MonthView> createState() => _MonthViewState();
+}
+
+class _MonthViewState extends ConsumerState<MonthView> {
+  /// Stable per-day keys so the tapped cell can report its rectangle to the
+  /// popover without depending on a context outside its own subtree.
+  final Map<DateTime, GlobalKey> _cellKeys = <DateTime, GlobalKey>{};
+
+  GlobalKey _cellKey(DateTime day) =>
+      _cellKeys.putIfAbsent(day, GlobalKey.new);
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette =
         (theme.brightness == Brightness.light
@@ -52,9 +65,13 @@ class MonthView extends ConsumerWidget {
     };
 
     void openPreview(DateTime day) {
-      showDialog<void>(
+      final box = _cellKey(day).currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) return;
+      final anchor = box.localToGlobal(Offset.zero) & box.size;
+      showAppPopover<void>(
         context: context,
-        builder: (_) => MonthPreviewDialog(day: day),
+        anchor: anchor,
+        builder: (_) => MonthPreviewPopover(day: day),
       );
     }
 
@@ -105,6 +122,7 @@ class MonthView extends ConsumerWidget {
                               child: day == null
                                   ? _GridBlank(palette: palette)
                                   : _DayCell(
+                                      key: _cellKey(day),
                                       day: day,
                                       isToday: day == today,
                                       isSelected: day == selected,
@@ -134,7 +152,8 @@ String _dateKey(DateTime day) =>
     '${day.year}-${day.month.toString().padLeft(2, '0')}-'
     '${day.day.toString().padLeft(2, '0')}';
 
-BoxDecoration _cellBorder(AppPalette palette) => BoxDecoration(
+BoxDecoration _cellBorder(AppPalette palette, {Color? color}) => BoxDecoration(
+  color: color,
   border: Border(
     right: BorderSide(color: palette.lineStrong),
     bottom: BorderSide(color: palette.lineStrong),
@@ -154,6 +173,7 @@ class _GridBlank extends StatelessWidget {
 
 class _DayCell extends StatelessWidget {
   const _DayCell({
+    super.key,
     required this.day,
     required this.isToday,
     required this.isSelected,
@@ -181,39 +201,57 @@ class _DayCell extends StatelessWidget {
     final hasOverflow = events.length > shown.length;
 
     return GestureDetector(
-      key: ValueKey('day-${_dateKey(day)}'),
+      key: ValueKey('month-day-${_dateKey(day)}'),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       onDoubleTap: onDoubleTap,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(5, 4, 5, 3),
-        decoration: _cellBorder(palette),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: _cellBorder(
+          palette,
+          // Today owns the solid accent circle, so a selected today does not
+          // also wash the whole cell (`docs/design/10-ui-refinement.md` §9.15).
+          color: isSelected && !isToday ? palette.accentTint : null,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _DayRow(
               day: day,
               isToday: isToday,
-              isSelected: isSelected,
               holiday: holiday,
               palette: palette,
             ),
-            const SizedBox(height: 2),
-            for (final event in shown)
-              _EventRow(
-                event: event,
-                color: categoryMarkerColor(event.categoryId, categories),
-                palette: palette,
-              ),
-            if (hasOverflow)
-              Text(
-                '…',
-                key: ValueKey('month-more-${_dateKey(day)}'),
-                style: AppTextStyles.caption.copyWith(
-                  color: palette.sub,
-                  letterSpacing: 1,
+            // The events area clips instead of overflowing when the window is
+            // shorter than the 8/10 + 32 row + 2×18 rows budget.
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final event in shown)
+                      _EventRow(
+                        event: event,
+                        color: categoryMarkerColor(
+                          event.categoryId,
+                          categories,
+                        ),
+                        palette: palette,
+                      ),
+                    if (hasOverflow)
+                      Text(
+                        '…',
+                        key: ValueKey('month-more-${_dateKey(day)}'),
+                        style: AppTextStyles.caption.copyWith(
+                          color: palette.sub,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                  ],
                 ),
               ),
+            ),
           ],
         ),
       ),
@@ -221,21 +259,19 @@ class _DayCell extends StatelessWidget {
   }
 }
 
-/// The day-number row: date, then the festival name and 休/班 pill when the
-/// date has holiday data. Holiday info stays on this row so both event rows
-/// remain available (`docs/design/03-calendar.md` §1.1).
+/// The 32px day-number row: date, then the festival name and 休/班 pill when
+/// the date has holiday data. Holiday info stays on this row so both event
+/// rows remain available (`docs/design/03-calendar.md` §1.1).
 class _DayRow extends StatelessWidget {
   const _DayRow({
     required this.day,
     required this.isToday,
-    required this.isSelected,
     required this.holiday,
     required this.palette,
   });
 
   final DateTime day;
   final bool isToday;
-  final bool isSelected;
   final Holiday? holiday;
   final AppPalette palette;
 
@@ -243,13 +279,12 @@ class _DayRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final holiday = this.holiday;
     return SizedBox(
-      height: 18,
+      height: 32,
       child: Row(
         children: [
           _DayNumber(
             day: day,
             isToday: isToday,
-            isSelected: isSelected,
             palette: palette,
           ),
           if (holiday != null) ...[
@@ -263,13 +298,13 @@ class _DayRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: palette.festival,
                   ),
                 ),
               ),
             const SizedBox(width: 3),
-            HolidayBadge(holiday: holiday, palette: palette),
+            HolidayBadge(holiday: holiday, palette: palette, fontSize: 9),
           ],
         ],
       ),
@@ -281,36 +316,30 @@ class _DayNumber extends StatelessWidget {
   const _DayNumber({
     required this.day,
     required this.isToday,
-    required this.isSelected,
     required this.palette,
   });
 
   final DateTime day;
   final bool isToday;
-  final bool isSelected;
   final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
-    final decoration = isToday
-        ? BoxDecoration(shape: BoxShape.circle, color: palette.accent)
-        : isSelected
-        ? BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: palette.accent, width: 1.5),
-          )
-        : null;
-
     return Container(
-      width: 18,
-      height: 18,
+      key: ValueKey('month-day-number-${_dateKey(day)}'),
+      width: 20,
+      height: 20,
       alignment: Alignment.center,
-      decoration: decoration,
+      decoration: isToday
+          ? BoxDecoration(shape: BoxShape.circle, color: palette.accent)
+          : null,
       child: Text(
         '${day.day}',
-        style: AppTextStyles.caption.copyWith(
-          color: isToday ? Colors.white : palette.ink,
+        style: AppTextStyles.body.copyWith(
+          fontSize: 13,
           fontWeight: FontWeight.w600,
+          fontVariations: const [FontVariation('wght', 600)],
+          color: isToday ? Colors.white : palette.ink,
         ),
       ),
     );
@@ -332,31 +361,38 @@ class _EventRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final start = event.startMinute;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        children: [
-          CategoryMarker(kind: event.kind, color: color),
-          const SizedBox(width: 4),
-          if (start != null) ...[
-            Text(
-              formatMinuteOfDay(start),
-              style: AppTextStyles.caption.copyWith(
-                color: palette.sub,
-                fontSize: 10,
+    return SizedBox(
+      height: 18,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Very narrow cells (a 500px window leaves ~46px of content) cannot
+          // hold marker + time + title; drop the time before it overflows.
+          final showTime = start != null && constraints.maxWidth >= 60;
+          return Row(
+            children: [
+              CategoryMarker(kind: event.kind, color: color),
+              const SizedBox(width: 4),
+              if (showTime) ...[
+                Text(
+                  formatMinuteOfDay(start),
+                  style: AppTextStyles.caption.copyWith(
+                    color: palette.sub,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(width: 3),
+              ],
+              Expanded(
+                child: Text(
+                  event.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(color: palette.ink),
+                ),
               ),
-            ),
-            const SizedBox(width: 3),
-          ],
-          Expanded(
-            child: Text(
-              event.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(color: palette.ink),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

@@ -6,10 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_page.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
+import 'package:tempolet/features/calendar/month_preview_popover.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -114,16 +116,18 @@ void main() {
     expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
   });
 
-  testWidgets('single click opens preview without changing view mode', (
+  testWidgets('single click opens an anchored popover without changing view', (
     tester,
   ) async {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    await tester.tap(find.byKey(const ValueKey('day-2026-11-11')));
+    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-11')));
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 
+    expect(find.byType(MonthPreviewPopover), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
     expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
     expect(container.read(calendarViewModeProvider), CalendarViewMode.month);
   });
@@ -140,7 +144,7 @@ void main() {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    final cell = find.byKey(const ValueKey('day-2026-11-11'));
+    final cell = find.byKey(const ValueKey('month-day-2026-11-11'));
     await tester.tap(cell);
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(cell);
@@ -149,19 +153,19 @@ void main() {
 
     expect(container.read(selectedDayProvider), DateTime(2026, 11, 11));
     expect(container.read(sidebarPreferenceProvider), isTrue);
-    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+    expect(find.byType(MonthPreviewPopover), findsNothing);
   });
 
   testWidgets('header navigation moves the month grid', (tester) async {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
-    expect(find.byKey(const ValueKey('day-2026-11-01')), findsOneWidget);
+    expect(find.byKey(const ValueKey('month-day-2026-11-01')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('calendar-next')));
     await _settle(tester);
 
-    expect(find.byKey(const ValueKey('day-2026-12-01')), findsOneWidget);
-    expect(find.byKey(const ValueKey('day-2026-11-01')), findsNothing);
+    expect(find.byKey(const ValueKey('month-day-2026-12-01')), findsOneWidget);
+    expect(find.byKey(const ValueKey('month-day-2026-11-01')), findsNothing);
   });
 
   testWidgets('checking a preview row completes the event', (tester) async {
@@ -169,11 +173,16 @@ void main() {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    await tester.tap(find.byKey(const ValueKey('day-2026-11-11')));
+    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-11')));
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(ValueKey('preview-complete-${event.id}')));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(ValueKey('preview-row-${event.id}')),
+        matching: find.byType(AppCheckCircle),
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 150));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 30)),

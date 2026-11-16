@@ -183,7 +183,7 @@ void main() {
 
     await tester.pumpWidget(_app(container));
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('day-2026-11-11')));
+    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-11')));
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 

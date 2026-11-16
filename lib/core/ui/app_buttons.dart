@@ -6,6 +6,9 @@ const double _iconButtonSize = AppSizes.control;
 const double _iconSize = 18;
 
 const EdgeInsets _primaryPadding = EdgeInsets.symmetric(horizontal: 14);
+
+/// Gap between the primary tier's leading glyph and its label.
+const double _primaryIconGap = 6;
 const EdgeInsets _secondaryPadding = EdgeInsets.symmetric(horizontal: 12);
 const EdgeInsets _textLinkPadding = EdgeInsets.symmetric(
   horizontal: 2,
@@ -88,40 +91,55 @@ enum _AppButtonKind { primary, secondary, textLink }
 /// accent primary, chip secondary and a bare accent text link.
 ///
 /// Material-free: [MouseRegion] + [GestureDetector]; a null [onPressed] renders
-/// the disabled tier.
-class AppButton extends StatelessWidget {
+/// the disabled tier. The secondary tier fills with `hover` on pointer-over.
+class AppButton extends StatefulWidget {
   const AppButton.primary({
     super.key,
     required this.label,
+    this.leadingIcon,
     this.onPressed,
   }) : _kind = _AppButtonKind.primary;
 
-  const AppButton.secondary({
-    super.key,
-    required this.label,
-    this.onPressed,
-  }) : _kind = _AppButtonKind.secondary;
+  const AppButton.secondary({super.key, required this.label, this.onPressed})
+    : _kind = _AppButtonKind.secondary,
+      leadingIcon = null;
 
-  const AppButton.textLink({
-    super.key,
-    required this.label,
-    this.onPressed,
-  }) : _kind = _AppButtonKind.textLink;
+  const AppButton.textLink({super.key, required this.label, this.onPressed})
+    : _kind = _AppButtonKind.textLink,
+      leadingIcon = null;
 
   final String label;
+
+  /// Optional 16px glyph painted before the label (primary tier only).
+  final Widget? leadingIcon;
   final VoidCallback? onPressed;
   final _AppButtonKind _kind;
 
   @override
+  State<AppButton> createState() => _AppButtonState();
+}
+
+class _AppButtonState extends State<AppButton> {
+  bool _hovering = false;
+
+  void _setHovering(bool hovering) {
+    if (_hovering == hovering) return;
+    setState(() => _hovering = hovering);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
-    final enabled = onPressed != null;
+    final enabled = widget.onPressed != null;
+    final hoverEnabled = widget._kind == _AppButtonKind.secondary && enabled;
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: hoverEnabled ? (_) => _setHovering(true) : null,
+      onExit: hoverEnabled ? (_) => _setHovering(false) : null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onPressed,
-        child: switch (_kind) {
+        onTap: widget.onPressed,
+        child: switch (widget._kind) {
           _AppButtonKind.primary => Container(
             height: AppSizes.control,
             padding: _primaryPadding,
@@ -130,13 +148,27 @@ class AppButton extends StatelessWidget {
               color: enabled ? palette.accent : palette.chip,
               borderRadius: BorderRadius.circular(AppRadii.button),
             ),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _primaryLabelStyle.copyWith(
-                color: enabled ? Colors.white : palette.subMuted,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.leadingIcon != null) ...[
+                  IconTheme(
+                    data: IconThemeData(
+                      color: enabled ? Colors.white : palette.subMuted,
+                    ),
+                    child: widget.leadingIcon!,
+                  ),
+                  const SizedBox(width: _primaryIconGap),
+                ],
+                Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _primaryLabelStyle.copyWith(
+                    color: enabled ? Colors.white : palette.subMuted,
+                  ),
+                ),
+              ],
             ),
           ),
           _AppButtonKind.secondary => Container(
@@ -144,11 +176,11 @@ class AppButton extends StatelessWidget {
             padding: _secondaryPadding,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: palette.chip,
+              color: _hovering && enabled ? palette.hover : palette.chip,
               borderRadius: BorderRadius.circular(AppRadii.button),
             ),
             child: Text(
-              label,
+              widget.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.body.copyWith(
@@ -159,7 +191,7 @@ class AppButton extends StatelessWidget {
           _AppButtonKind.textLink => Padding(
             padding: _textLinkPadding,
             child: Text(
-              label,
+              widget.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.body.copyWith(

@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/app_buttons.dart';
+import '../../core/ui/app_segmented.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -14,7 +16,8 @@ import 'calendar_state.dart';
 ///
 /// It owns every global calendar control (title, view switch, today, paging,
 /// new item and the sidebar toggle) so those controls never disappear when
-/// the body switches views.
+/// the body switches views. 64 high with a bottom hairline
+/// (`docs/design/10-ui-refinement.md` §9.3).
 class CalendarHeader extends ConsumerWidget {
   const CalendarHeader({super.key, this.onToggleSidebar});
 
@@ -62,10 +65,17 @@ class CalendarHeader extends ConsumerWidget {
       }
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+    return Container(
+      key: const ValueKey('calendar-header'),
+      height: AppSizes.header,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: palette.line)),
+      ),
       child: Row(
         children: [
+          // The title gives way first: it sits in the only flexible slot, so
+          // the controls to its right keep their size and order.
           Expanded(
             child: Row(
               children: [
@@ -86,131 +96,66 @@ class CalendarHeader extends ConsumerWidget {
                     key: const ValueKey('calendar-title'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.title,
+                    style: AppTextStyles.title.copyWith(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
+                AppIconButton(
                   key: const ValueKey('calendar-prev'),
                   onPressed: () => shift(-1),
-                  icon: const Icon(LucideIcons.chevronLeft, size: 18),
-                  color: palette.sub,
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 28,
-                  ),
+                  icon: const Icon(LucideIcons.chevronLeft),
                 ),
-                IconButton(
+                AppIconButton(
                   key: const ValueKey('calendar-next'),
                   onPressed: () => shift(1),
-                  icon: const Icon(LucideIcons.chevronRight, size: 18),
-                  color: palette.sub,
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 28,
-                  ),
+                  icon: const Icon(LucideIcons.chevronRight),
                 ),
-                const SizedBox(width: 4),
-                TextButton(
+                const SizedBox(width: 8),
+                AppButton.secondary(
+                  label: l10n.today,
                   onPressed: () => ref
                       .read(selectedDayProvider.notifier)
                       .select(dateOnly(ref.read(todayProvider))),
-                  style: TextButton.styleFrom(
-                    foregroundColor: palette.ink,
-                    textStyle: AppTextStyles.body,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    minimumSize: const Size(0, 28),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(l10n.today),
                 ),
-                const Spacer(),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          SegmentedButton<CalendarViewMode>(
-            segments: [
-              ButtonSegment(
-                value: CalendarViewMode.month,
-                label: Text(l10n.month),
-              ),
-              ButtonSegment(
-                value: CalendarViewMode.week,
-                label: Text(l10n.week),
-              ),
-              ButtonSegment(value: CalendarViewMode.day, label: Text(l10n.day)),
+          const SizedBox(width: 8),
+          AppSegmented<CalendarViewMode>(
+            key: const ValueKey('calendar-view-segmented'),
+            values: const [
+              CalendarViewMode.month,
+              CalendarViewMode.week,
+              CalendarViewMode.day,
             ],
-            selected: {mode},
-            showSelectedIcon: false,
-            onSelectionChanged: (selection) => ref
-                .read(calendarViewModeProvider.notifier)
-                .set(selection.first),
-            style: ButtonStyle(
-              visualDensity: const VisualDensity(
-                horizontal: -2,
-                vertical: -3.5,
-              ),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: const WidgetStatePropertyAll(
-                EdgeInsets.symmetric(horizontal: 12),
-              ),
-              textStyle: const WidgetStatePropertyAll(AppTextStyles.secondary),
-              foregroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.selected)
-                    ? palette.ink
-                    : palette.sub,
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.selected)
-                    ? palette.card
-                    : Colors.transparent,
-              ),
-              side: WidgetStatePropertyAll(
-                BorderSide(color: palette.lineStrong),
-              ),
-              shape: WidgetStatePropertyAll(
-                RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadii.segment),
-                ),
-              ),
-            ),
+            labelFor: (value) => Text(switch (value) {
+              CalendarViewMode.month => l10n.month,
+              CalendarViewMode.week => l10n.week,
+              CalendarViewMode.day => l10n.day,
+            }),
+            selected: mode,
+            onChanged: (value) =>
+                ref.read(calendarViewModeProvider.notifier).set(value),
           ),
           const SizedBox(width: 8),
-          FilledButton.icon(
+          AppButton.primary(
             key: const ValueKey('calendar-new'),
+            label: l10n.newItem,
+            leadingIcon: const Icon(LucideIcons.plus, size: 16),
             onPressed: () => showEventEditor(context, date: selected),
-            icon: const Icon(LucideIcons.plus, size: 16),
-            label: Text(l10n.newItem),
-            style: FilledButton.styleFrom(
-              backgroundColor: palette.accent,
-              foregroundColor: Colors.white,
-              textStyle: AppTextStyles.body,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              minimumSize: const Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadii.button),
-              ),
-            ),
           ),
           if (mode != CalendarViewMode.day) ...[
-            const SizedBox(width: 4),
-            IconButton(
+            const SizedBox(width: 8),
+            AppIconButton(
               key: const ValueKey('calendar-sidebar-toggle'),
               tooltip: l10n.toggleSidebar,
               // The page owns the width-aware effective state; the header
               // only flips the user's explicit choice.
               onPressed: onToggleSidebar,
-              icon: const Icon(LucideIcons.panelRight, size: 18),
-              color: palette.sub,
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+              icon: const Icon(LucideIcons.panelRight),
             ),
           ],
         ],

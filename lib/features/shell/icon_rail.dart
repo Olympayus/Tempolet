@@ -4,8 +4,19 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 
-/// Fixed width of the icon rail (`docs/design/02-shell-desktop.md` §1).
-const double kRailWidth = 54;
+/// Fixed width of the icon rail (`docs/design/02-shell-desktop.md` §1,
+/// `docs/design/10-ui-refinement.md` §7.1; v0.1.3 widens 54 → 56).
+const double kRailWidth = 56;
+
+/// 27×27 destination tile, including the selected `accent-tint` background
+/// (`docs/design/02-shell-desktop.md` §2).
+const double _destinationSize = 27;
+
+/// Gap between adjacent destinations (`10-ui-refinement.md` §7.1).
+const double _destinationGap = 8;
+
+/// Top/bottom inset of the rail (`10-ui-refinement.md` §7.1).
+const double _railVerticalPadding = 16;
 
 /// 刻度纸 icon rail: global navigation, 27×27 destinations.
 class IconRail extends StatelessWidget {
@@ -36,7 +47,7 @@ class IconRail extends StatelessWidget {
         border: Border(right: BorderSide(color: p.line)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: _railVerticalPadding),
         child: Column(
           children: [
             _RailDestination(
@@ -47,6 +58,7 @@ class IconRail extends StatelessWidget {
               selected: selectedIndex == 0,
               onTap: () => onSelected(0),
             ),
+            const SizedBox(height: _destinationGap),
             _RailDestination(
               key: const ValueKey('rail-reminders'),
               icon: LucideIcons.bell,
@@ -101,8 +113,8 @@ class _RailDestination extends StatelessWidget {
           hoverColor: palette.hover,
           onTap: onTap,
           child: SizedBox(
-            width: 27,
-            height: 27,
+            width: _destinationSize,
+            height: _destinationSize,
             child: Icon(
               icon,
               size: 18,

@@ -12,7 +12,7 @@ import '../core/ui/app_titlebar.dart';
 import '../desktop/titlebar_channel.dart';
 import 'features/shell/icon_rail.dart';
 
-/// App chrome: the self-drawn 32px title bar (desktop), the 54px icon rail
+/// App chrome: the self-drawn 32px title bar (desktop), the 56px icon rail
 /// plus the routed content area.
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.navigationShell});

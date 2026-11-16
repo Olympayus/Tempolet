@@ -66,13 +66,13 @@ class _DayViewState extends ConsumerState<DayView> {
   @override
   Widget build(BuildContext context) {
     final day = ref.watch(selectedDayProvider);
-    final events = ref.watch(eventsForDayProvider(day)).value ??
-        const <Event>[];
+    final events =
+        ref.watch(eventsForDayProvider(day)).value ?? const <Event>[];
     // Calendar-day arithmetic keeps tomorrow DST-safe.
     final tomorrow = DateTime(day.year, day.month, day.day + 1);
     final tomorrowEvents =
         ref.watch(eventsForDayProvider(tomorrow)).value ?? const <Event>[];
-    final today = dateOnly(DateTime.now());
+    final today = dateOnly(ref.watch(todayProvider));
     final isToday = day == today;
     // Completed items leave the timeline silently; they stay in the day's
     // stats and move to the completed page.
@@ -201,8 +201,7 @@ class _DayViewState extends ConsumerState<DayView> {
   }
 
   Widget _dragPreview(AppPalette palette) {
-    final selection =
-        selectionFromDrag(_dragStartMinute!, _dragCurrentMinute!);
+    final selection = selectionFromDrag(_dragStartMinute!, _dragCurrentMinute!);
     return Positioned(
       left: kAxisGutter,
       right: 10,
@@ -230,9 +229,13 @@ class _DayViewState extends ConsumerState<DayView> {
       final start = event.startMinute ?? 0;
       final end = event.endMinute ?? start + 30;
       final top = minuteToY(start);
-      final height = (minuteToY(end) - top).clamp(16.0, kHoursInDay * kHourHeight);
-      final currentStart =
-          _draggingId == event.id ? (_dragCurrentStart ?? start) : start;
+      final height = (minuteToY(end) - top).clamp(
+        16.0,
+        kHoursInDay * kHourHeight,
+      );
+      final currentStart = _draggingId == event.id
+          ? (_dragCurrentStart ?? start)
+          : start;
       final width = unit - 2 <= 1 ? 1.0 : unit - 2;
       return [
         Positioned(
@@ -261,9 +264,9 @@ class _DayViewState extends ConsumerState<DayView> {
               final delta = _dragAccumulated.round();
               final latestStart = (1440 - (end - start)).clamp(0, 1440);
               setState(() {
-                _dragCurrentStart =
-                    snapMinutes((_dragCurrentStart ?? start) + delta)
-                        .clamp(0, latestStart);
+                _dragCurrentStart = snapMinutes(
+                  (_dragCurrentStart ?? start) + delta,
+                ).clamp(0, latestStart);
               });
               _dragAccumulated -= delta;
             },
@@ -347,8 +350,9 @@ class _StatsRail extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
-    final plans =
-        events.where((event) => event.kind == EventKind.plan.dbValue).length;
+    final plans = events
+        .where((event) => event.kind == EventKind.plan.dbValue)
+        .length;
     final reminders = events.length - plans;
     final preview = tomorrowEvents.take(6).toList();
 
@@ -395,9 +399,7 @@ class _StatsRail extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Text(
                 l10n.noSchedule,
-                style: AppTextStyles.secondary.copyWith(
-                  color: palette.subWeak,
-                ),
+                style: AppTextStyles.secondary.copyWith(color: palette.subWeak),
               ),
             )
           else

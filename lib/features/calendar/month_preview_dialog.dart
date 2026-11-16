@@ -40,7 +40,7 @@ class MonthPreviewDialog extends ConsumerWidget {
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
     final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
     final holiday = _holidayOn(holidays, date);
-    final isToday = date == dateOnly(DateTime.now());
+    final isToday = date == dateOnly(ref.watch(todayProvider));
 
     void close() => Navigator.of(context).pop();
 

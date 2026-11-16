@@ -11,6 +11,7 @@ import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
 import '../../notifications/notification_scheduler.dart';
+import '../calendar/calendar_state.dart';
 import '../calendar/category_marker.dart';
 
 /// Completed-events page (`docs/design/04-reminders.md` §4): the only place
@@ -36,7 +37,7 @@ class CompletedPage extends ConsumerWidget {
     final sync = ref.read(eventNotifierSyncProvider);
     final scheduler = ref.read(notificationSchedulerProvider);
 
-    final today = dateOnly(DateTime.now());
+    final today = dateOnly(ref.watch(todayProvider));
     final yesterday = DateTime(today.year, today.month, today.day - 1);
     final todayItems = <Event>[];
     final yesterdayItems = <Event>[];

@@ -71,7 +71,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
     final events =
         ref.watch(eventsInRangeProvider((start: monday, end: end))).value ??
         const <Event>[];
-    final today = dateOnly(DateTime.now());
+    final today = dateOnly(ref.watch(todayProvider));
     final todayIndex = days.indexWhere((day) => day == today);
     final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
     final holidayByDay = <DateTime, Holiday>{

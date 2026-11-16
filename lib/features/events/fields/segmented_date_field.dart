@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/generated/app_localizations.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/formats.dart';
+import '../../calendar/calendar_state.dart';
 import '../../calendar/month_model.dart';
 
 /// Year / month / day segmented input with a mini-calendar popover.
@@ -285,16 +287,17 @@ class _Segment extends StatelessWidget {
 /// Renders only the target month via [monthWeeks]; the selected day is filled
 /// with the accent colour, today is outlined. Tapping a day pops the dialog
 /// with that date.
-class MiniCalendarPopover extends StatefulWidget {
+class MiniCalendarPopover extends ConsumerStatefulWidget {
   const MiniCalendarPopover({super.key, required this.value});
 
   final DateTime value;
 
   @override
-  State<MiniCalendarPopover> createState() => _MiniCalendarPopoverState();
+  ConsumerState<MiniCalendarPopover> createState() =>
+      _MiniCalendarPopoverState();
 }
 
-class _MiniCalendarPopoverState extends State<MiniCalendarPopover> {
+class _MiniCalendarPopoverState extends ConsumerState<MiniCalendarPopover> {
   late DateTime _month;
 
   @override
@@ -319,7 +322,7 @@ class _MiniCalendarPopoverState extends State<MiniCalendarPopover> {
             .withAccent(theme.colorScheme.primary);
     final locale = Localizations.localeOf(context);
     final selected = dateOnly(widget.value);
-    final today = dateOnly(DateTime.now());
+    final today = dateOnly(ref.watch(todayProvider));
 
     return SizedBox(
       width: 232,

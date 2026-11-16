@@ -12,8 +12,8 @@ enum CalendarViewMode { month, week, day }
 
 final calendarViewModeProvider =
     NotifierProvider<CalendarViewModeController, CalendarViewMode>(
-  CalendarViewModeController.new,
-);
+      CalendarViewModeController.new,
+    );
 
 class CalendarViewModeController extends Notifier<CalendarViewMode> {
   @override
@@ -22,12 +22,13 @@ class CalendarViewModeController extends Notifier<CalendarViewMode> {
   void set(CalendarViewMode mode) => state = mode;
 }
 
-final selectedDayProvider =
-    NotifierProvider<SelectedDayController, DateTime>(SelectedDayController.new);
+final selectedDayProvider = NotifierProvider<SelectedDayController, DateTime>(
+  SelectedDayController.new,
+);
 
 class SelectedDayController extends Notifier<DateTime> {
   @override
-  DateTime build() => dateOnly(DateTime.now());
+  DateTime build() => dateOnly(ref.watch(todayProvider));
 
   void select(DateTime day) => state = dateOnly(day);
 

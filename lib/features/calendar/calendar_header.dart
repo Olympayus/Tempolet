@@ -118,7 +118,7 @@ class CalendarHeader extends ConsumerWidget {
                 TextButton(
                   onPressed: () => ref
                       .read(selectedDayProvider.notifier)
-                      .select(dateOnly(DateTime.now())),
+                      .select(dateOnly(ref.read(todayProvider))),
                   style: TextButton.styleFrom(
                     foregroundColor: palette.ink,
                     textStyle: AppTextStyles.body,

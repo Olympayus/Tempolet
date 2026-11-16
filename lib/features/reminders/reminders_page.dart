@@ -284,6 +284,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
           title: category?.name ?? l10n.uncategorized,
           events: events,
           categoryId: category?.id,
+          color: category?.color == null ? null : Color(category!.color!),
         ),
       );
     }
@@ -637,7 +638,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       key: ValueKey('month-summary-$keyString'),
       onTap: expandable ? () => _toggleMonth(keyString) : null,
       child: SizedBox(
-        height: 40,
+        height: AppSizes.row,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: _contentInset),
           child: Row(
@@ -882,6 +883,18 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
             padding: const EdgeInsets.symmetric(horizontal: _contentInset),
             child: Row(
               children: [
+                Container(
+                  key: ValueKey('reminders-group-dot-${group.id}'),
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: group.danger
+                        ? palette.danger
+                        : (group.color ?? palette.sub),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
                   group.title,
                   maxLines: 1,
@@ -943,6 +956,7 @@ class _CategoryGroup {
     required this.title,
     required this.events,
     this.categoryId,
+    this.color,
     this.danger = false,
   });
 
@@ -950,6 +964,9 @@ class _CategoryGroup {
   final String title;
   final List<Event> events;
   final String? categoryId;
+
+  /// Category colour for the group-header dot; null for 未分类.
+  final Color? color;
   final bool danger;
 }
 

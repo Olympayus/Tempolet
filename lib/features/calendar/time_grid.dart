@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/app_hairline.dart';
 import '../../core/utils/dates.dart';
 
 /// Vertical scale of the time grid. Shared by day and week views.
@@ -80,15 +81,7 @@ class HourGrid extends StatelessWidget {
                             ),
                     ),
                   ),
-                  Expanded(
-                    child: Divider(
-                      height: 1,
-                      thickness: 0.6,
-                      color: theme.colorScheme.outlineVariant.withValues(
-                        alpha: .5,
-                      ),
-                    ),
-                  ),
+                  Expanded(child: AppHairline(color: palette.lineStrong)),
                 ],
               ),
             ),

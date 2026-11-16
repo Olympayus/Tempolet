@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/app_hairline.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -118,7 +119,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
                   ),
               ],
             ),
-            Divider(height: 1, thickness: 1, color: palette.line),
+            AppHairline(color: palette.line),
             Expanded(
               child: SingleChildScrollView(
                 key: const ValueKey('week-scroll'),

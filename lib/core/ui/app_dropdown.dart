@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -252,6 +254,17 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
   @override
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
+    // Cap the panel so a long list stays reachable on a short window: at most
+    // the rows' natural height, never taller than the screen minus 16px, with
+    // the overflow scrolling inside the panel.
+    final maxPanelHeight = math.min(
+      widget.items.length * _rowHeight + _panelVerticalPadding * 2,
+      MediaQuery.sizeOf(context).height - 16,
+    );
+    final maxListHeight = math.max(
+      _rowHeight,
+      maxPanelHeight - _panelVerticalPadding * 2,
+    );
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _handleKey,
@@ -262,30 +275,35 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
         child: Container(
           key: const ValueKey('app-dropdown-panel'),
           width: widget.panelWidth,
-          padding: const EdgeInsets.symmetric(
-            vertical: _panelVerticalPadding,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: _panelVerticalPadding),
           decoration: BoxDecoration(
             color: palette.card,
             borderRadius: BorderRadius.circular(AppRadii.card),
             border: Border.all(color: palette.line, width: _hairline),
             boxShadow: kDialogShadow,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < widget.items.length; i++)
-                _DropdownRow<T>(
-                  key: ValueKey('app-dropdown-item-${widget.items[i].value}'),
-                  item: widget.items[i],
-                  selected: widget.items[i].value == widget.value,
-                  active: _showActiveFill && i == _activeIndex,
-                  palette: palette,
-                  onTap: () => widget.onSelected(widget.items[i]),
-                  onHover: () => _setActive(i),
-                ),
-            ],
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxListHeight),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < widget.items.length; i++)
+                    _DropdownRow<T>(
+                      key: ValueKey(
+                        'app-dropdown-item-${widget.items[i].value}',
+                      ),
+                      item: widget.items[i],
+                      selected: widget.items[i].value == widget.value,
+                      active: _showActiveFill && i == _activeIndex,
+                      palette: palette,
+                      onTap: () => widget.onSelected(widget.items[i]),
+                      onHover: () => _setActive(i),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
         builder: (context, value, child) => Opacity(
@@ -341,9 +359,7 @@ class _DropdownRow<T> extends StatelessWidget {
             style: AppTextStyles.body.copyWith(
               color: palette.ink,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              fontVariations: [
-                FontVariation('wght', selected ? 600.0 : 400.0),
-              ],
+              fontVariations: [FontVariation('wght', selected ? 600.0 : 400.0)],
             ),
           ),
         ),

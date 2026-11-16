@@ -842,6 +842,30 @@ abstract class AppLocalizations {
   /// **'Manage categories'**
   String get manageCategories;
 
+  /// No description provided for @newCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'New category'**
+  String get newCategory;
+
+  /// No description provided for @newCategoryName.
+  ///
+  /// In en, this message translates to:
+  /// **'New category name'**
+  String get newCategoryName;
+
+  /// No description provided for @add.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get add;
+
+  /// No description provided for @categoryNameExists.
+  ///
+  /// In en, this message translates to:
+  /// **'A category with this name already exists'**
+  String get categoryNameExists;
+
   /// No description provided for @viewCompletedShort.
   ///
   /// In en, this message translates to:

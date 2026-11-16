@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../app_shell.dart';
 import '../../features/calendar/calendar_page.dart';
 import '../../features/completed/completed_page.dart';
+import '../../features/reminders/category_management_page.dart';
 import '../../features/reminders/reminders_page.dart';
 import '../../features/settings/settings_page.dart';
 
@@ -42,6 +43,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'completed',
                     builder: (context, state) => const CompletedPage(),
+                  ),
+                  GoRoute(
+                    path: 'categories',
+                    builder: (context, state) => const CategoryManagementPage(),
                   ),
                 ],
               ),

@@ -402,6 +402,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get manageCategories => 'Manage categories';
 
   @override
+  String get newCategory => 'New category';
+
+  @override
+  String get newCategoryName => 'New category name';
+
+  @override
+  String get add => 'Add';
+
+  @override
+  String get categoryNameExists => 'A category with this name already exists';
+
+  @override
   String get viewCompletedShort => 'View completed';
 
   @override

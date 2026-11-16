@@ -39,7 +39,7 @@ List<Category?> applyCategoryOrder(
 ///
 /// The stored list contains real category ids and [uncategorizedOrderId]. It is
 /// display-only: the database's `sortOrder` is not touched here (the category
-/// management page syncs real ids in Task 16).
+/// management page syncs real ids after a drag).
 final categoryOrderProvider =
     NotifierProvider<CategoryOrderController, List<String>>(
       CategoryOrderController.new,
@@ -61,4 +61,25 @@ class CategoryOrderController extends Notifier<List<String>> {
   /// Display-ordered items for [categories]; `null` is the 未分类 group.
   List<Category?> applyOrder(List<Category> categories) =>
       applyCategoryOrder(state, categories);
+
+  /// Places a newly created real category at the end of the real categories.
+  ///
+  /// When 未分类 is persisted last (the default) the new id is inserted just
+  /// before it, so a new category never lands below the sentinel.
+  void addCategory(String id) {
+    if (state.contains(id)) return;
+    final order = [...state];
+    if (order.isNotEmpty && order.last == uncategorizedOrderId) {
+      order.insert(order.length - 1, id);
+    } else {
+      order.add(id);
+    }
+    setOrder(order);
+  }
+
+  /// Drops a soft-deleted real category from the persisted display order.
+  void removeCategory(String id) {
+    if (!state.contains(id)) return;
+    setOrder([...state]..remove(id));
+  }
 }

@@ -398,6 +398,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get manageCategories => '分类管理';
 
   @override
+  String get newCategory => '新建分类';
+
+  @override
+  String get newCategoryName => '新分类名称';
+
+  @override
+  String get add => '添加';
+
+  @override
+  String get categoryNameExists => '分类名称已存在';
+
+  @override
   String get viewCompletedShort => '查看已完成';
 
   @override

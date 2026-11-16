@@ -129,7 +129,7 @@ void main() {
             find.byKey(const ValueKey('reminders-manage-categories')),
           )
           .onPressed,
-      isNull,
+      isNotNull,
     );
 
     final overdueX = tester

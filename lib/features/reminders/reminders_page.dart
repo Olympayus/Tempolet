@@ -335,8 +335,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 RemindersHeader(
-                  // Disabled until Task 16 wires /reminders/categories.
-                  onManageCategories: null,
+                  onManageCategories: () => context.go('/reminders/categories'),
                   onViewCompleted: () => context.go('/reminders/completed'),
                   onCreate: () => _openNew(today),
                 ),

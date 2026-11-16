@@ -4,11 +4,16 @@ A new Flutter project.
 
 ## Golden screenshot acceptance
 
-The screenshot gallery and the month-view golden are rendered by the app's own
-widgets with the real Inter / NotoSansSC / Material Icons / Lucide fonts, at a
-fixed 1280×820 logical surface, DPR 1.0, locale `en_US` and
-`today = 2026-11-16` (see `test/gallery/gallery_test.dart` and
-`test/features/month_view_golden_test.dart`).
+Two separate golden harnesses exist, with different rendering conditions:
+
+- **Gallery** (`test/gallery/gallery_test.dart`, untracked by convention): the
+  app's own widgets with the real Inter / NotoSansSC / Material Icons / Lucide
+  fonts loaded through `FontLoader`, at a fixed 1280×820 logical surface,
+  DPR 1.0, locale `en_US` and `today = 2026-11-16`.
+- **Tracked month-view golden** (`test/features/month_view_golden_test.dart` →
+  `test/features/goldens/month_view.png`): a bare `MonthView` at a fixed
+  900×700 logical surface, DPR 1.0, locale `en`, `today = 2026-11-11`, and the
+  default test font (Ahem — no `FontLoader`).
 
 Record and verify the baselines on a **Windows** machine only — the PNG files
 are platform-specific in v0.1.3:
@@ -24,14 +29,16 @@ flutter test test/features/month_view_golden_test.dart
 flutter test
 ```
 
-- **Threshold:** 0 pixel difference when re-running on the machine that
-  recorded the baselines; a 0.01 (1%) per-pixel tolerance applies only when a
-  baseline is compared across machines (AA / font rasterizer differences).
+- **Threshold:** 0 pixel difference is the pass bar on the machine that
+  recorded the baselines. The repo uses the default exact `LocalFileComparator`
+  with no custom comparator, so the 0.01 (1%) per-pixel tolerance is a
+  manual-review allowance for cross-machine differences (AA / font rasterizer),
+  not an automatic pass.
 - **Clean-tree rule:** record only when `git status --porcelain` shows no
-  tracked changes. Untracked `test/gallery/`, `test/features/failures/` and
-  `.superpowers/` are expected and fine. Record the `git rev-parse HEAD` SHA
-  next to the recording so the baseline can be traced back to a commit; the
-  v0.1.3 baselines were recorded on
+  tracked changes. Untracked `test/gallery/` and `test/features/failures/` are
+  expected; `.superpowers/` is gitignored and never committed. Record the
+  `git rev-parse HEAD` SHA next to the recording so the baseline can be traced
+  back to a commit; the v0.1.3 baselines were recorded on
   `5bb6221b1e094dc7543a3bd71c8efb02540ba8c8`.
 - `test/gallery/` stays untracked by convention with the mobile session; the
   tracked baseline is `test/features/goldens/month_view.png`.

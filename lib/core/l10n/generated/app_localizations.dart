@@ -793,6 +793,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remind in 10 minutes'**
   String get notifActionRemind;
+
+  /// No description provided for @navReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders'**
+  String get navReminders;
+
+  /// No description provided for @remindersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders & Plans'**
+  String get remindersTitle;
+
+  /// No description provided for @remindersOverdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Overdue'**
+  String get remindersOverdue;
+
+  /// No description provided for @remindersToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get remindersToday;
+
+  /// No description provided for @remindersThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get remindersThisWeek;
+
+  /// No description provided for @remindersEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No reminders yet'**
+  String get remindersEmptyTitle;
+
+  /// No description provided for @remindersEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a reminder or plan to get started.'**
+  String get remindersEmptyBody;
+
+  /// No description provided for @manageCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage categories'**
+  String get manageCategories;
+
+  /// No description provided for @viewCompletedShort.
+  ///
+  /// In en, this message translates to:
+  /// **'View completed'**
+  String get viewCompletedShort;
+
+  /// No description provided for @filterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get filterAll;
 }
 
 class _AppLocalizationsDelegate

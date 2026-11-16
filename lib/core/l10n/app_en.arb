@@ -171,5 +171,15 @@
   "trayShow": "Show main window",
   "trayQuit": "Quit",
   "notifActionDone": "Done",
-  "notifActionRemind": "Remind in 10 minutes"
+  "notifActionRemind": "Remind in 10 minutes",
+  "navReminders": "Reminders",
+  "remindersTitle": "Reminders & Plans",
+  "remindersOverdue": "Overdue",
+  "remindersToday": "Today",
+  "remindersThisWeek": "This week",
+  "remindersEmptyTitle": "No reminders yet",
+  "remindersEmptyBody": "Add a reminder or plan to get started.",
+  "manageCategories": "Manage categories",
+  "viewCompletedShort": "View completed",
+  "filterAll": "All"
 }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../app_shell.dart';
 import '../../features/calendar/calendar_page.dart';
 import '../../features/completed/completed_page.dart';
+import '../../features/reminders/reminders_page.dart';
 import '../../features/settings/settings_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -22,6 +23,22 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   // Nested so the icon rail and shell survive; the spec's
                   // `/completed` is short-form.
+                  GoRoute(
+                    path: 'completed',
+                    builder: (context, state) => const CompletedPage(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/reminders',
+                builder: (context, state) => const RemindersPage(),
+                routes: [
+                  // Shared completed page entering from the reminders branch;
+                  // the rail selection stays on reminders.
                   GoRoute(
                     path: 'completed',
                     builder: (context, state) => const CompletedPage(),

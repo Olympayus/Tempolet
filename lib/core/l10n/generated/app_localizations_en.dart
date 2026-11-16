@@ -376,4 +376,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notifActionRemind => 'Remind in 10 minutes';
+
+  @override
+  String get navReminders => 'Reminders';
+
+  @override
+  String get remindersTitle => 'Reminders & Plans';
+
+  @override
+  String get remindersOverdue => 'Overdue';
+
+  @override
+  String get remindersToday => 'Today';
+
+  @override
+  String get remindersThisWeek => 'This week';
+
+  @override
+  String get remindersEmptyTitle => 'No reminders yet';
+
+  @override
+  String get remindersEmptyBody => 'Add a reminder or plan to get started.';
+
+  @override
+  String get manageCategories => 'Manage categories';
+
+  @override
+  String get viewCompletedShort => 'View completed';
+
+  @override
+  String get filterAll => 'All';
 }

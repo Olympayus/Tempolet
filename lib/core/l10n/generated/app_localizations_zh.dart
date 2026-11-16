@@ -372,4 +372,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notifActionRemind => '10 分钟后提醒';
+
+  @override
+  String get navReminders => '提醒';
+
+  @override
+  String get remindersTitle => '提醒与计划';
+
+  @override
+  String get remindersOverdue => '逾期';
+
+  @override
+  String get remindersToday => '今日';
+
+  @override
+  String get remindersThisWeek => '本周';
+
+  @override
+  String get remindersEmptyTitle => '暂无提醒';
+
+  @override
+  String get remindersEmptyBody => '新建一条提醒或计划，开始规划。';
+
+  @override
+  String get manageCategories => '分类管理';
+
+  @override
+  String get viewCompletedShort => '查看已完成';
+
+  @override
+  String get filterAll => '全部';
 }

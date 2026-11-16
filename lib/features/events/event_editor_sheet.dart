@@ -45,6 +45,7 @@ Future<Event?> showEventEditor(
   int? startMinute,
   int? endMinute,
   EventKind? initialKind,
+  String? categoryId,
 }) {
   return showDialog<Event>(
     context: context,
@@ -54,6 +55,7 @@ Future<Event?> showEventEditor(
       startMinute: startMinute,
       endMinute: endMinute,
       initialKind: initialKind,
+      categoryId: categoryId,
     ),
   );
 }
@@ -66,6 +68,7 @@ class EventEditorDialog extends ConsumerStatefulWidget {
     this.startMinute,
     this.endMinute,
     this.initialKind,
+    this.categoryId,
   });
 
   final Event? existing;
@@ -73,6 +76,9 @@ class EventEditorDialog extends ConsumerStatefulWidget {
   final int? startMinute;
   final int? endMinute;
   final EventKind? initialKind;
+
+  /// Category preselected when creating from a category group.
+  final String? categoryId;
 
   @override
   ConsumerState<EventEditorDialog> createState() => _EventEditorDialogState();
@@ -107,7 +113,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     _lead = existing != null
         ? existing.reminderOffsetMinutes
         : ref.read(defaultReminderOffsetProvider);
-    _categoryId = existing?.categoryId;
+    _categoryId = existing?.categoryId ?? widget.categoryId;
   }
 
   @override

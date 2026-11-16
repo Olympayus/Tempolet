@@ -115,5 +115,15 @@
   "trayShow": "显示主窗口",
   "trayQuit": "退出",
   "notifActionDone": "完成",
-  "notifActionRemind": "10 分钟后提醒"
+  "notifActionRemind": "10 分钟后提醒",
+  "navReminders": "提醒",
+  "remindersTitle": "提醒与计划",
+  "remindersOverdue": "逾期",
+  "remindersToday": "今日",
+  "remindersThisWeek": "本周",
+  "remindersEmptyTitle": "暂无提醒",
+  "remindersEmptyBody": "新建一条提醒或计划，开始规划。",
+  "manageCategories": "分类管理",
+  "viewCompletedShort": "查看已完成",
+  "filterAll": "全部"
 }

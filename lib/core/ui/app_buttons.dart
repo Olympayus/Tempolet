@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_tokens.dart';
 
@@ -49,32 +50,47 @@ class _AppIconButtonState extends State<AppIconButton> {
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
     final enabled = widget.onPressed != null;
-    final button = MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => _setHovering(true),
-      onExit: (_) => _setHovering(false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onPressed,
-        child: Container(
-          width: _iconButtonSize,
-          height: _iconButtonSize,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: _hovering && enabled ? palette.hover : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadii.button),
-          ),
-          child: IconTheme(
-            data: IconThemeData(
-              size: _iconSize,
-              color: enabled ? palette.ink : palette.subMuted,
+    final tooltip = widget.tooltip;
+    final button = Semantics(
+      button: true,
+      enabled: enabled,
+      hint: tooltip == null || tooltip.isEmpty ? null : tooltip,
+      child: FocusableActionDetector(
+        enabled: enabled,
+        mouseCursor: enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        shortcuts: _activateShortcuts,
+        actions: _activateActions(widget.onPressed),
+        child: MouseRegion(
+          cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          onEnter: (_) => _setHovering(true),
+          onExit: (_) => _setHovering(false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onPressed,
+            child: Container(
+              width: _iconButtonSize,
+              height: _iconButtonSize,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _hovering && enabled
+                    ? palette.hover
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadii.button),
+              ),
+              child: IconTheme(
+                data: IconThemeData(
+                  size: _iconSize,
+                  color: enabled ? palette.ink : palette.subMuted,
+                ),
+                child: widget.icon,
+              ),
             ),
-            child: widget.icon,
           ),
         ),
       ),
     );
-    final tooltip = widget.tooltip;
     if (tooltip == null || tooltip.isEmpty) return button;
     return Tooltip(message: tooltip, child: button);
   }
@@ -132,78 +148,112 @@ class _AppButtonState extends State<AppButton> {
     final palette = _paletteOf(context);
     final enabled = widget.onPressed != null;
     final hoverEnabled = widget._kind == _AppButtonKind.secondary && enabled;
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: hoverEnabled ? (_) => _setHovering(true) : null,
-      onExit: hoverEnabled ? (_) => _setHovering(false) : null,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onPressed,
-        child: switch (widget._kind) {
-          _AppButtonKind.primary => Container(
-            height: AppSizes.control,
-            padding: _primaryPadding,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: enabled ? palette.accent : palette.chip,
-              borderRadius: BorderRadius.circular(AppRadii.button),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.leadingIcon != null) ...[
-                  IconTheme(
-                    data: IconThemeData(
-                      color: enabled ? Colors.white : palette.subMuted,
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: FocusableActionDetector(
+        enabled: enabled,
+        mouseCursor: enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        shortcuts: _activateShortcuts,
+        actions: _activateActions(widget.onPressed),
+        child: MouseRegion(
+          cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          onEnter: hoverEnabled ? (_) => _setHovering(true) : null,
+          onExit: hoverEnabled ? (_) => _setHovering(false) : null,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onPressed,
+            child: switch (widget._kind) {
+              _AppButtonKind.primary => Container(
+                height: AppSizes.control,
+                padding: _primaryPadding,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: enabled ? palette.accent : palette.chip,
+                  borderRadius: BorderRadius.circular(AppRadii.button),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.leadingIcon != null) ...[
+                      IconTheme(
+                        data: IconThemeData(
+                          color: enabled ? Colors.white : palette.subMuted,
+                        ),
+                        child: widget.leadingIcon!,
+                      ),
+                      const SizedBox(width: _primaryIconGap),
+                    ],
+                    Text(
+                      widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _primaryLabelStyle.copyWith(
+                        color: enabled ? Colors.white : palette.subMuted,
+                      ),
                     ),
-                    child: widget.leadingIcon!,
-                  ),
-                  const SizedBox(width: _primaryIconGap),
-                ],
-                Text(
+                  ],
+                ),
+              ),
+              _AppButtonKind.secondary => Container(
+                height: AppSizes.control,
+                padding: _secondaryPadding,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _hovering && enabled ? palette.hover : palette.chip,
+                  borderRadius: BorderRadius.circular(AppRadii.button),
+                ),
+                child: Text(
                   widget.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _primaryLabelStyle.copyWith(
-                    color: enabled ? Colors.white : palette.subMuted,
+                  style: AppTextStyles.body.copyWith(
+                    color: enabled ? palette.ink : palette.subMuted,
                   ),
                 ),
-              ],
-            ),
-          ),
-          _AppButtonKind.secondary => Container(
-            height: AppSizes.control,
-            padding: _secondaryPadding,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _hovering && enabled ? palette.hover : palette.chip,
-              borderRadius: BorderRadius.circular(AppRadii.button),
-            ),
-            child: Text(
-              widget.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.body.copyWith(
-                color: enabled ? palette.ink : palette.subMuted,
               ),
-            ),
-          ),
-          _AppButtonKind.textLink => Padding(
-            padding: _textLinkPadding,
-            child: Text(
-              widget.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.body.copyWith(
-                color: enabled ? palette.accent : palette.subMuted,
+              _AppButtonKind.textLink => Padding(
+                padding: _textLinkPadding,
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.body.copyWith(
+                    color: enabled ? palette.accent : palette.subMuted,
+                  ),
+                ),
               ),
-            ),
+            },
           ),
-        },
+        ),
       ),
     );
   }
 }
+
+/// Enter/Space activate the focused control.
+const Map<ShortcutActivator, Intent> _activateShortcuts = {
+  SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+};
+
+Map<Type, Action<Intent>> _activateActions(VoidCallback? onActivate) => {
+  ActivateIntent: CallbackAction<ActivateIntent>(
+    onInvoke: (_) {
+      onActivate?.call();
+      return null;
+    },
+  ),
+  ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+    onInvoke: (_) {
+      onActivate?.call();
+      return null;
+    },
+  ),
+};
 
 AppPalette _paletteOf(BuildContext context) {
   final theme = Theme.of(context);

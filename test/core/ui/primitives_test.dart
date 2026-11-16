@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_buttons.dart';
@@ -32,37 +33,40 @@ void main() {
     expect(picked, 'b');
   });
 
-  testWidgets('segmented is intrinsic and equal-width inside an unbounded Row', (
-    tester,
-  ) async {
-    var picked = 'short';
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              AppSegmented<String>(
-                values: const ['short', 'much longer'],
-                labelFor: (v) => Text(v),
-                selected: 'short',
-                onChanged: (v) => picked = v,
-              ),
-            ],
+  testWidgets(
+    'segmented is intrinsic and equal-width inside an unbounded Row',
+    (tester) async {
+      var picked = 'short';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                AppSegmented<String>(
+                  values: const ['short', 'much longer'],
+                  labelFor: (v) => Text(v),
+                  selected: 'short',
+                  onChanged: (v) => picked = v,
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    final control = tester.getSize(find.byType(AppSegmented<String>));
-    expect(control.height, 28);
-    final short = tester.getSize(find.widgetWithText(Container, 'short'));
-    final long = tester.getSize(find.widgetWithText(Container, 'much longer'));
-    expect(short.width, long.width);
-    // Intrinsic width, not stretched to the 800px test surface.
-    expect(control.width, lessThan(800));
-    await tester.tap(find.text('much longer'));
-    expect(picked, 'much longer');
-  });
+      );
+      final control = tester.getSize(find.byType(AppSegmented<String>));
+      expect(control.height, 28);
+      final short = tester.getSize(find.widgetWithText(Container, 'short'));
+      final long = tester.getSize(
+        find.widgetWithText(Container, 'much longer'),
+      );
+      expect(short.width, long.width);
+      // Intrinsic width, not stretched to the 800px test surface.
+      expect(control.width, lessThan(800));
+      await tester.tap(find.text('much longer'));
+      expect(picked, 'much longer');
+    },
+  );
 
   testWidgets('switch is 40x24 and toggles', (tester) async {
     var on = false;
@@ -70,9 +74,7 @@ void main() {
       MaterialApp(
         // A route gives its child tight screen constraints; Center keeps the
         // widget's own size measurable (as the segmented test does).
-        home: Center(
-          child: AppSwitch(value: false, onChanged: (v) => on = v),
-        ),
+        home: Center(child: AppSwitch(value: false, onChanged: (v) => on = v)),
       ),
     );
     expect(tester.getSize(find.byType(AppSwitch)), const Size(40, 24));
@@ -141,26 +143,137 @@ void main() {
             mainAxisSize: MainAxisSize.min,
             children: [
               AppButton.primary(label: 'Create', onPressed: () => primary++),
-              AppButton.secondary(label: 'Manage', onPressed: () => secondary++),
+              AppButton.secondary(
+                label: 'Manage',
+                onPressed: () => secondary++,
+              ),
               AppButton.textLink(label: 'Done', onPressed: () => link++),
             ],
           ),
         ),
       ),
     );
-    expect(
-      tester.getSize(find.widgetWithText(AppButton, 'Create')).height,
-      30,
-    );
-    expect(
-      tester.getSize(find.widgetWithText(AppButton, 'Manage')).height,
-      30,
-    );
+    expect(tester.getSize(find.widgetWithText(AppButton, 'Create')).height, 30);
+    expect(tester.getSize(find.widgetWithText(AppButton, 'Manage')).height, 30);
     await tester.tap(find.text('Create'));
     await tester.tap(find.text('Manage'));
     await tester.tap(find.text('Done'));
     expect(primary, 1);
     expect(secondary, 1);
     expect(link, 1);
+  });
+
+  testWidgets('segmented keeps its size when the selection moves', (
+    tester,
+  ) async {
+    Widget build(String selected) => MaterialApp(
+      home: Center(
+        child: AppSegmented<String>(
+          values: const ['short', 'much longer'],
+          labelFor: (v) => Text(v),
+          selected: selected,
+          onChanged: (_) {},
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(build('short'));
+    final shortSelected = tester.getSize(find.byType(AppSegmented<String>));
+    expect(
+      tester.getSize(find.widgetWithText(Container, 'short')).width,
+      tester.getSize(find.widgetWithText(Container, 'much longer')).width,
+    );
+
+    // The selected item's 1px border must be reserved on every item, so
+    // switching selection between the shortest and longest labels cannot
+    // change the control's intrinsic width.
+    await tester.pumpWidget(build('much longer'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(AppSegmented<String>)), shortSelected);
+  });
+
+  testWidgets('segmented activates the focused item with Enter and Space', (
+    tester,
+  ) async {
+    String? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: AppSegmented<String>(
+            values: const ['a', 'b'],
+            labelFor: (v) => Text(v),
+            selected: 'a',
+            onChanged: (v) => picked = v,
+          ),
+        ),
+      ),
+    );
+
+    Focus.of(tester.element(find.text('a'))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    expect(picked, 'a');
+
+    picked = null;
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(Focus.of(tester.element(find.text('b'))).hasFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    expect(picked, 'b');
+  });
+
+  testWidgets('switch toggles from the keyboard', (tester) async {
+    var on = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(child: AppSwitch(value: false, onChanged: (v) => on = v)),
+      ),
+    );
+
+    final focus = Focus.of(
+      tester.element(
+        find.descendant(
+          of: find.byType(AppSwitch),
+          matching: find.byType(AnimatedContainer),
+        ),
+      ),
+    );
+    expect(focus.canRequestFocus, isTrue);
+    focus.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    expect(on, isTrue);
+  });
+
+  testWidgets('buttons activate from the keyboard; disabled ones are skipped', (
+    tester,
+  ) async {
+    var pressed = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppButton.primary(label: 'Create', onPressed: () => pressed++),
+              const AppButton.secondary(label: 'Disabled'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final focus = Focus.of(tester.element(find.text('Create')));
+    focus.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    expect(pressed, 1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    expect(pressed, 2);
+
+    expect(
+      Focus.of(tester.element(find.text('Disabled'))).canRequestFocus,
+      isFalse,
+    );
   });
 }

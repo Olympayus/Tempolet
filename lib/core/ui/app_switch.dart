@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_tokens.dart';
 
@@ -25,30 +26,53 @@ class AppSwitch extends StatelessWidget {
     return SizedBox(
       width: _switchWidth,
       height: _switchHeight,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => onChanged(!value),
-          child: AnimatedContainer(
-            duration: _switchAnimation,
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.all(_switchInset),
-            decoration: BoxDecoration(
-              color: value ? palette.accent : palette.subWeak,
-              borderRadius: BorderRadius.circular(AppRadii.pill),
+      child: Semantics(
+        toggled: value,
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          shortcuts: _activateShortcuts,
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                onChanged(!value);
+                return null;
+              },
             ),
-            child: AnimatedAlign(
-              duration: _switchAnimation,
-              curve: Curves.easeOut,
-              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                width: _switchThumb,
-                height: _switchThumb,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: kCardShadow,
+            ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+              onInvoke: (_) {
+                onChanged(!value);
+                return null;
+              },
+            ),
+          },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(!value),
+              child: AnimatedContainer(
+                duration: _switchAnimation,
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.all(_switchInset),
+                decoration: BoxDecoration(
+                  color: value ? palette.accent : palette.subWeak,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: AnimatedAlign(
+                  duration: _switchAnimation,
+                  curve: Curves.easeOut,
+                  alignment: value
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Container(
+                    width: _switchThumb,
+                    height: _switchThumb,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: kCardShadow,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -58,6 +82,13 @@ class AppSwitch extends StatelessWidget {
     );
   }
 }
+
+/// Enter/Space toggle the focused switch.
+const Map<ShortcutActivator, Intent> _activateShortcuts = {
+  SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+};
 
 AppPalette _paletteOf(BuildContext context) {
   final theme = Theme.of(context);

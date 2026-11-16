@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../theme/app_tokens.dart';
@@ -70,20 +71,51 @@ class _AppCheckCircleState extends State<AppCheckCircle> {
     return SizedBox(
       width: _checkHitSize,
       height: _checkHitSize,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          onTapDown: enabled ? (_) => _setPressed(true) : null,
-          onTapUp: enabled ? (_) => _setPressed(false) : null,
-          onTapCancel: enabled ? () => _setPressed(false) : null,
-          child: Center(
-            child: AnimatedScale(
-              scale: _pressed ? _checkPressedScale : 1,
-              duration: _checkAnimation,
-              curve: Curves.easeOut,
-              child: glyph,
+      child: Semantics(
+        checked: widget.checked,
+        enabled: enabled,
+        child: FocusableActionDetector(
+          enabled: enabled,
+          mouseCursor: enabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          shortcuts: const {
+            SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+            SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
+            SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+          },
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap?.call();
+                return null;
+              },
+            ),
+            ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap?.call();
+                return null;
+              },
+            ),
+          },
+          child: MouseRegion(
+            cursor: enabled
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.basic,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onTap,
+              onTapDown: enabled ? (_) => _setPressed(true) : null,
+              onTapUp: enabled ? (_) => _setPressed(false) : null,
+              onTapCancel: enabled ? () => _setPressed(false) : null,
+              child: Center(
+                child: AnimatedScale(
+                  scale: _pressed ? _checkPressedScale : 1,
+                  duration: _checkAnimation,
+                  curve: Curves.easeOut,
+                  child: glyph,
+                ),
+              ),
             ),
           ),
         ),

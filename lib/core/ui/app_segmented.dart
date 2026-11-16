@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_tokens.dart';
 
@@ -87,53 +88,70 @@ class _SegmentItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(AppRadii.button);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: ClipRRect(
-          borderRadius: radius,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              AnimatedContainer(
-                duration: _segmentAnimation,
-                curve: Curves.easeOut,
-                alignment: Alignment.center,
-                padding: _segmentItemPadding,
-                decoration: selected
-                    ? BoxDecoration(
-                        // The "white" selected cap: `card` stays a raised
-                        // surface in dark mode, unlike `bg`.
-                        color: palette.card,
-                        borderRadius: radius,
-                        border: Border.all(
-                          color: palette.lineStrong,
-                          width: _hairline,
+    return Semantics(
+      button: true,
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        shortcuts: _activateShortcuts,
+        actions: _activateActions(onTap),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: ClipRRect(
+              borderRadius: radius,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  AnimatedContainer(
+                    duration: _segmentAnimation,
+                    curve: Curves.easeOut,
+                    alignment: Alignment.center,
+                    padding: _segmentItemPadding,
+                    decoration: BoxDecoration(
+                      // The "white" selected cap: `card` stays a raised
+                      // surface in dark mode, unlike `bg`.
+                      color: selected ? palette.card : Colors.transparent,
+                      borderRadius: radius,
+                      // Reserve the selected cap's 1px border on every item:
+                      // an intrinsic-width measure must not depend on which
+                      // item is selected, or the whole control jumps when the
+                      // selection moves (design spec §7.1).
+                      border: Border.all(
+                        color: selected
+                            ? palette.lineStrong
+                            : Colors.transparent,
+                        width: _hairline,
+                      ),
+                    ),
+                    child: DefaultTextStyle(
+                      style: AppTextStyles.body.copyWith(
+                        color: selected ? palette.ink : palette.sub,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      child: label,
+                    ),
+                  ),
+                  if (selected)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          height: _hairline,
+                          color: Colors.white,
                         ),
-                      )
-                    : null,
-                child: DefaultTextStyle(
-                  style: AppTextStyles.body.copyWith(
-                    color: selected ? palette.ink : palette.sub,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  child: label,
-                ),
+                      ),
+                    ),
+                ],
               ),
-              if (selected)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: IgnorePointer(
-                    child: Container(height: _hairline, color: Colors.white),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
       ),
@@ -141,15 +159,34 @@ class _SegmentItem extends StatelessWidget {
   }
 }
 
+/// Enter/Space activate the focused segment.
+const Map<ShortcutActivator, Intent> _activateShortcuts = {
+  SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+};
+
+Map<Type, Action<Intent>> _activateActions(VoidCallback onTap) => {
+  ActivateIntent: CallbackAction<ActivateIntent>(
+    onInvoke: (_) {
+      onTap();
+      return null;
+    },
+  ),
+  ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+    onInvoke: (_) {
+      onTap();
+      return null;
+    },
+  ),
+};
+
 /// Lays every child out at the same width: the widest child's intrinsic width.
 ///
 /// This keeps the control intrinsic (it never needs a bounded width) while the
 /// items stay equal, matching "等宽，以最长项定宽" (design spec §7.1).
 class _EqualWidthItems extends MultiChildRenderObjectWidget {
-  const _EqualWidthItems({
-    required this.itemHeight,
-    required super.children,
-  });
+  const _EqualWidthItems({required this.itemHeight, required super.children});
 
   final double itemHeight;
 

@@ -163,12 +163,14 @@ void main() {
     expect(_countOf(tester, uncategorizedOrderId), '2');
   });
 
-  testWidgets('adding a category places it above 未分类', (tester) async {
+  testWidgets('the header button creates a category above 未分类', (tester) async {
     await insertCategory('work', 'Work');
 
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
+    await tester.tap(find.byKey(const ValueKey('category-create')));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('category-new-name')),
       'Personal',
@@ -184,13 +186,31 @@ void main() {
       _rowTop(tester, added.id),
       lessThan(_rowTop(tester, uncategorizedOrderId)),
     );
-    expect(
-      tester
-          .widget<TextField>(find.byKey(const ValueKey('category-new-name')))
-          .controller!
-          .text,
-      isEmpty,
+    expect(find.byKey(const ValueKey('category-create-dialog')), findsNothing);
+  });
+
+  testWidgets('a duplicate name keeps the dialog open with an error', (
+    tester,
+  ) async {
+    await insertCategory('work', 'Work');
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const ValueKey('category-create')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('category-new-name')),
+      'Work',
     );
+    await tester.tap(find.byKey(const ValueKey('category-add')));
+    await _settle(tester);
+
+    expect(
+      find.byKey(const ValueKey('category-create-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('分类名称已存在'), findsOneWidget);
   });
 
   testWidgets('renaming saves on blur and restores on a name conflict', (

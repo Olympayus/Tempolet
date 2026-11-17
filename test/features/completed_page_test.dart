@@ -3,6 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/app.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
@@ -155,9 +156,7 @@ void main() {
     expect(rowTop(middle.id), lessThan(rowTop(oldest.id)));
   });
 
-  testWidgets('restore is a text link and rows show completion dates', (
-    tester,
-  ) async {
+  testWidgets('restore is a 30px circular-arrow icon button', (tester) async {
     final event = await seed('Dated task');
     await completeAt(event.id, DateTime(2026, 11, 16, 10, 2));
 
@@ -174,13 +173,17 @@ void main() {
       findsOneWidget,
     );
 
-    final label = tester.widget<Text>(
-      find.descendant(of: restore, matching: find.text('恢复')),
+    // Design §9.5: a 30×30 accent circular-arrow button, not a text link.
+    expect(tester.getSize(restore), const Size(30, 30));
+    final icon = tester.widget<Icon>(
+      find.descendant(of: restore, matching: find.byType(Icon)),
     );
-    expect(label.style?.fontSize, 13);
+    expect(icon.icon, LucideIcons.rotateCcw);
+    expect(icon.size, 15);
+    expect(icon.color, Theme.of(tester.element(restore)).colorScheme.primary);
     expect(
-      label.style?.color,
-      Theme.of(tester.element(restore)).colorScheme.primary,
+      find.descendant(of: restore, matching: find.text('恢复')),
+      findsNothing,
     );
   });
 

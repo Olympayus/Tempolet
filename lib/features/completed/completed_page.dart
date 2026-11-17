@@ -234,12 +234,17 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    AppButton.textLink(
+                    AppIconButton(
                       key: ValueKey('completed-restore-${event.id}'),
-                      label: l10n.restore,
+                      tooltip: l10n.restore,
                       onPressed: () => _restoreOne(event),
+                      icon: Icon(
+                        LucideIcons.rotateCcw,
+                        size: 15,
+                        color: palette.accent,
+                      ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 2),
                     AppIconButton(
                       key: ValueKey('completed-delete-${event.id}'),
                       tooltip: l10n.delete,

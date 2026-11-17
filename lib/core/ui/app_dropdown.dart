@@ -344,12 +344,18 @@ class _DropdownRow<T> extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Container(
+        // The fill fades in instead of popping, and stays a gentle wash: a
+        // full-strength block reads as too heavy inside the panel.
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOut,
           height: _rowHeight,
           padding: _rowPadding,
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
-            color: active ? palette.hover : Colors.transparent,
+            color: active
+                ? palette.hover.withValues(alpha: .65)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadii.chip),
           ),
           child: Text(

@@ -55,35 +55,26 @@ class CategoryManagementPage extends ConsumerStatefulWidget {
 
 class _CategoryManagementPageState
     extends ConsumerState<CategoryManagementPage> {
-  final _nameController = TextEditingController();
-  final _nameFocus = FocusNode();
-  String? _nameError;
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _nameFocus.dispose();
-    super.dispose();
-  }
-
-  Future<void> _addCategory() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+  /// Creates [name] and places it above the 未分类 sentinel. Returns the
+  /// conflict message on a duplicate name and null on success.
+  Future<String?> _createCategory(String name) async {
     final repo = ref.read(categoryRepositoryProvider);
     try {
       final category = await repo.create(name: name);
-      if (!mounted) return;
+      if (!mounted) return null;
       ref.read(categoryOrderProvider.notifier).addCategory(category.id);
-      _nameController.clear();
-      setState(() => _nameError = null);
       await _persistRealOrder();
+      return null;
     } on CategoryNameConflict {
-      if (!mounted) return;
-      setState(
-        () => _nameError = AppLocalizations.of(context).categoryNameExists,
-      );
+      if (!mounted) return null;
+      return AppLocalizations.of(context).categoryNameExists;
     }
   }
+
+  Future<void> _openCreateDialog() => showDialog<String>(
+    context: context,
+    builder: (context) => _NewCategoryDialog(create: _createCategory),
+  );
 
   Future<void> _rename(Category category, String name) =>
       ref.read(categoryRepositoryProvider).rename(category.id, name);
@@ -163,8 +154,6 @@ class _CategoryManagementPageState
       if (id != null && !realIds.contains(id)) uncategorizedCount += count;
     });
 
-    final canAdd = _nameController.text.trim().isNotEmpty;
-
     return Scaffold(
       key: const ValueKey('category-management-page'),
       backgroundColor: palette.bg,
@@ -210,7 +199,7 @@ class _CategoryManagementPageState
                     key: const ValueKey('category-create'),
                     label: l10n.newCategory,
                     leadingIcon: const Icon(LucideIcons.plus, size: 16),
-                    onPressed: _nameFocus.requestFocus,
+                    onPressed: _openCreateDialog,
                   ),
                 ],
               ),
@@ -250,67 +239,133 @@ class _CategoryManagementPageState
               ],
             ),
           ),
-          Container(
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: palette.line)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact creation dialog behind the header's 新建分类 button: one name
+/// field, an inline conflict message, and cancel/create.
+class _NewCategoryDialog extends StatefulWidget {
+  const _NewCategoryDialog({required this.create});
+
+  /// Creates the category; returns the conflict message, or null on success.
+  final Future<String?> Function(String name) create;
+
+  @override
+  State<_NewCategoryDialog> createState() => _NewCategoryDialogState();
+}
+
+class _NewCategoryDialogState extends State<_NewCategoryDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _controller.text.trim();
+    if (name.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    final error = await widget.create(name);
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop(name);
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = error;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _paletteOf(context);
+    final l10n = AppLocalizations.of(context);
+    return Dialog(
+      key: const ValueKey('category-create-dialog'),
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(24),
+      child: Container(
+        width: 360,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          border: Border.all(color: palette.line),
+          boxShadow: kDialogShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l10n.newCategory,
+              style: AppTextStyles.headline.copyWith(color: palette.ink),
             ),
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: AppSizes.field,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          key: const ValueKey('category-new-name'),
-                          controller: _nameController,
-                          focusNode: _nameFocus,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _addCategory(),
-                          onChanged: (_) => setState(() => _nameError = null),
-                          style: AppTextStyles.body.copyWith(
-                            color: palette.ink,
-                          ),
-                          decoration: InputDecoration(
-                            isCollapsed: true,
-                            border: InputBorder.none,
-                            hintText: l10n.newCategoryName,
-                            hintStyle: AppTextStyles.body.copyWith(
-                              color: palette.subWeak,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      AppButton.secondary(
-                        key: const ValueKey('category-add'),
-                        label: l10n.add,
-                        onPressed: canAdd ? _addCategory : null,
-                      ),
-                    ],
+            const SizedBox(height: 14),
+            Container(
+              height: AppSizes.field,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: palette.chip,
+                borderRadius: BorderRadius.circular(AppRadii.button),
+              ),
+              alignment: Alignment.centerLeft,
+              child: TextField(
+                key: const ValueKey('category-new-name'),
+                controller: _controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                onChanged: (_) {
+                  if (_error != null) setState(() => _error = null);
+                },
+                style: AppTextStyles.body.copyWith(color: palette.ink),
+                decoration: InputDecoration(
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  hintText: l10n.newCategoryName,
+                  hintStyle: AppTextStyles.body.copyWith(
+                    color: palette.subWeak,
                   ),
                 ),
-                if (_nameError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _nameError!,
-                        key: const ValueKey('category-name-error'),
-                        style: AppTextStyles.caption.copyWith(
-                          color: palette.danger,
-                        ),
-                      ),
-                    ),
-                  ),
+              ),
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  _error!,
+                  key: const ValueKey('category-name-error'),
+                  style: AppTextStyles.caption.copyWith(color: palette.danger),
+                ),
+              ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                AppButton.secondary(
+                  key: const ValueKey('category-cancel'),
+                  label: l10n.cancel,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                const SizedBox(width: 8),
+                AppButton.primary(
+                  key: const ValueKey('category-add'),
+                  label: l10n.create,
+                  onPressed: _submit,
+                ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

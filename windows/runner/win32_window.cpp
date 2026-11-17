@@ -1,4 +1,4 @@
-#include "win32_window.h"
+﻿#include "win32_window.h"
 
 #include <commctrl.h>
 #include <dwmapi.h>
@@ -524,6 +524,21 @@ Win32Window::MessageHandler(HWND hwnd,
       if (LOWORD(wparam) == WM_CREATE) {
         AttachAppChromeHitTest(reinterpret_cast<HWND>(lparam));
       }
+      break;
+
+    // The window keeps its native WS_CAPTION style on purpose (window_manager
+    // needs it for maximize/Snap and fullscreen detection), so DefWindowProc
+    // still paints the classic caption and frame on activation — a Windows 7
+    // style title bar flashing over the app-drawn one when the window is
+    // switched to. The app window is frameless: never let those paints land.
+    case WM_NCACTIVATE:
+      if (HasAppDrawnTitleBar(hwnd)) return TRUE;
+      break;
+
+    case WM_NCPAINT:
+    case 0x00AE:  // WM_NCUAHDRAWCAPTION: undocumented themed-caption draw
+    case 0x00AF:  // WM_NCUAHDRAWFRAME
+      if (HasAppDrawnTitleBar(hwnd)) return 0;
       break;
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:

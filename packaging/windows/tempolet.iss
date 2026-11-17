@@ -5,7 +5,7 @@
 ;   ISCC.exe packaging\windows\tempolet.iss
 
 #define AppName "Tempolet"
-#define AppVersion "0.1.2"
+#define AppVersion "0.1.3"
 #define AppExeName "tempolet.exe"
 
 [Setup]

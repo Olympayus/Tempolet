@@ -92,16 +92,28 @@ void main() {
     );
   }
 
-  Future<void> pumpWeek(WidgetTester tester, DateTime day) async {
+  Future<void> pumpWeek(
+    WidgetTester tester,
+    DateTime day, {
+    double width = 1000,
+    double? sidebarWidth,
+  }) async {
     // The app's minimum desktop width is 960px; the engine default 800px
-    // leaves 109px columns where the reminder card's checkbox + time cannot
-    // fit.
-    tester.view.physicalSize = const Size(1000, 600);
+    // leaves 109px columns, well below the 150px two-line card breakpoint.
+    tester.view.physicalSize = Size(width, 600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     container.read(selectedDayProvider.notifier).select(day);
-    await tester.pumpWidget(_app(container, const WeekView()));
+    final view = sidebarWidth == null
+        ? const WeekView()
+        : Row(
+            children: [
+              SizedBox(width: sidebarWidth),
+              const Expanded(child: WeekView()),
+            ],
+          );
+    await tester.pumpWidget(_app(container, view));
     await _settle(tester);
   }
 
@@ -128,7 +140,7 @@ void main() {
       },
     );
 
-    testWidgets('selected day shows an accent ring in the week header', (
+    testWidgets('selected day shows an accent tint pill without a border', (
       tester,
     ) async {
       await pumpWeek(tester, DateTime(2026, 11, 11));
@@ -140,8 +152,12 @@ void main() {
         find.byKey(const ValueKey('week-day-date-2026-11-12')),
       );
       final decoration = pill.decoration! as BoxDecoration;
-      expect(decoration.border, isNotNull);
-      expect(decoration.color, isNull);
+      expect(decoration.border, isNull);
+      final theme = Theme.of(tester.element(find.byType(WeekView)));
+      expect(
+        decoration.color,
+        theme.colorScheme.primary.withValues(alpha: .11),
+      );
     });
 
     testWidgets('today column has a tint', (tester) async {
@@ -165,6 +181,12 @@ void main() {
       for (final day in ['09', '10', '11', '12', '13', '14', '15']) {
         expect(find.byKey(ValueKey('week-day-2026-11-$day')), findsOneWidget);
       }
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('week-day-2026-11-09')))
+            .height,
+        52,
+      );
       expect(find.text('周一'), findsOneWidget);
       expect(find.text('11月9日'), findsOneWidget);
     });
@@ -184,6 +206,26 @@ void main() {
       await pumpWeek(tester, DateTime(2026, 11, 11));
 
       expect(find.text('WeekItem'), findsOneWidget);
+    });
+
+    testWidgets('narrow columns use two-line reminder cards', (tester) async {
+      final reminder = await seed(
+        title: 'Narrow item',
+        day: DateTime(2026, 11, 11),
+      );
+
+      // A 900px window with a 300px sidebar leaves ~79px columns, below the
+      // 150px two-line breakpoint.
+      await pumpWeek(
+        tester,
+        DateTime(2026, 11, 11),
+        width: 900,
+        sidebarWidth: 300,
+      );
+
+      expect(find.byKey(const ValueKey('week-card-two-line')), findsOneWidget);
+      // The compact card drops the completion circle.
+      expect(find.byKey(ValueKey('complete-${reminder.id}')), findsNothing);
     });
 
     testWidgets(
@@ -299,31 +341,30 @@ void main() {
       expect(rows.endMinute, 660);
     });
 
-    testWidgets('dragging a plan re-registers its notification at the new time',
-        (tester) async {
-      final day = DateTime(2030, 1, 2);
-      final plan = await seed(
-        title: 'Notify me',
-        day: day,
-        kind: 'plan',
-        startMinute: 540,
-        endMinute: 600,
-        reminderOffsetMinutes: 10,
-      );
-      await pumpWeek(tester, day);
+    testWidgets(
+      'dragging a plan re-registers its notification at the new time',
+      (tester) async {
+        final day = DateTime(2030, 1, 2);
+        final plan = await seed(
+          title: 'Notify me',
+          day: day,
+          kind: 'plan',
+          startMinute: 540,
+          endMinute: 600,
+          reminderOffsetMinutes: 10,
+        );
+        await pumpWeek(tester, day);
 
-      await tester.drag(
-        find.byKey(ValueKey('week-plan-${plan.id}')),
-        const Offset(0, 68),
-      );
-      await _settle(tester);
+        await tester.drag(
+          find.byKey(ValueKey('week-plan-${plan.id}')),
+          const Offset(0, 68),
+        );
+        await _settle(tester);
 
-      expect(notifications.scheduled, hasLength(1));
-      expect(
-        notifications.scheduled.single.at,
-        DateTime(2030, 1, 2, 9, 50),
-      );
-    });
+        expect(notifications.scheduled, hasLength(1));
+        expect(notifications.scheduled.single.at, DateTime(2030, 1, 2, 9, 50));
+      },
+    );
 
     testWidgets('completing a week reminder removes it from the grid', (
       tester,
@@ -333,25 +374,19 @@ void main() {
         day: DateTime(2026, 11, 11),
         startMinute: 750,
       );
-      await pumpWeek(tester, DateTime(2026, 11, 11));
+      // 1300px leaves ~179px columns, wide enough for the single-line card
+      // with its completion circle.
+      await pumpWeek(tester, DateTime(2026, 11, 11), width: 1300);
 
-      expect(
-        find.byKey(ValueKey('reminder-${reminder.id}')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(ValueKey('complete-${reminder.id}')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('week-card-two-line')), findsNothing);
+      expect(find.byKey(ValueKey('reminder-${reminder.id}')), findsOneWidget);
+      expect(find.byKey(ValueKey('complete-${reminder.id}')), findsOneWidget);
 
       await tester.tap(find.byKey(ValueKey('complete-${reminder.id}')));
       await tester.pump(const Duration(milliseconds: 150));
       await _settle(tester);
 
-      expect(
-        find.byKey(ValueKey('reminder-${reminder.id}')),
-        findsNothing,
-      );
+      expect(find.byKey(ValueKey('reminder-${reminder.id}')), findsNothing);
       final rows = await tester.runAsync(() => repo.getById(reminder.id));
       expect(rows!.isCompleted, isTrue);
     });

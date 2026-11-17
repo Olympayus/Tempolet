@@ -35,4 +35,10 @@ void main() {
     final theme = AppTheme.light(defaultAccent);
     expect(theme.scaffoldBackgroundColor, theme.colorScheme.surface);
   });
+
+  test('global theme uses NoSplash and standard density', () {
+    final theme = AppTheme.light(const Color(0xFF007AFF));
+    expect(theme.splashFactory, NoSplash.splashFactory);
+    expect(theme.visualDensity, VisualDensity.standard);
+  });
 }

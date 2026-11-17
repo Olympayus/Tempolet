@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../core/l10n/generated/app_localizations.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/ui/app_dropdown.dart';
 
 /// Reminder lead-time picker.
 ///
@@ -10,10 +11,19 @@ import '../../../core/theme/app_tokens.dart';
 /// (N may exceed 1440). The dropdown's "Custom…" entry uses an internal
 /// sentinel; it never leaves this widget.
 class LeadField extends StatefulWidget {
-  const LeadField({super.key, this.value, required this.onChanged});
+  const LeadField({
+    super.key,
+    this.value,
+    required this.onChanged,
+    this.triggerHeight = AppSizes.field,
+  });
 
   final int? value;
   final ValueChanged<int?> onChanged;
+
+  /// Height of the preset dropdown's trigger; the editor aligns it with the
+  /// 34px fields while settings uses its own 36px control height.
+  final double triggerHeight;
 
   @override
   State<LeadField> createState() => _LeadFieldState();
@@ -150,79 +160,65 @@ class _LeadFieldState extends State<LeadField> {
   Widget build(BuildContext context) {
     final p = _palette(context);
     final l10n = AppLocalizations.of(context);
-    final items = <DropdownMenuItem<int?>>[
-      DropdownMenuItem(value: null, child: Text(l10n.remindNone)),
-      DropdownMenuItem(value: 0, child: Text(l10n.remindAtStart)),
+    final items = <AppDropdownItem<int?>>[
+      AppDropdownItem(value: null, label: l10n.remindNone),
+      AppDropdownItem(value: 0, label: l10n.remindAtStart),
       for (final minutes in const [5, 10, 30])
-        DropdownMenuItem(
+        AppDropdownItem(
           value: minutes,
-          child: Text(l10n.remindMinutesBefore(minutes)),
+          label: l10n.remindMinutesBefore(minutes),
         ),
       if (_value != null && !_isPreset && _value != _customSentinel)
-        DropdownMenuItem(
-          value: _value,
-          child: Text(_formatLead(l10n, _value!)),
-        ),
-      DropdownMenuItem(value: _customSentinel, child: Text(l10n.custom)),
+        AppDropdownItem(value: _value, label: _formatLead(l10n, _value!)),
+      AppDropdownItem(value: _customSentinel, label: l10n.custom),
     ];
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          height: 30,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: p.card,
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            border: Border.all(color: p.lineStrong),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<int?>(
-              key: const ValueKey('lead-dropdown'),
-              value: _dropdownValue,
-              isDense: true,
-              isExpanded: true,
-              dropdownColor: p.card,
-              icon: Icon(Icons.keyboard_arrow_down, size: 16, color: p.sub),
-              style: AppTextStyles.secondary.copyWith(color: p.ink),
-              items: items,
-              onChanged: _onPresetSelected,
-            ),
-          ),
+        AppDropdown<int?>(
+          key: const ValueKey('lead-dropdown'),
+          value: _dropdownValue,
+          triggerHeight: widget.triggerHeight,
+          semanticLabel: l10n.leadLabel,
+          items: items,
+          onChanged: _onPresetSelected,
         ),
         if (_customOpen)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _CustomSegment(
-                  fieldKey: const ValueKey('lead-custom-day'),
-                  controller: _day,
-                  focusNode: _dayFocus,
-                  palette: p,
-                  onChanged: _onCustomChanged,
-                ),
-                _Unit(text: l10n.leadUnitDay, palette: p),
-                _CustomSegment(
-                  fieldKey: const ValueKey('lead-custom-hour'),
-                  controller: _hour,
-                  focusNode: _hourFocus,
-                  palette: p,
-                  onChanged: _onCustomChanged,
-                ),
-                _Unit(text: l10n.leadUnitHour, palette: p),
-                _CustomSegment(
-                  fieldKey: const ValueKey('lead-custom-minute'),
-                  controller: _minute,
-                  focusNode: _minuteFocus,
-                  palette: p,
-                  onChanged: _onCustomChanged,
-                ),
-                _Unit(text: l10n.leadUnitMinute, palette: p),
-              ],
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _CustomSegment(
+                    fieldKey: const ValueKey('lead-custom-day'),
+                    controller: _day,
+                    focusNode: _dayFocus,
+                    palette: p,
+                    onChanged: _onCustomChanged,
+                  ),
+                  _Unit(text: l10n.leadUnitDay, palette: p),
+                  _CustomSegment(
+                    fieldKey: const ValueKey('lead-custom-hour'),
+                    controller: _hour,
+                    focusNode: _hourFocus,
+                    palette: p,
+                    onChanged: _onCustomChanged,
+                  ),
+                  _Unit(text: l10n.leadUnitHour, palette: p),
+                  _CustomSegment(
+                    fieldKey: const ValueKey('lead-custom-minute'),
+                    controller: _minute,
+                    focusNode: _minuteFocus,
+                    palette: p,
+                    onChanged: _onCustomChanged,
+                  ),
+                  _Unit(text: l10n.leadUnitMinute, palette: p),
+                ],
+              ),
             ),
           ),
       ],

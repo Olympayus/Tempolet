@@ -34,6 +34,8 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: p.bg,
       fontFamily: 'Inter',
       fontFamilyFallback: const ['NotoSansSC'],
+      splashFactory: NoSplash.splashFactory,
+      visualDensity: VisualDensity.standard,
       textTheme: const TextTheme(
         displayLarge: AppTextStyles.display,
         titleLarge: AppTextStyles.title,

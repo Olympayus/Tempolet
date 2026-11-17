@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/app_info.dart';
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/l10n/locale_controller.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_controller.dart';
+import '../../core/ui/app_dropdown.dart';
+import '../../core/ui/app_hairline.dart';
+import '../../core/ui/app_segmented.dart';
+import '../../core/ui/app_switch.dart';
 import '../../desktop/file_reveal.dart';
 import '../../desktop/window_service.dart';
 import '../events/fields/lead_field.dart';
@@ -13,7 +18,10 @@ import 'accent_picker.dart';
 import 'desktop_prefs.dart';
 import 'notification_prefs.dart';
 
-/// Grouped settings page: appearance, notifications, desktop and about.
+/// Grouped settings page (`docs/design/10-ui-refinement.md` §8).
+///
+/// One 760-wide column: an appearance, notifications, desktop and about card,
+/// each with 64-high two-part rows and right-aligned self-drawn controls.
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -45,11 +53,12 @@ class SettingsPage extends ConsumerWidget {
       key: const ValueKey('settings-page'),
       backgroundColor: palette.bg,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 18, 24, 32),
+        padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
         child: Align(
           alignment: Alignment.topLeft,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
+            key: const ValueKey('settings-content'),
+            constraints: const BoxConstraints(maxWidth: 760),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -57,87 +66,84 @@ class SettingsPage extends ConsumerWidget {
                   l10n.navSettings,
                   style: AppTextStyles.display.copyWith(color: palette.ink),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 24),
                 _SettingsGroup(
+                  containerKey: const ValueKey('settings-group-appearance'),
                   palette: palette,
                   label: l10n.settingsAppearance,
-                  children: [
+                  rows: [
                     _SettingsRow(
+                      key: const ValueKey('settings-row-theme'),
                       palette: palette,
-                      label: l10n.themeMode,
-                      child: SegmentedButton<ThemeMode>(
-                        segments: [
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            label: Text(l10n.themeLight),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            label: Text(l10n.themeDark),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            label: Text(l10n.themeSystem),
-                          ),
+                      title: l10n.themeMode,
+                      control: AppSegmented<ThemeMode>(
+                        key: const ValueKey('theme-segmented'),
+                        values: const [
+                          ThemeMode.light,
+                          ThemeMode.dark,
+                          ThemeMode.system,
                         ],
-                        selected: {theme.mode},
-                        showSelectedIcon: false,
-                        style: SegmentedButton.styleFrom(
-                          textStyle: AppTextStyles.secondary,
-                          visualDensity: VisualDensity.compact,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          foregroundColor: palette.sub,
-                          selectedForegroundColor: palette.ink,
-                          selectedBackgroundColor: palette.chip,
-                        ),
-                        onSelectionChanged: (selection) => ref
+                        selected: theme.mode,
+                        labelFor: (value) =>
+                            _themeLabel(value, theme.mode, palette, l10n),
+                        onChanged: (mode) => ref
                             .read(themeControllerProvider.notifier)
-                            .setMode(selection.first),
+                            .setMode(mode),
                       ),
                     ),
                     _SettingsRow(
+                      key: const ValueKey('settings-row-accent'),
                       palette: palette,
-                      label: l10n.accentColor,
-                      child: AccentSwatch(
-                        key: const ValueKey('accent-swatch'),
-                        color: theme.accent,
-                        onTap: pickAccent,
-                      ),
-                    ),
-                    _SettingsRow(
-                      palette: palette,
-                      label: l10n.language,
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          key: const ValueKey('language-dropdown'),
-                          value: languageValue,
-                          isDense: true,
-                          dropdownColor: palette.card,
-                          borderRadius: BorderRadius.circular(AppRadii.field),
-                          icon: Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 16,
+                      title: l10n.accentColor,
+                      hint: l10n.accentHint,
+                      onTap: pickAccent,
+                      control: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AccentSwatch(
+                            key: const ValueKey('accent-swatch'),
+                            color: theme.accent,
+                            onTap: pickAccent,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            _hexOf(theme.accent),
+                            style: AppTextStyles.body.copyWith(
+                              color: palette.sub,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            LucideIcons.chevronRight,
+                            size: 14,
                             color: palette.sub,
                           ),
-                          style: AppTextStyles.body.copyWith(
-                            color: palette.ink,
-                          ),
+                        ],
+                      ),
+                    ),
+                    _SettingsRow(
+                      key: const ValueKey('settings-row-language'),
+                      palette: palette,
+                      title: l10n.language,
+                      control: SizedBox(
+                        width: 160,
+                        child: AppDropdown<String>(
+                          key: const ValueKey('language-dropdown'),
+                          value: languageValue,
+                          triggerHeight: 36,
+                          semanticLabel: l10n.language,
                           items: [
-                            DropdownMenuItem(
+                            AppDropdownItem(
                               value: 'system',
-                              child: Text(l10n.languageSystem),
+                              label: l10n.languageSystem,
                             ),
-                            const DropdownMenuItem(
-                              value: 'zh',
-                              child: Text('中文'),
-                            ),
-                            const DropdownMenuItem(
+                            const AppDropdownItem(value: 'zh', label: '中文'),
+                            const AppDropdownItem(
                               value: 'en',
-                              child: Text('English'),
+                              label: 'English',
                             ),
                           ],
                           onChanged: (value) {
-                            if (value == null) return;
                             ref
                                 .read(localeControllerProvider.notifier)
                                 .setLocale(
@@ -149,103 +155,137 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 28),
                 _SettingsGroup(
+                  containerKey: const ValueKey('settings-group-notifications'),
                   palette: palette,
                   label: l10n.settingsNotifications,
-                  children: [
-                    _SettingsRow(
+                  rows: [
+                    _SettingsNoteRow(
+                      key: const ValueKey('settings-row-windows-note'),
                       palette: palette,
-                      label: l10n.defaultRemindOffset,
-                      child: SizedBox(
-                        width: 180,
+                      text: l10n.notificationsWindowsNote,
+                    ),
+                    _SettingsRow(
+                      key: const ValueKey('settings-row-lead'),
+                      palette: palette,
+                      title: l10n.defaultRemindOffset,
+                      hint: l10n.defaultRemindHint,
+                      control: SizedBox(
+                        width: 160,
                         child: LeadField(
                           value: offset,
+                          triggerHeight: 36,
                           onChanged: (next) => ref
                               .read(defaultReminderOffsetProvider.notifier)
                               .set(next),
                         ),
                       ),
                     ),
-                    _SwitchRow(
-                      key: const ValueKey('switch-sound'),
+                    _SettingsRow(
+                      key: const ValueKey('settings-row-sound'),
                       palette: palette,
-                      label: l10n.notificationSound,
-                      value: sound,
-                      onChanged: (value) => ref
+                      title: l10n.notificationSound,
+                      onTap: () => ref
                           .read(notificationSoundEnabledProvider.notifier)
-                          .set(value),
+                          .set(!sound),
+                      control: AppSwitch(
+                        key: const ValueKey('switch-sound'),
+                        value: sound,
+                        onChanged: (value) => ref
+                            .read(notificationSoundEnabledProvider.notifier)
+                            .set(value),
+                      ),
                     ),
-                    _SwitchRow(
-                      key: const ValueKey('switch-overdue'),
+                    _SettingsRow(
+                      key: const ValueKey('settings-row-overdue'),
                       palette: palette,
-                      label: l10n.overdueSummary,
-                      value: overdueSummary,
-                      onChanged: (value) => ref
+                      title: l10n.overdueSummary,
+                      hint: l10n.overdueSummaryHint,
+                      onTap: () => ref
                           .read(overdueSummaryEnabledProvider.notifier)
-                          .set(value),
-                    ),
-                    _Footnote(
-                      palette: palette,
-                      text: l10n.notificationsRequireAppOpen,
+                          .set(!overdueSummary),
+                      control: AppSwitch(
+                        key: const ValueKey('switch-overdue'),
+                        value: overdueSummary,
+                        onChanged: (value) => ref
+                            .read(overdueSummaryEnabledProvider.notifier)
+                            .set(value),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 28),
                 _SettingsGroup(
+                  containerKey: const ValueKey('settings-group-desktop'),
                   palette: palette,
                   label: l10n.settingsDesktop,
-                  children: [
-                    _SwitchRow(
-                      key: const ValueKey('switch-tray'),
+                  rows: [
+                    _SettingsRow(
+                      key: const ValueKey('settings-row-tray'),
                       palette: palette,
-                      label: l10n.closeToTray,
-                      value: minimizeToTray,
-                      onChanged: (value) => ref
+                      title: l10n.closeToTray,
+                      hint: l10n.closeToTrayHint,
+                      onTap: () => ref
                           .read(minimizeToTrayEnabledProvider.notifier)
-                          .set(value),
+                          .set(!minimizeToTray),
+                      control: AppSwitch(
+                        key: const ValueKey('switch-tray'),
+                        value: minimizeToTray,
+                        onChanged: (value) => ref
+                            .read(minimizeToTrayEnabledProvider.notifier)
+                            .set(value),
+                      ),
                     ),
-                    _SwitchRow(
-                      key: const ValueKey('switch-startup'),
+                    _SettingsRow(
+                      key: const ValueKey('settings-row-startup'),
                       palette: palette,
-                      label: l10n.launchAtStartup,
-                      value: launchAtStartup,
-                      onChanged: (value) {
+                      title: l10n.launchAtStartup,
+                      hint: l10n.launchAtStartupHint,
+                      onTap: () {
+                        final value = !launchAtStartup;
                         ref
                             .read(launchAtStartupEnabledProvider.notifier)
                             .set(value);
                         syncLaunchAtStartup(value);
                       },
+                      control: AppSwitch(
+                        key: const ValueKey('switch-startup'),
+                        value: launchAtStartup,
+                        onChanged: (value) {
+                          ref
+                              .read(launchAtStartupEnabledProvider.notifier)
+                              .set(value);
+                          syncLaunchAtStartup(value);
+                        },
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 28),
                 _SettingsGroup(
+                  containerKey: const ValueKey('settings-group-about'),
                   palette: palette,
                   label: l10n.about,
-                  children: [
+                  rows: [
                     _SettingsRow(
+                      key: const ValueKey('settings-row-version'),
                       palette: palette,
-                      label: l10n.version,
-                      child: Text(
+                      title: l10n.version,
+                      control: Text(
                         kAppVersion,
                         style: AppTextStyles.body.copyWith(color: palette.sub),
                       ),
                     ),
                     _SettingsRow(
+                      key: const ValueKey('settings-row-data'),
                       palette: palette,
-                      label: l10n.dataLocation,
-                      child: TextButton(
+                      title: l10n.dataLocation,
+                      control: _TextLink(
                         key: const ValueKey('open-data-folder'),
-                        onPressed: openDataFolder,
-                        style: TextButton.styleFrom(
-                          foregroundColor: palette.accent,
-                          textStyle: AppTextStyles.secondary,
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          minimumSize: const Size(0, 28),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Text(l10n.openFolder),
+                        label: l10n.openFolder,
+                        color: palette.accent,
+                        onTap: openDataFolder,
                       ),
                     ),
                   ],
@@ -267,44 +307,84 @@ AppPalette _paletteOf(BuildContext context) {
       .withAccent(theme.colorScheme.primary);
 }
 
+String _hexOf(Color color) {
+  final rgb = color.toARGB32() & 0xFFFFFF;
+  return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+}
+
+Widget _themeLabel(
+  ThemeMode value,
+  ThemeMode selected,
+  AppPalette palette,
+  AppLocalizations l10n,
+) {
+  final (icon, label) = switch (value) {
+    ThemeMode.light => (LucideIcons.sun, l10n.themeLight),
+    ThemeMode.dark => (LucideIcons.moon, l10n.themeDark),
+    ThemeMode.system => (LucideIcons.monitor, l10n.themeSystem),
+  };
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(
+        icon,
+        size: 14,
+        color: value == selected ? palette.ink : palette.sub,
+      ),
+      const SizedBox(width: 6),
+      Text(label),
+    ],
+  );
+}
+
+/// A rounded card grouping settings rows with 1px separators between them.
 class _SettingsGroup extends StatelessWidget {
   const _SettingsGroup({
+    required this.containerKey,
     required this.palette,
     required this.label,
-    required this.children,
+    required this.rows,
   });
 
+  final Key containerKey;
   final AppPalette palette;
   final String label;
-  final List<Widget> children;
+  final List<Widget> rows;
 
   @override
   Widget build(BuildContext context) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i++) {
-      if (i > 0) rows.add(Container(height: 1, color: palette.line));
-      rows.add(children[i]);
+    final children = <Widget>[];
+    for (var i = 0; i < rows.length; i++) {
+      if (i > 0) children.add(const AppHairline());
+      children.add(rows[i]);
     }
 
+    final radius = BorderRadius.circular(AppRadii.group);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          padding: const EdgeInsets.only(left: 2),
           child: Text(
             label,
-            style: AppTextStyles.caption.copyWith(color: palette.sub),
+            style: AppTextStyles.section.copyWith(color: palette.ink),
           ),
         ),
+        const SizedBox(height: 8),
         DecoratedBox(
+          key: containerKey,
           decoration: BoxDecoration(
             color: palette.card,
-            borderRadius: BorderRadius.circular(AppRadii.card),
+            borderRadius: radius,
             border: Border.all(color: palette.line),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            child: Column(mainAxisSize: MainAxisSize.min, children: rows),
+            borderRadius: radius,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
           ),
         ),
       ],
@@ -312,87 +392,94 @@ class _SettingsGroup extends StatelessWidget {
   }
 }
 
-class _SettingsRow extends StatelessWidget {
+/// A two-part settings row: 14/500 title + optional 13/`sub` hint on the
+/// left, right-aligned control on the right, at least 64 high.
+class _SettingsRow extends StatefulWidget {
   const _SettingsRow({
-    required this.palette,
-    required this.label,
-    required this.child,
-  });
-
-  final AppPalette palette;
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 36),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.body.copyWith(color: palette.ink),
-              ),
-            ),
-            const SizedBox(width: 12),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
     super.key,
     required this.palette,
-    required this.label,
-    required this.value,
-    required this.onChanged,
+    required this.title,
+    this.hint,
+    required this.control,
+    this.onTap,
   });
 
   final AppPalette palette;
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
+  final String title;
+  final String? hint;
+  final Widget control;
+  final VoidCallback? onTap;
+
+  @override
+  State<_SettingsRow> createState() => _SettingsRowState();
+}
+
+class _SettingsRowState extends State<_SettingsRow> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 36),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: AppTextStyles.body.copyWith(color: palette.ink),
-                ),
-              ),
-              Switch(
-                value: value,
-                onChanged: onChanged,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ],
-          ),
-        ),
+    final palette = widget.palette;
+    final interactive = widget.onTap != null;
+
+    final content = Container(
+      constraints: const BoxConstraints(minHeight: AppSizes.rowTall),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: interactive && _hovered ? palette.hover : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadii.block),
       ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.title,
+                  style: AppTextStyles.rowTitle.copyWith(color: palette.ink),
+                ),
+                if (widget.hint != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.hint!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.hint.copyWith(color: palette.sub),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 24),
+          widget.control,
+        ],
+      ),
+    );
+
+    return MouseRegion(
+      cursor: interactive ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: interactive ? (_) => setState(() => _hovered = true) : null,
+      onExit: interactive ? (_) => setState(() => _hovered = false) : null,
+      child: interactive
+          ? GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onTap,
+              child: content,
+            )
+          : content,
     );
   }
 }
 
-class _Footnote extends StatelessWidget {
-  const _Footnote({required this.palette, required this.text});
+/// Permanent, non-tappable Windows notification explanation row.
+class _SettingsNoteRow extends StatelessWidget {
+  const _SettingsNoteRow({
+    super.key,
+    required this.palette,
+    required this.text,
+  });
 
   final AppPalette palette;
   final String text;
@@ -400,10 +487,38 @@ class _Footnote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Text(
         text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: AppTextStyles.caption.copyWith(color: palette.sub),
+      ),
+    );
+  }
+}
+
+/// Inline 13/`accent` text link with no underline and no Material chrome.
+class _TextLink extends StatelessWidget {
+  const _TextLink({
+    super.key,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Text(label, style: AppTextStyles.body.copyWith(color: color)),
       ),
     );
   }

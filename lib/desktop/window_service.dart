@@ -114,6 +114,12 @@ class WindowService {
     required Future<void> Function() onHidden,
   }) async {
     await windowManager.ensureInitialized();
+    // v0.1.3 (D60): the app draws its own 32px title bar. The runner owns the
+    // hit-testing — including the Win11 Snap preview over the maximize button —
+    // so the native frame and caption are removed here; see
+    // windows/runner/win32_window.cpp.
+    await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+    await windowManager.setAsFrameless();
     await windowManager.setMinimumSize(minimumWindowSize);
     final saved = restoreWindowBounds(
       decodeWindowBounds(prefs.getString(windowBoundsPrefKey)),

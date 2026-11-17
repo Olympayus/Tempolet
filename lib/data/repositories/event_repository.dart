@@ -46,6 +46,46 @@ class EventRepository {
     return query.watch();
   }
 
+  /// Unfinished, non-deleted events dated before [today] — the reminders
+  /// page's overdue bucket. Ordered by day, then start minute.
+  Stream<List<Event>> watchOverdue(DateTime today) {
+    final cutoff = dateOnly(today);
+    final query = _db.select(_db.events)
+      ..where(
+        (t) =>
+            t.deletedAt.isNull() &
+            t.isCompleted.equals(false) &
+            t.date.isSmallerThanValue(cutoff),
+      )
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.date),
+        (t) => OrderingTerm(expression: t.startMinute, nulls: NullsOrder.last),
+        (t) => OrderingTerm(expression: t.id),
+      ]);
+    return query.watch();
+  }
+
+  /// Date of the oldest overdue event, or null when nothing is overdue.
+  Future<DateTime?> earliestOverdueDate(DateTime today) async {
+    final cutoff = dateOnly(today);
+    final query = _db.select(_db.events)
+      ..where(
+        (t) =>
+            t.deletedAt.isNull() &
+            t.isCompleted.equals(false) &
+            t.date.isSmallerThanValue(cutoff),
+      )
+      ..orderBy([(t) => OrderingTerm(expression: t.date)])
+      ..limit(1);
+    final rows = await query.get();
+    return rows.isEmpty ? null : rows.first.date;
+  }
+
+  /// Incomplete events in `[start, end)` — shared by the reminders page's
+  /// today/week/month buckets. Same semantics as [watchRange].
+  Stream<List<Event>> watchIncompleteRange(DateTime start, DateTime end) =>
+      watchRange(start, end);
+
   Future<Event> create({
     required String title,
     String note = '',
@@ -203,4 +243,24 @@ final eventsInRangeProvider = StreamProvider.family<List<Event>, DayRange>((
   range,
 ) {
   return ref.watch(eventRepositoryProvider).watchRange(range.start, range.end);
+});
+
+/// Reminders-page alias for [eventsInRangeProvider]; both surface
+/// [EventRepository.watchIncompleteRange].
+final rangeEventsProvider = eventsInRangeProvider;
+
+/// Overdue bucket for the reminders page, refreshed whenever [today] changes.
+final overdueEventsProvider = StreamProvider.family<List<Event>, DateTime>((
+  ref,
+  today,
+) {
+  return ref.watch(eventRepositoryProvider).watchOverdue(today);
+});
+
+/// Date of the oldest overdue event, used for the overdue jump target.
+final earliestOverdueProvider = FutureProvider.family<DateTime?, DateTime>((
+  ref,
+  today,
+) {
+  return ref.watch(eventRepositoryProvider).earliestOverdueDate(today);
 });

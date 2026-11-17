@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/utils/dates.dart';
+import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/models/event_status.dart';
 import '../../data/repositories/category_repository.dart';
@@ -23,7 +24,7 @@ import 'time_grid.dart';
 
 /// Single-column day timeline (`docs/design/03-calendar.md` §3): a 34px/hour
 /// grid from 07:00, shared plan blocks and reminder cards, the now line for
-/// today, and a 216px stats rail on wide windows.
+/// today, and a 216px day overview rail on wide windows.
 class DayView extends ConsumerStatefulWidget {
   const DayView({super.key});
 
@@ -88,7 +89,7 @@ class _DayViewState extends ConsumerState<DayView> {
               child: _timeline(pending, today: today, isToday: isToday),
             ),
             if (showRail)
-              _StatsRail(events: events, tomorrowEvents: tomorrowEvents),
+              _DayOverview(events: events, tomorrowEvents: tomorrowEvents),
           ],
         );
       },
@@ -191,7 +192,11 @@ class _DayViewState extends ConsumerState<DayView> {
                     lane: lanes[event.id] ?? 0,
                     unit: laneUnit,
                   ),
-                if (isToday) const NowLine(key: ValueKey('day-now-line')),
+                if (isToday)
+                  NowLine(
+                    key: const ValueKey('day-now-line'),
+                    now: ref.watch(pinnedNowProvider),
+                  ),
               ],
             );
           },
@@ -331,10 +336,11 @@ class _DayViewState extends ConsumerState<DayView> {
   }
 }
 
-/// 216px right rail: today's plan/reminder counts and a six-row preview of
-/// tomorrow. Only rendered on windows at least 1100px wide.
-class _StatsRail extends ConsumerWidget {
-  const _StatsRail({required this.events, required this.tomorrowEvents});
+/// 216px right rail: the selected day's plan/reminder counts and a read-only
+/// preview of the next day (`docs/design/10-ui-refinement.md` §9.16). It
+/// follows the selected day, not necessarily today, and renders no week block.
+class _DayOverview extends ConsumerWidget {
+  const _DayOverview({required this.events, required this.tomorrowEvents});
 
   final List<Event> events;
   final List<Event> tomorrowEvents;
@@ -354,46 +360,64 @@ class _StatsRail extends ConsumerWidget {
         .where((event) => event.kind == EventKind.plan.dbValue)
         .length;
     final reminders = events.length - plans;
-    final preview = tomorrowEvents.take(6).toList();
+    final preview = tomorrowEvents.take(3).toList();
+    final numberStyle = AppTextStyles.title.copyWith(
+      fontSize: 22,
+      height: 1,
+      color: palette.ink,
+    );
+    final labelStyle = AppTextStyles.caption.copyWith(color: palette.sub);
 
     return Container(
+      key: const ValueKey('day-overview'),
       width: 216,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         border: Border(left: BorderSide(color: palette.line)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                l10n.plansCount(plans),
-                style: AppTextStyles.secondary.copyWith(color: palette.ink),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '·',
-                style: AppTextStyles.secondary.copyWith(color: palette.subWeak),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                l10n.remindersCount(reminders),
-                style: AppTextStyles.secondary.copyWith(color: palette.sub),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(height: 1, color: palette.line),
-          const SizedBox(height: 10),
           Text(
-            l10n.tomorrowPreview,
-            style: AppTextStyles.caption.copyWith(
-              color: palette.sub,
-              fontWeight: FontWeight.w600,
+            l10n.dayOverviewTitle,
+            style: AppTextStyles.section.copyWith(color: palette.ink),
+          ),
+          const SizedBox(height: 12),
+          // Scale down rather than wrap or clip if a count grows long; at the
+          // design's usual counts this stays at 1:1.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                _CountUnit(
+                  textKey: const ValueKey('overview-plans-count'),
+                  count: plans,
+                  plan: true,
+                  l10n: l10n,
+                  numberStyle: numberStyle,
+                  labelStyle: labelStyle,
+                ),
+                const SizedBox(width: 24),
+                _CountUnit(
+                  textKey: const ValueKey('overview-reminders-count'),
+                  count: reminders,
+                  plan: false,
+                  l10n: l10n,
+                  numberStyle: numberStyle,
+                  labelStyle: labelStyle,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 28),
+          Text(
+            l10n.tomorrowPreviewTitle,
+            style: AppTextStyles.section.copyWith(color: palette.ink),
+          ),
+          const SizedBox(height: 8),
           if (preview.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -404,40 +428,132 @@ class _StatsRail extends ConsumerWidget {
             )
           else
             for (final event in preview)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  children: [
-                    CategoryMarker(
-                      kind: event.kind,
-                      color: categoryMarkerColor(event.categoryId, categories),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      event.startMinute == null
-                          ? l10n.allDay
-                          : formatMinuteOfDay(event.startMinute!),
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 10,
-                        color: palette.sub,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        event.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.secondary.copyWith(
-                          color: palette.ink,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              _PreviewRow(
+                key: ValueKey('overview-row-${event.id}'),
+                event: event,
+                categories: categories,
+                palette: palette,
+                l10n: l10n,
               ),
         ],
       ),
+    );
+  }
+}
+
+/// Read-only compact row: no completion circle, a 9×2.5 horizontal bar for
+/// plans (the overview's compact marker language) or a 6px dot for reminders,
+/// then the title and a right-aligned time.
+class _PreviewRow extends StatelessWidget {
+  const _PreviewRow({
+    super.key,
+    required this.event,
+    required this.categories,
+    required this.palette,
+    required this.l10n,
+  });
+
+  final Event event;
+  final List<Category> categories;
+  final AppPalette palette;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPlan = event.kind == EventKind.plan.dbValue;
+    final color = categoryMarkerColor(event.categoryId, categories);
+    final time = event.startMinute == null
+        ? l10n.allDay
+        : isPlan
+        ? AppFormats.timeRange(event.startMinute, event.endMinute)
+        : formatMinuteOfDay(event.startMinute!);
+
+    return SizedBox(
+      height: 34,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 14,
+            child: Center(
+              child: isPlan
+                  ? Container(
+                      key: ValueKey('overview-plan-marker-${event.id}'),
+                      width: 9,
+                      height: 2.5,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(1.25),
+                      ),
+                    )
+                  : Container(
+                      key: ValueKey('overview-reminder-marker-${event.id}'),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              event.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.body.copyWith(color: palette.ink),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            time,
+            maxLines: 1,
+            style: AppTextStyles.caption.copyWith(color: palette.sub),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One overview count unit with the number rendered exactly once: a single
+/// rich-text run whose plain text is `2 plans` / `1 个计划`. The number span is
+/// 22/700 ink and the noun span is 11/`sub`, so `find.text` still matches the
+/// whole unit while only one span paints the count.
+///
+/// The count-free noun comes from the plural-aware `planNoun` / `reminderNoun`
+/// ARB keys; the leading space between the two spans lives here because the
+/// number itself is painted by the number span.
+class _CountUnit extends StatelessWidget {
+  const _CountUnit({
+    required this.textKey,
+    required this.count,
+    required this.plan,
+    required this.l10n,
+    required this.numberStyle,
+    required this.labelStyle,
+  });
+
+  final Key textKey;
+  final int count;
+  final bool plan;
+  final AppLocalizations l10n;
+  final TextStyle numberStyle;
+  final TextStyle labelStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final noun = plan ? l10n.planNoun(count) : l10n.reminderNoun(count);
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: '$count', style: numberStyle),
+          TextSpan(text: ' $noun', style: labelStyle),
+        ],
+      ),
+      key: textKey,
+      maxLines: 1,
     );
   }
 }

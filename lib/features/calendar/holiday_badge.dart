@@ -8,10 +8,18 @@ import '../../data/database/database.dart';
 /// (`docs/design/03-calendar.md` §1.1). A day off uses the festival tint and
 /// text; a 调休 workday uses the neutral chip fill and secondary text.
 class HolidayBadge extends StatelessWidget {
-  const HolidayBadge({super.key, required this.holiday, required this.palette});
+  const HolidayBadge({
+    super.key,
+    required this.holiday,
+    required this.palette,
+    this.fontSize = 10,
+  });
 
   final Holiday holiday;
   final AppPalette palette;
+
+  /// The month cell uses the denser 9px pill; the week header keeps 10px.
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +37,7 @@ class HolidayBadge extends StatelessWidget {
         workday ? l10n.workdayBadge : l10n.holidayBadge,
         maxLines: 1,
         style: AppTextStyles.caption.copyWith(
-          fontSize: 10,
+          fontSize: fontSize,
           color: workday ? palette.sub : palette.festival,
         ),
       ),

@@ -129,6 +129,12 @@ void main() {
   testWidgets('holiday info never consumes one of the two event rows', (
     tester,
   ) async {
+    // Match month_view_test: the 8/10 + 32 density needs the taller viewport
+    // to show two event rows; keep the width under the sidebar breakpoint.
+    tester.view.physicalSize = const Size(1100, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await insertHoliday(
       DateTime(2026, 11, 11),
       'Test Holiday',
@@ -183,7 +189,7 @@ void main() {
 
     await tester.pumpWidget(_app(container));
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('day-2026-11-11')));
+    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-11')));
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 

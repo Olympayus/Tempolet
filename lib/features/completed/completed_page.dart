@@ -6,23 +6,146 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/app_buttons.dart';
 import '../../core/utils/dates.dart';
+import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
 import '../../notifications/notification_scheduler.dart';
 import '../calendar/calendar_state.dart';
 import '../calendar/category_marker.dart';
+import '../events/event_list_row.dart';
 
-/// Completed-events page (`docs/design/04-reminders.md` §4): the only place
-/// completed items live after they silently leave every main view. Groups by
-/// completion day, restores or permanently deletes rows, and clears the list
-/// behind a confirmation.
-class CompletedPage extends ConsumerWidget {
+/// Page content inset (`10-ui-refinement.md` §9.5). Rows carry their own 16px
+/// internal padding, so the list adds an 8px outer inset to align row content
+/// with the 24px page inset.
+const double _rowOuterInset = 8;
+
+/// Vertical rhythm between completed-day groups.
+const double _groupGap = 28;
+
+/// Gap between a group title and its first row.
+const double _groupTitleGap = 8;
+
+/// Extra bottom padding that keeps the last row clear of the floating
+/// selection bar.
+const double _selectionBarClearance = 96;
+
+/// Completed-events page (`docs/design/04-reminders.md` §4,
+/// `docs/superpowers/specs/2026-11-16-tempolet-v0.1.3-design.md` §7.5): the
+/// only place completed items live after they silently leave every main view.
+///
+/// Groups by completion day, restores or permanently deletes rows, clears the
+/// list behind a confirmation, and (new in v0.1.3) layers a multi-select mode
+/// over the same list: long-press a row or press 选择, then act on the
+/// selection with 全选 / 恢复 / 删除.
+class CompletedPage extends ConsumerStatefulWidget {
   const CompletedPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CompletedPage> createState() => _CompletedPageState();
+}
+
+class _CompletedPageState extends ConsumerState<CompletedPage> {
+  final Set<String> _selected = <String>{};
+  bool _selecting = false;
+
+  void _enterSelection([String? id]) {
+    setState(() {
+      _selecting = true;
+      _selected.clear();
+      if (id != null) _selected.add(id);
+    });
+  }
+
+  void _exitSelection() {
+    if (!_selecting && _selected.isEmpty) return;
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  void _toggleSelected(String id) {
+    setState(() {
+      if (!_selected.remove(id)) _selected.add(id);
+    });
+  }
+
+  void _selectAll(Iterable<String> ids) {
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(ids);
+    });
+  }
+
+  Future<void> _restoreOne(Event event) async {
+    await ref.read(eventRepositoryProvider).setCompleted(event.id, false);
+    ref
+        .read(eventNotifierSyncProvider)
+        .afterUpdate(
+          event.copyWith(isCompleted: false, completedAt: const Value(null)),
+        );
+  }
+
+  Future<void> _deleteOne(Event event) async {
+    final l10n = AppLocalizations.of(context);
+    if (!await _confirmDelete(context, l10n)) return;
+    await ref.read(notificationSchedulerProvider).cancelEvent(event);
+    await ref.read(eventRepositoryProvider).hardDelete(event.id);
+  }
+
+  Future<void> _restoreSelected(List<Event> targets) async {
+    final repo = ref.read(eventRepositoryProvider);
+    final sync = ref.read(eventNotifierSyncProvider);
+    for (final event in targets) {
+      await repo.setCompleted(event.id, false);
+      sync.afterUpdate(
+        event.copyWith(isCompleted: false, completedAt: const Value(null)),
+      );
+    }
+    if (!mounted) return;
+    _exitSelection();
+  }
+
+  Future<void> _deleteSelected(List<Event> targets) async {
+    final l10n = AppLocalizations.of(context);
+    if (!await _confirmDelete(context, l10n)) return;
+    final scheduler = ref.read(notificationSchedulerProvider);
+    final repo = ref.read(eventRepositoryProvider);
+    for (final event in targets) {
+      await scheduler.cancelEvent(event);
+      await repo.hardDelete(event.id);
+    }
+    if (!mounted) return;
+    _exitSelection();
+  }
+
+  Future<void> _clearAll(List<Event> events) async {
+    final l10n = AppLocalizations.of(context);
+    if (!await _confirmDelete(context, l10n)) return;
+    final scheduler = ref.read(notificationSchedulerProvider);
+    for (final event in events) {
+      await scheduler.cancelEvent(event);
+    }
+    await ref.read(eventRepositoryProvider).clearCompleted();
+  }
+
+  /// Returns to the entry branch: the page is mounted under both
+  /// `/calendar/completed` and `/reminders/completed` (spec §7.3).
+  void _back(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    final path = GoRouterState.of(context).uri.path;
+    context.go(path.startsWith('/reminders') ? '/reminders' : '/calendar');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette =
         (theme.brightness == Brightness.light
@@ -30,12 +153,10 @@ class CompletedPage extends ConsumerWidget {
                 : AppPalette.dark)
             .withAccent(theme.colorScheme.primary);
     final l10n = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context);
     final events = ref.watch(completedEventsProvider).value ?? const <Event>[];
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
-    final repo = ref.read(eventRepositoryProvider);
-    final sync = ref.read(eventNotifierSyncProvider);
-    final scheduler = ref.read(notificationSchedulerProvider);
 
     final today = dateOnly(ref.watch(todayProvider));
     final yesterday = DateTime(today.year, today.month, today.day - 1);
@@ -59,128 +180,301 @@ class CompletedPage extends ConsumerWidget {
       (label: l10n.yesterdayGroup, items: yesterdayItems),
       (label: l10n.earlierGroup, items: earlierItems),
     ].where((group) => group.items.isNotEmpty).toList();
+    final displayedIds = {
+      for (final group in groups)
+        for (final event in group.items) event.id,
+    };
+    final selected = _selected.where(displayedIds.contains).toSet();
+    final selectedEventList = [
+      for (final group in groups)
+        for (final event in group.items)
+          if (selected.contains(event.id)) event,
+    ];
 
-    Future<void> restore(Event event) async {
-      await repo.setCompleted(event.id, false);
-      sync.afterUpdate(
-        event.copyWith(isCompleted: false, completedAt: const Value(null)),
+    Widget rowFor(Event event) {
+      final at = event.completedAt;
+      // Intentional locale-aware join: Chinese writes `11月16日 09:00`, while
+      // English uses the `·` date/time separator (no comma) per the v0.1.3
+      // separator ruling.
+      final separator = locale.languageCode == 'zh' ? ' ' : ' · ';
+      final kindLabel = event.kind == 'plan'
+          ? l10n.kindPlan
+          : l10n.kindReminder;
+      final ownTime = AppFormats.timeRange(event.startMinute, event.endMinute);
+      final ownDate = AppFormats.monthDay(locale, event.date);
+      // Every row says what the item was and when it was scheduled, then when
+      // it was completed (`10-ui-refinement` §9.5).
+      final ownSchedule = ownTime.isEmpty
+          ? '$kindLabel · $ownDate'
+          : '$kindLabel · $ownDate$separator$ownTime';
+      final completionLabel = at == null
+          ? ''
+          : l10n.completedAt(
+              AppFormats.monthDay(locale, at),
+              formatMinuteOfDay(at.hour * 60 + at.minute),
+            );
+      return Padding(
+        key: ValueKey('completed-row-${event.id}'),
+        padding: const EdgeInsets.symmetric(horizontal: _rowOuterInset),
+        child: EventListRow(
+          event: event,
+          color: categoryMarkerColor(event.categoryId, categories),
+          titleColor: palette.sub,
+          metadata: Text(
+            ownSchedule,
+            style: AppTextStyles.caption.copyWith(color: palette.sub),
+          ),
+          timeLabel: completionLabel,
+          checked: _selecting ? selected.contains(event.id) : null,
+          onTap: _selecting ? () => _toggleSelected(event.id) : null,
+          onLongPress: _selecting ? null : () => _enterSelection(event.id),
+          onToggleComplete: _selecting ? () => _toggleSelected(event.id) : null,
+          trailing: _selecting
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppIconButton(
+                      key: ValueKey('completed-restore-${event.id}'),
+                      tooltip: l10n.restore,
+                      onPressed: () => _restoreOne(event),
+                      icon: Icon(
+                        LucideIcons.rotateCcw,
+                        size: 15,
+                        color: palette.accent,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    AppIconButton(
+                      key: ValueKey('completed-delete-${event.id}'),
+                      tooltip: l10n.delete,
+                      onPressed: () => _deleteOne(event),
+                      icon: Icon(
+                        LucideIcons.trash2,
+                        size: 14,
+                        color: palette.sub,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       );
-    }
-
-    Future<void> deleteOne(Event event) async {
-      if (!await _confirmDelete(context, l10n)) return;
-      await scheduler.cancelEvent(event);
-      await repo.hardDelete(event.id);
-    }
-
-    Future<void> clearAll() async {
-      if (!await _confirmDelete(context, l10n)) return;
-      for (final event in events) {
-        await scheduler.cancelEvent(event);
-      }
-      await repo.clearCompleted();
     }
 
     return Scaffold(
       key: const ValueKey('completed-page'),
       backgroundColor: palette.bg,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-            child: Row(
-              children: [
-                IconButton(
-                  key: const ValueKey('completed-back'),
-                  onPressed: () => context.go('/calendar'),
-                  icon: const Icon(LucideIcons.chevronLeft, size: 16),
-                  color: palette.sub,
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 28,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: palette.chip,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.button),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  l10n.completedTitle,
-                  style: AppTextStyles.title.copyWith(color: palette.ink),
-                ),
-                const Spacer(),
-                TextButton(
-                  key: const ValueKey('completed-clear'),
-                  onPressed: events.isEmpty ? null : clearAll,
-                  style: TextButton.styleFrom(
-                    foregroundColor: palette.danger,
-                    disabledForegroundColor: palette.subWeak,
-                    textStyle: AppTextStyles.secondary,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(0, 26),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(l10n.clear),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: events.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: Text(
-                        l10n.noEvents,
-                        style: AppTextStyles.secondary.copyWith(
-                          color: palette.subWeak,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: AppSizes.header,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        key: const ValueKey('completed-back'),
+                        onPressed: () => _back(context),
+                        icon: const Icon(LucideIcons.chevronLeft, size: 16),
+                        color: palette.sub,
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints.tightFor(
+                          width: AppSizes.control,
+                          height: AppSizes.control,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: palette.chip,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppRadii.button,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 20),
-                    children: [
-                      for (final group in groups) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(top: 14, bottom: 5),
-                          child: Text(
-                            group.label,
-                            style: AppTextStyles.caption.copyWith(
-                              color: palette.sub,
-                            ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.completedTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.display.copyWith(
+                            color: palette.ink,
                           ),
                         ),
-                        Container(height: 1, color: palette.line),
-                        for (final event in group.items)
-                          _CompletedRow(
-                            key: ValueKey(event.id),
-                            event: event,
-                            color: categoryMarkerColor(
-                              event.categoryId,
-                              categories,
-                            ),
-                            onRestore: () => restore(event),
-                            onDelete: () => deleteOne(event),
+                      ),
+                      const SizedBox(width: 12),
+                      if (_selecting) ...[
+                        Text(
+                          l10n.selectedCount(selected.length),
+                          key: const ValueKey('completed-selected-count'),
+                          style: AppTextStyles.body.copyWith(
+                            color: palette.sub,
                           ),
+                        ),
+                        const SizedBox(width: 12),
+                        _HeaderAction(
+                          key: const ValueKey('completed-select-done'),
+                          label: l10n.done,
+                          color: palette.accent,
+                          onPressed: _exitSelection,
+                        ),
+                      ] else ...[
+                        _HeaderAction(
+                          key: const ValueKey('completed-select'),
+                          label: l10n.select,
+                          color: palette.sub,
+                          onPressed: events.isEmpty
+                              ? null
+                              : () => _enterSelection(),
+                        ),
+                        const SizedBox(width: 8),
+                        _HeaderAction(
+                          key: const ValueKey('completed-clear'),
+                          label: l10n.clear,
+                          color: palette.danger,
+                          onPressed: events.isEmpty
+                              ? null
+                              : () => _clearAll(events),
+                        ),
                       ],
                     ],
                   ),
+                ),
+              ),
+              Expanded(
+                child: events.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.completedEmptyTitle,
+                                key: const ValueKey('completed-empty-title'),
+                                style: AppTextStyles.rowTitle.copyWith(
+                                  color: palette.sub,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.completedEmptyHint,
+                                key: const ValueKey('completed-empty-hint'),
+                                style: AppTextStyles.body.copyWith(
+                                  color: palette.subWeak,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView(
+                        key: const ValueKey('completed-list'),
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          24,
+                          16,
+                          _selecting ? _selectionBarClearance : 24,
+                        ),
+                        children: [
+                          for (var i = 0; i < groups.length; i++) ...[
+                            if (i > 0) const SizedBox(height: _groupGap),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                _rowOuterInset,
+                                0,
+                                _rowOuterInset,
+                                _groupTitleGap,
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    groups[i].label,
+                                    style: AppTextStyles.section.copyWith(
+                                      color: palette.ink,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    l10n.itemsCount(groups[i].items.length),
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: palette.sub,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            for (final event in groups[i].items) rowFor(event),
+                          ],
+                        ],
+                      ),
+              ),
+            ],
           ),
+          if (_selecting)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 24,
+              child: Center(
+                child: Container(
+                  key: const ValueKey('completed-selection-bar'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: palette.card,
+                    border: Border.all(color: palette.line),
+                    borderRadius: BorderRadius.circular(AppRadii.card),
+                    boxShadow: kCardShadow,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _SelectionAction(
+                        key: const ValueKey('completed-select-all'),
+                        label: l10n.selectAll,
+                        color: palette.ink,
+                        onPressed: () => _selectAll(displayedIds),
+                      ),
+                      const SizedBox(width: 4),
+                      _SelectionAction(
+                        key: const ValueKey('completed-batch-restore'),
+                        label: l10n.restore,
+                        color: palette.accent,
+                        onPressed: selectedEventList.isEmpty
+                            ? null
+                            : () => _restoreSelected(selectedEventList),
+                      ),
+                      const SizedBox(width: 4),
+                      _SelectionAction(
+                        key: const ValueKey('completed-batch-delete'),
+                        label: l10n.delete,
+                        color: palette.danger,
+                        onPressed: selectedEventList.isEmpty
+                            ? null
+                            : () => _deleteSelected(selectedEventList),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-/// "Delete forever" confirmation shared by row deletes and clear.
+/// "Delete forever" confirmation shared by row deletes, batch deletes and
+/// clear.
 Future<bool> _confirmDelete(BuildContext context, AppLocalizations l10n) async {
   final confirmed = await showDialog<bool>(
     context: context,
@@ -207,80 +501,97 @@ Future<bool> _confirmDelete(BuildContext context, AppLocalizations l10n) async {
   return confirmed ?? false;
 }
 
-class _CompletedRow extends StatelessWidget {
-  const _CompletedRow({
+/// Bare 13px header action (选择 / 清空 / 完成) with a 30px hit area.
+class _HeaderAction extends StatelessWidget {
+  const _HeaderAction({
     super.key,
-    required this.event,
+    required this.label,
     required this.color,
-    required this.onRestore,
-    required this.onDelete,
+    this.onPressed,
   });
 
-  final Event event;
+  final String label;
   final Color color;
-  final VoidCallback onRestore;
-  final VoidCallback onDelete;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette =
-        (theme.brightness == Brightness.light
-                ? AppPalette.light
-                : AppPalette.dark)
-            .withAccent(theme.colorScheme.primary);
-    final l10n = AppLocalizations.of(context);
-    final at = event.completedAt;
-    final time = at == null ? '' : formatMinuteOfDay(at.hour * 60 + at.minute);
+    final palette = _paletteOf(context);
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        disabledForegroundColor: palette.subMuted,
+        textStyle: AppTextStyles.body,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(0, AppSizes.control),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(label),
+    );
+  }
+}
 
-    return SizedBox(
-      height: 30,
-      child: Row(
-        children: [
-          CategoryMarker(kind: event.kind, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              event.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.body.copyWith(
-                color: palette.sub,
-                decoration: TextDecoration.lineThrough,
-              ),
+/// One label in the floating multi-select bar.
+class _SelectionAction extends StatefulWidget {
+  const _SelectionAction({
+    super.key,
+    required this.label,
+    required this.color,
+    this.onPressed,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_SelectionAction> createState() => _SelectionActionState();
+}
+
+class _SelectionActionState extends State<_SelectionAction> {
+  bool _hovering = false;
+
+  void _setHovering(bool hovering) {
+    if (_hovering == hovering) return;
+    setState(() => _hovering = hovering);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _paletteOf(context);
+    final enabled = widget.onPressed != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: enabled ? (_) => _setHovering(true) : null,
+      onExit: enabled ? (_) => _setHovering(false) : null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onPressed,
+        child: Container(
+          height: AppSizes.control,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hovering && enabled ? palette.hover : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadii.button),
+          ),
+          child: Text(
+            widget.label,
+            style: AppTextStyles.body.copyWith(
+              color: enabled ? widget.color : palette.subMuted,
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            event.kind == 'plan' ? l10n.kindPlan : l10n.kindReminder,
-            style: AppTextStyles.caption.copyWith(color: palette.sub),
-          ),
-          const SizedBox(width: 8),
-          Text(time, style: AppTextStyles.caption.copyWith(color: palette.sub)),
-          const SizedBox(width: 2),
-          TextButton(
-            key: ValueKey('completed-restore-${event.id}'),
-            onPressed: onRestore,
-            style: TextButton.styleFrom(
-              foregroundColor: palette.accent,
-              textStyle: AppTextStyles.caption,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: const Size(0, 26),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(l10n.restore),
-          ),
-          IconButton(
-            key: ValueKey('completed-delete-${event.id}'),
-            onPressed: onDelete,
-            icon: const Icon(LucideIcons.trash2, size: 14),
-            color: palette.danger,
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 26, height: 26),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+AppPalette _paletteOf(BuildContext context) {
+  final theme = Theme.of(context);
+  return (theme.brightness == Brightness.light
+          ? AppPalette.light
+          : AppPalette.dark)
+      .withAccent(theme.colorScheme.primary);
 }

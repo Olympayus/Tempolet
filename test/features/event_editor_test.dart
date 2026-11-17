@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/ui/app_segmented.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
@@ -93,6 +94,25 @@ Future<void> _save(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('editor is 480 wide with 34-high fields and 72-high note', (
+    tester,
+  ) async {
+    await _init();
+    await _pumpEditor(
+      tester,
+      date: DateTime(2026, 11, 15),
+      initialKind: EventKind.reminder,
+      startMinute: 540,
+    );
+
+    expect(tester.getSize(find.byType(Dialog)).width, 480);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('editor-title'))).height,
+      34,
+    );
+    expect(tester.getSize(find.byKey(const ValueKey('editor-note'))).height, 72);
+  });
+
   testWidgets('plan defaults to 30 minutes and clamps end at 24:00', (
     tester,
   ) async {
@@ -130,10 +150,10 @@ void main() {
       startMinute: 540,
     );
 
-    final segmented = tester.widget<SegmentedButton<EventKind>>(
-      find.byType(SegmentedButton<EventKind>),
+    final segmented = tester.widget<AppSegmented<EventKind>>(
+      find.byKey(const ValueKey('editor-kind')),
     );
-    expect(segmented.selected, {EventKind.reminder});
+    expect(segmented.selected, EventKind.reminder);
     expect(find.byKey(const ValueKey('end-stepper')), findsNothing);
 
     await _enter(tester, 'start-hour', '10');

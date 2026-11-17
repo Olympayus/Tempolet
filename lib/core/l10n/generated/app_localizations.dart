@@ -404,6 +404,42 @@ abstract class AppLocalizations {
   /// **'Notifications require the app to keep running'**
   String get notificationsRequireAppOpen;
 
+  /// No description provided for @notificationsWindowsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows doesn\'t ask for notification permission; if reminders don\'t appear, allow notifications in system settings'**
+  String get notificationsWindowsNote;
+
+  /// No description provided for @accentHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for today, selections and primary buttons'**
+  String get accentHint;
+
+  /// No description provided for @defaultRemindHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Lead time used when creating a new reminder'**
+  String get defaultRemindHint;
+
+  /// No description provided for @overdueSummaryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarises unfinished items every morning'**
+  String get overdueSummaryHint;
+
+  /// No description provided for @closeToTrayHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps running in the tray after the window closes'**
+  String get closeToTrayHint;
+
+  /// No description provided for @launchAtStartupHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts automatically after you sign in to Windows'**
+  String get launchAtStartupHint;
+
   /// No description provided for @invalidTitle.
   ///
   /// In en, this message translates to:
@@ -524,11 +560,23 @@ abstract class AppLocalizations {
   /// **'Remind'**
   String get leadLabel;
 
+  /// No description provided for @leadHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'How early to send a reminder'**
+  String get leadHelp;
+
   /// No description provided for @categoryLabel.
   ///
   /// In en, this message translates to:
   /// **'Category'**
   String get categoryLabel;
+
+  /// No description provided for @categoryHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for labels and filtering'**
+  String get categoryHelp;
 
   /// No description provided for @uncategorized.
   ///
@@ -575,7 +623,7 @@ abstract class AppLocalizations {
   /// No description provided for @itemsCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} items'**
+  /// **'{count, plural, =1{1 item} other{{count} items}}'**
   String itemsCount(int count);
 
   /// No description provided for @viewCompleted.
@@ -602,6 +650,12 @@ abstract class AppLocalizations {
   /// **'Completed'**
   String get completedTitle;
 
+  /// No description provided for @completedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'completed {date} · {time}'**
+  String completedAt(String date, String time);
+
   /// No description provided for @clear.
   ///
   /// In en, this message translates to:
@@ -613,6 +667,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Restore'**
   String get restore;
+
+  /// No description provided for @select.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get select;
+
+  /// No description provided for @selectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get selectAll;
+
+  /// No description provided for @selectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  String selectedCount(int count);
+
+  /// No description provided for @completedEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing completed yet'**
+  String get completedEmptyTitle;
+
+  /// No description provided for @completedEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed reminders and plans show up here.'**
+  String get completedEmptyHint;
 
   /// No description provided for @todayGroup.
   ///
@@ -701,14 +785,26 @@ abstract class AppLocalizations {
   /// No description provided for @plansCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} plans'**
+  /// **'{count, plural, =1{1 plan} other{{count} plans}}'**
   String plansCount(int count);
 
   /// No description provided for @remindersCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} reminders'**
+  /// **'{count, plural, =1{1 reminder} other{{count} reminders}}'**
   String remindersCount(int count);
+
+  /// No description provided for @planNoun.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{plan} other{plans}}'**
+  String planNoun(int count);
+
+  /// No description provided for @reminderNoun.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{reminder} other{reminders}}'**
+  String reminderNoun(int count);
 
   /// No description provided for @noSchedule.
   ///
@@ -745,6 +841,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remind in 10 minutes'**
   String get notifActionRemind;
+
+  /// No description provided for @navReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders'**
+  String get navReminders;
+
+  /// No description provided for @remindersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders & Plans'**
+  String get remindersTitle;
+
+  /// No description provided for @remindersOverdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Overdue'**
+  String get remindersOverdue;
+
+  /// No description provided for @remindersToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get remindersToday;
+
+  /// No description provided for @remindersThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get remindersThisWeek;
+
+  /// No description provided for @remindersEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No reminders yet'**
+  String get remindersEmptyTitle;
+
+  /// No description provided for @remindersEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a reminder or plan to get started.'**
+  String get remindersEmptyBody;
+
+  /// No description provided for @manageCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage categories'**
+  String get manageCategories;
+
+  /// No description provided for @newCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'New category'**
+  String get newCategory;
+
+  /// No description provided for @newCategoryName.
+  ///
+  /// In en, this message translates to:
+  /// **'New category name'**
+  String get newCategoryName;
+
+  /// No description provided for @add.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get add;
+
+  /// No description provided for @categoryNameExists.
+  ///
+  /// In en, this message translates to:
+  /// **'A category with this name already exists'**
+  String get categoryNameExists;
+
+  /// No description provided for @viewCompletedShort.
+  ///
+  /// In en, this message translates to:
+  /// **'View completed'**
+  String get viewCompletedShort;
+
+  /// No description provided for @filterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get filterAll;
+
+  /// No description provided for @restOfMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'Rest of month'**
+  String get restOfMonth;
+
+  /// No description provided for @futureMonths.
+  ///
+  /// In en, this message translates to:
+  /// **'Next 6 months'**
+  String get futureMonths;
+
+  /// No description provided for @completedChip.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get completedChip;
+
+  /// No description provided for @sidebarEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No schedule'**
+  String get sidebarEmptyTitle;
+
+  /// No description provided for @sidebarEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a reminder or plan to start the day.'**
+  String get sidebarEmptyHint;
+
+  /// No description provided for @plansGroupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Plans'**
+  String get plansGroupTitle;
+
+  /// No description provided for @remindersGroupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders'**
+  String get remindersGroupTitle;
+
+  /// No description provided for @dayOverviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Day overview'**
+  String get dayOverviewTitle;
+
+  /// No description provided for @tomorrowPreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tomorrow preview'**
+  String get tomorrowPreviewTitle;
 }
 
 class _AppLocalizationsDelegate

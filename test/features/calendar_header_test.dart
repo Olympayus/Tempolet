@@ -78,14 +78,9 @@ void main() {
     expect(_headerText('November 2026'), findsOneWidget);
     expect(
       tester
-          .getSize(
-            find.descendant(
-              of: find.byType(CalendarHeader),
-              matching: find.byType(SegmentedButton<CalendarViewMode>),
-            ),
-          )
+          .getSize(find.byKey(const ValueKey('calendar-view-segmented')))
           .height,
-      26,
+      28,
     );
 
     await tester.tap(_headerText('Week'));
@@ -102,6 +97,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(calendarViewModeProvider), CalendarViewMode.month);
     expect(_headerText('November 2026'), findsOneWidget);
+  });
+
+  testWidgets('header is 64 high and order puts segmented before new', (
+    tester,
+  ) async {
+    // The app's minimum desktop width (`docs/design/10-ui-refinement.md` §7):
+    // the title must give way first while the controls keep their order.
+    tester.view.physicalSize = const Size(960, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('calendar-header'))).height,
+      64,
+    );
+    final segX = tester
+        .getCenter(find.byKey(const ValueKey('calendar-view-segmented')))
+        .dx;
+    final newX = tester
+        .getCenter(find.byKey(const ValueKey('calendar-new')))
+        .dx;
+    expect(segX, lessThan(newX));
+
+    // Single-line ellipsizing title, and no control overlaps another.
+    final title = tester.widget<Text>(
+      find.byKey(const ValueKey('calendar-title')),
+    );
+    expect(title.maxLines, 1);
+    expect(title.overflow, TextOverflow.ellipsis);
+    expect(
+      tester.getRect(find.byKey(const ValueKey('calendar-title'))).right,
+      lessThanOrEqualTo(
+        tester.getRect(find.byKey(const ValueKey('calendar-prev'))).left,
+      ),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('calendar-new'))).right,
+      lessThanOrEqualTo(
+        tester
+            .getRect(find.byKey(const ValueKey('calendar-sidebar-toggle')))
+            .left,
+      ),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('month arrows clamp the selected day', (tester) async {

@@ -169,6 +169,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsRequireAppOpen => '通知需要应用保持运行';
 
   @override
+  String get notificationsWindowsNote => 'Windows 不会弹权限请求；收不到提醒请在系统设置中允许通知';
+
+  @override
+  String get accentHint => '用于今天、选中状态与主按钮';
+
+  @override
+  String get defaultRemindHint => '新建提醒时默认使用的提前量';
+
+  @override
+  String get overdueSummaryHint => '每天早上汇总未完成事项';
+
+  @override
+  String get closeToTrayHint => '关闭窗口后继续在托盘运行';
+
+  @override
+  String get launchAtStartupHint => '登录 Windows 后自动启动';
+
+  @override
   String get invalidTitle => '请输入标题';
 
   @override
@@ -233,7 +251,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get leadLabel => '提醒';
 
   @override
+  String get leadHelp => '提前多久发送提醒';
+
+  @override
   String get categoryLabel => '分类';
+
+  @override
+  String get categoryHelp => '用于标记与筛选';
 
   @override
   String get uncategorized => '未分类';
@@ -258,7 +282,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String itemsCount(int count) {
-    return '$count 项';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 项',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -274,10 +303,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String get completedTitle => '已完成';
 
   @override
+  String completedAt(String date, String time) {
+    return '$date $time 完成';
+  }
+
+  @override
   String get clear => '清空';
 
   @override
   String get restore => '恢复';
+
+  @override
+  String get select => '选择';
+
+  @override
+  String get selectAll => '全选';
+
+  @override
+  String selectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已选 $count 项',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get completedEmptyTitle => '还没有已完成事项';
+
+  @override
+  String get completedEmptyHint => '完成后的事项会出现在这里';
 
   @override
   String get todayGroup => '今天';
@@ -323,12 +379,42 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String plansCount(int count) {
-    return '$count 个计划';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个计划',
+    );
+    return '$_temp0';
   }
 
   @override
   String remindersCount(int count) {
-    return '$count 个提醒';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个提醒',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String planNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '个计划',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '个提醒',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -348,4 +434,73 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notifActionRemind => '10 分钟后提醒';
+
+  @override
+  String get navReminders => '提醒';
+
+  @override
+  String get remindersTitle => '提醒与计划';
+
+  @override
+  String get remindersOverdue => '逾期';
+
+  @override
+  String get remindersToday => '今日';
+
+  @override
+  String get remindersThisWeek => '本周';
+
+  @override
+  String get remindersEmptyTitle => '暂无提醒';
+
+  @override
+  String get remindersEmptyBody => '新建一条提醒或计划，开始规划。';
+
+  @override
+  String get manageCategories => '分类管理';
+
+  @override
+  String get newCategory => '新建分类';
+
+  @override
+  String get newCategoryName => '新分类名称';
+
+  @override
+  String get add => '添加';
+
+  @override
+  String get categoryNameExists => '分类名称已存在';
+
+  @override
+  String get viewCompletedShort => '查看已完成';
+
+  @override
+  String get filterAll => '全部';
+
+  @override
+  String get restOfMonth => '本月剩余';
+
+  @override
+  String get futureMonths => '未来 6 个月';
+
+  @override
+  String get completedChip => '查看已完成';
+
+  @override
+  String get sidebarEmptyTitle => '无安排';
+
+  @override
+  String get sidebarEmptyHint => '添加提醒或计划，开始这一天。';
+
+  @override
+  String get plansGroupTitle => '计划';
+
+  @override
+  String get remindersGroupTitle => '提醒';
+
+  @override
+  String get dayOverviewTitle => '当日概览';
+
+  @override
+  String get tomorrowPreviewTitle => '次日预览';
 }

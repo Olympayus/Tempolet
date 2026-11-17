@@ -72,6 +72,12 @@
   "notificationSound": "Notification sound",
   "overdueSummary": "Overdue summary next morning",
   "notificationsRequireAppOpen": "Notifications require the app to keep running",
+  "notificationsWindowsNote": "Windows doesn't ask for notification permission; if reminders don't appear, allow notifications in system settings",
+  "accentHint": "Used for today, selections and primary buttons",
+  "defaultRemindHint": "Lead time used when creating a new reminder",
+  "overdueSummaryHint": "Summarises unfinished items every morning",
+  "closeToTrayHint": "Keeps running in the tray after the window closes",
+  "launchAtStartupHint": "Starts automatically after you sign in to Windows",
   "invalidTitle": "Please enter a title",
   "invalidTimeRange": "End time must be after start time",
   "missingStart": "Please choose a start time",
@@ -106,7 +112,9 @@
   "dayUnit": "d",
   "timeLabel": "Time",
   "leadLabel": "Remind",
+  "leadHelp": "How early to send a reminder",
   "categoryLabel": "Category",
+  "categoryHelp": "Used for labels and filtering",
   "uncategorized": "Uncategorized",
   "noteOptional": "Note (optional)",
   "custom": "Custom…",
@@ -114,7 +122,7 @@
   "leadUnitHour": "h",
   "leadUnitMinute": "m",
   "leadBeforeSuffix": " before",
-  "itemsCount": "{count} items",
+  "itemsCount": "{count, plural, =1{1 item} other{{count} items}}",
   "@itemsCount": {
     "placeholders": {
       "count": {
@@ -126,8 +134,31 @@
   "addReminderOrPlan": "＋ Add reminder or plan",
   "editInSidebar": "Edit in sidebar ›",
   "completedTitle": "Completed",
+  "completedAt": "completed {date} · {time}",
+  "@completedAt": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "clear": "Clear",
   "restore": "Restore",
+  "select": "Select",
+  "selectAll": "Select all",
+  "selectedCount": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "completedEmptyTitle": "Nothing completed yet",
+  "completedEmptyHint": "Completed reminders and plans show up here.",
   "todayGroup": "Today",
   "yesterdayGroup": "Yesterday",
   "earlierGroup": "Earlier",
@@ -142,7 +173,7 @@
   "customColor": "Custom color",
   "confirm": "OK",
   "tomorrowPreview": "Tomorrow",
-  "plansCount": "{count} plans",
+  "plansCount": "{count, plural, =1{1 plan} other{{count} plans}}",
   "@plansCount": {
     "placeholders": {
       "count": {
@@ -150,8 +181,24 @@
       }
     }
   },
-  "remindersCount": "{count} reminders",
+  "remindersCount": "{count, plural, =1{1 reminder} other{{count} reminders}}",
   "@remindersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planNoun": "{count, plural, =1{plan} other{plans}}",
+  "@planNoun": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reminderNoun": "{count, plural, =1{reminder} other{reminders}}",
+  "@reminderNoun": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -163,5 +210,28 @@
   "trayShow": "Show main window",
   "trayQuit": "Quit",
   "notifActionDone": "Done",
-  "notifActionRemind": "Remind in 10 minutes"
+  "notifActionRemind": "Remind in 10 minutes",
+  "navReminders": "Reminders",
+  "remindersTitle": "Reminders & Plans",
+  "remindersOverdue": "Overdue",
+  "remindersToday": "Today",
+  "remindersThisWeek": "This week",
+  "remindersEmptyTitle": "No reminders yet",
+  "remindersEmptyBody": "Add a reminder or plan to get started.",
+  "manageCategories": "Manage categories",
+  "newCategory": "New category",
+  "newCategoryName": "New category name",
+  "add": "Add",
+  "categoryNameExists": "A category with this name already exists",
+  "viewCompletedShort": "View completed",
+  "filterAll": "All",
+  "restOfMonth": "Rest of month",
+  "futureMonths": "Next 6 months",
+  "completedChip": "Completed",
+  "sidebarEmptyTitle": "No schedule",
+  "sidebarEmptyHint": "Add a reminder or plan to start the day.",
+  "plansGroupTitle": "Plans",
+  "remindersGroupTitle": "Reminders",
+  "dayOverviewTitle": "Day overview",
+  "tomorrowPreviewTitle": "Tomorrow preview"
 }

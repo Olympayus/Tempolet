@@ -1,7 +1,9 @@
-#include "win32_window.h"
+﻿#include "win32_window.h"
 
+#include <commctrl.h>
 #include <dwmapi.h>
 #include <flutter_windows.h>
+#include <windowsx.h>
 
 #include "resource.h"
 
@@ -15,6 +17,197 @@ namespace {
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
+
+// DWMWA_WINDOW_CORNER_PREFERENCE (Windows 11); older SDKs do not declare it.
+// DWMWCP_ROUND asks the compositor for the same rounded corners as the stock
+// frame, which the frameless window would otherwise lose.
+constexpr DWORD kDwmwaWindowCornerPreference = 33;
+constexpr int kDwmWindowCornerRound = 2;
+
+// App-drawn title bar geometry in logical pixels, scaled to the window DPI at
+// hit-test time. Keep in sync with lib/core/ui/app_titlebar.dart.
+constexpr int kTitleBarHeight = 32;
+constexpr int kTitleBarButtonWidth = 46;
+constexpr int kTitleBarResizeBorder = 8;
+
+// Distinct from the subclass ids the window_manager/nativeapi plugin uses.
+constexpr UINT_PTR kAppChromeSubclassId = 0x7E4D;
+
+/// Converts |logical| pixels to physical pixels for |window|'s DPI.
+int ScaleForWindow(HWND window, int logical) {
+  UINT dpi = GetDpiForWindow(window);
+  if (dpi == 0) {
+    dpi = FlutterDesktopGetDpiForMonitor(
+        MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST));
+  }
+  return MulDiv(logical, static_cast<int>(dpi), 96);
+}
+
+enum class TitleBarZone { kNone, kCaption, kMinimize, kMaximize, kClose };
+
+/// Whether the app draws the title bar: the client area reaches the top of the
+/// window. With the native frame still in place DefWindowProc keeps the caption
+/// and sizing border, so the custom hit-testing must stay out of the way.
+///
+/// A maximized window is the exception to the rectangle comparison: its frame
+/// hangs past the monitor by the sizing border, while the client area matches
+/// the work area (window_manager clamps it there).
+bool HasAppDrawnTitleBar(HWND window) {
+  POINT client_origin = {0, 0};
+  RECT window_rect = {};
+  if (!ClientToScreen(window, &client_origin) ||
+      !GetWindowRect(window, &window_rect)) {
+    return false;
+  }
+  if (client_origin.y <= window_rect.top) {
+    return true;
+  }
+  if (!IsZoomed(window)) {
+    return false;
+  }
+  MONITORINFO monitor = {sizeof(monitor)};
+  if (!GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST),
+                      &monitor)) {
+    return false;
+  }
+  return client_origin.x == monitor.rcWork.left &&
+         client_origin.y == monitor.rcWork.top;
+}
+
+/// Which part of the app title bar |client_point| (in client coordinates) is
+/// over. Only the top strip is considered; resize borders are handled first by
+/// the caller.
+TitleBarZone TitleBarZoneAt(HWND window,
+                            POINT client_point,
+                            const RECT& client) {
+  if (client_point.x < 0 || client_point.x >= client.right ||
+      client_point.y < 0) {
+    return TitleBarZone::kNone;
+  }
+  if (client_point.y >= ScaleForWindow(window, kTitleBarHeight)) {
+    return TitleBarZone::kNone;
+  }
+  const int button_width = ScaleForWindow(window, kTitleBarButtonWidth);
+  if (client_point.x >= client.right - button_width) {
+    return TitleBarZone::kClose;
+  }
+  if (client_point.x >= client.right - 2 * button_width) {
+    return TitleBarZone::kMaximize;
+  }
+  if (client_point.x >= client.right - 3 * button_width) {
+    return TitleBarZone::kMinimize;
+  }
+  return TitleBarZone::kCaption;
+}
+
+/// Whether |client_point| is on one of the four 8px resize borders. Maximized
+/// windows are not resizable, matching DefWindowProc.
+bool IsOverResizeBorder(HWND window, POINT client_point, const RECT& client) {
+  if (IsZoomed(window)) {
+    return false;
+  }
+  if (client_point.x < 0 || client_point.x >= client.right ||
+      client_point.y < 0 || client_point.y >= client.bottom) {
+    return false;
+  }
+  const int border = ScaleForWindow(window, kTitleBarResizeBorder);
+  return client_point.x < border || client_point.x >= client.right - border ||
+         client_point.y < border || client_point.y >= client.bottom - border;
+}
+
+/// The HT* code for a point the caller already knows is on a resize border.
+LRESULT ResizeBorderHitTest(HWND window,
+                            POINT client_point,
+                            const RECT& client) {
+  const int border = ScaleForWindow(window, kTitleBarResizeBorder);
+  const bool left = client_point.x < border;
+  const bool right = client_point.x >= client.right - border;
+  const bool top = client_point.y < border;
+  const bool bottom = client_point.y >= client.bottom - border;
+  if (top && left) {
+    return HTTOPLEFT;
+  }
+  if (top && right) {
+    return HTTOPRIGHT;
+  }
+  if (bottom && left) {
+    return HTBOTTOMLEFT;
+  }
+  if (bottom && right) {
+    return HTBOTTOMRIGHT;
+  }
+  if (left) {
+    return HTLEFT;
+  }
+  if (right) {
+    return HTRIGHT;
+  }
+  return top ? HTTOP : HTBOTTOM;
+}
+
+/// Hit-tests in the Flutter view would otherwise swallow the app title bar and
+/// resize borders before the top-level window sees them. HTTRANSPARENT passes
+/// the test on to the parent; Windows only does that for windows of the same
+/// thread, which the Flutter view is.
+LRESULT CALLBACK AppChromeChildProc(HWND child,
+                                    UINT message,
+                                    WPARAM wparam,
+                                    LPARAM lparam,
+                                    UINT_PTR subclass_id,
+                                    DWORD_PTR) {
+  if (message == WM_NCHITTEST) {
+    HWND root = GetAncestor(child, GA_ROOT);
+    POINT client_point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+    RECT client = {};
+    if (root != nullptr && root != child && HasAppDrawnTitleBar(root) &&
+        GetWindowThreadProcessId(root, nullptr) == GetCurrentThreadId() &&
+        ScreenToClient(root, &client_point) &&
+        GetClientRect(root, &client)) {
+      if (TitleBarZoneAt(root, client_point, client) != TitleBarZone::kNone ||
+          IsOverResizeBorder(root, client_point, client)) {
+        return HTTRANSPARENT;
+      }
+    }
+  } else if (message == WM_NCDESTROY) {
+    RemoveWindowSubclass(child, AppChromeChildProc, subclass_id);
+  }
+  return DefSubclassProc(child, message, wparam, lparam);
+}
+
+/// Makes |child| step aside for the app-drawn title bar. Idempotent.
+void AttachAppChromeHitTest(HWND child) {
+  if (child == nullptr) {
+    return;
+  }
+  if (!SetWindowSubclass(child, AppChromeChildProc, kAppChromeSubclassId, 0)) {
+    // Without the subclass the Flutter view keeps every hit test and the title
+    // bar stops working; say so instead of failing silently.
+    OutputDebugStringW(
+        L"tempolet: SetWindowSubclass failed for the Flutter view\n");
+  }
+}
+
+/// DWM attributes for the frameless window: Windows 11 rounded corners and a
+/// frame extended into the client area so the compositor would keep drawing the
+/// window shadow.
+///
+/// Caveat, not yet GUI-verified: window_manager 0.6 (nativeapi) applies its own
+/// frame extent when the title bar style is set from Dart, after this runs. It
+/// resets the margins to 0 for a window without a visual effect, disables
+/// non-client rendering for an explicit-frameless window and draws the shadow
+/// from its own layered-window implementation instead. The corner preference
+/// attribute is not touched by nativeapi and persists, but with NC rendering
+/// disabled the rounded corners may not be rendered. Treat this as the runner's
+/// baseline call only: acceptance item 6 (rounded corners + shadow) is a
+/// PENDING-MANUAL check; if it fails, annotate docs/design/10-ui-refinement.md
+/// §4 as the plan requires.
+void ApplyTitleBarDwm(HWND window) {
+  const int corner = kDwmWindowCornerRound;
+  DwmSetWindowAttribute(window, kDwmwaWindowCornerPreference, &corner,
+                        sizeof(corner));
+  const MARGINS margins = {-1, -1, -1, -1};
+  DwmExtendFrameIntoClientArea(window, &margins);
+}
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
@@ -145,6 +338,7 @@ bool Win32Window::Create(const std::wstring& title,
   }
 
   UpdateTheme(window);
+  ApplyTitleBarDwm(window);
 
   return OnCreate();
 }
@@ -198,20 +392,154 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
     }
     case WM_SIZE: {
-      RECT rect = GetClientArea();
-      if (child_content_ != nullptr) {
-        // Size and position the child window.
-        MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
-                   rect.bottom - rect.top, TRUE);
-      }
+      ResizeChildContent();
       return 0;
     }
 
+    // Removing the frame changes the client area without changing the window
+    // size, so no WM_SIZE follows; keep the Flutter view over the whole window.
+    case WM_WINDOWPOSCHANGED:
+      ResizeChildContent();
+      break;
+
     case WM_ACTIVATE:
+      if (LOWORD(wparam) == WA_INACTIVE) {
+        tracking_nc_mouse_ = false;
+        UpdateTitleBarHover(TitleBarButton::kNone);
+      }
       if (child_content_ != nullptr) {
         SetFocus(child_content_);
       }
       return 0;
+
+    // App-drawn title bar (design 10-ui-refinement §4, decision D60): the top
+    // 32 logical px are the caption, the rightmost three 46px cells are the
+    // window buttons, and all four edges keep an 8px resize border. Answering
+    // HTMAXBUTTON here is also what makes the Windows Snap layout preview
+    // appear over the maximize button.
+    case WM_NCHITTEST: {
+      if (!HasAppDrawnTitleBar(hwnd)) {
+        break;
+      }
+      POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+      ScreenToClient(hwnd, &point);
+      RECT client = {};
+      GetClientRect(hwnd, &client);
+      // Borders win over the caption so every edge and corner stays grabbable;
+      // this matches how the stock frame behaves near the top corners.
+      if (IsOverResizeBorder(hwnd, point, client)) {
+        return ResizeBorderHitTest(hwnd, point, client);
+      }
+      switch (TitleBarZoneAt(hwnd, point, client)) {
+        case TitleBarZone::kClose:
+          return HTCLOSE;
+        case TitleBarZone::kMaximize:
+          return HTMAXBUTTON;
+        case TitleBarZone::kMinimize:
+          return HTMINBUTTON;
+        case TitleBarZone::kCaption:
+          return HTCAPTION;
+        case TitleBarZone::kNone:
+          break;
+      }
+      return HTCLIENT;
+    }
+
+    // Flutter paints the buttons; the system runs their commands so the
+    // minimize animation, Snap and the close-to-tray path stay native.
+    case WM_NCLBUTTONDOWN:
+      if (!HasAppDrawnTitleBar(hwnd)) {
+        break;
+      }
+      switch (wparam) {
+        case HTMAXBUTTON:
+          PostMessage(hwnd, WM_SYSCOMMAND,
+                      IsZoomed(hwnd) ? SC_RESTORE : SC_MAXIMIZE, 0);
+          return 0;
+        case HTMINBUTTON:
+          PostMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
+          return 0;
+        case HTCLOSE:
+          // SC_CLOSE, not WM_CLOSE: window_manager/nativeapi treats WM_CLOSE as
+          // the mandatory close path and destroys the window, while SC_CLOSE is
+          // the cancellable request its prevent-close/tray handling intercepts
+          // (cnativeapi window_close_windows.cpp). Same as the native button.
+          PostMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+          return 0;
+        default:
+          break;
+      }
+      break;
+
+    // Tell Flutter which title bar button the pointer is over; it owns the
+    // hover paint. WM_NCMOUSELEAVE (armed below) and moves into the client
+    // area clear it again.
+    case WM_NCMOUSEMOVE: {
+      if (!HasAppDrawnTitleBar(hwnd)) {
+        break;
+      }
+      POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+      ScreenToClient(hwnd, &point);
+      RECT client = {};
+      GetClientRect(hwnd, &client);
+      TitleBarButton button = TitleBarButton::kNone;
+      // Same precedence as WM_NCHITTEST: the resize border wins, so the outer
+      // 8px of a button does not light up while a click there resizes.
+      if (!IsOverResizeBorder(hwnd, point, client)) {
+        switch (TitleBarZoneAt(hwnd, point, client)) {
+          case TitleBarZone::kMinimize:
+            button = TitleBarButton::kMinimize;
+            break;
+          case TitleBarZone::kMaximize:
+            button = TitleBarButton::kMaximize;
+            break;
+          case TitleBarZone::kClose:
+            button = TitleBarButton::kClose;
+            break;
+          default:
+            break;
+        }
+      }
+      UpdateTitleBarHover(button);
+      if (!tracking_nc_mouse_) {
+        TRACKMOUSEEVENT track = {sizeof(track), TME_LEAVE | TME_NONCLIENT, hwnd,
+                                 0};
+        tracking_nc_mouse_ = TrackMouseEvent(&track) != FALSE;
+      }
+      return 0;
+    }
+
+    case WM_NCMOUSELEAVE:
+      tracking_nc_mouse_ = false;
+      UpdateTitleBarHover(TitleBarButton::kNone);
+      break;
+
+    case WM_MOUSEMOVE:
+      UpdateTitleBarHover(TitleBarButton::kNone);
+      break;
+
+    // Later child windows (a recreated Flutter view, for one) must step aside
+    // for the title bar too.
+    case WM_PARENTNOTIFY:
+      if (LOWORD(wparam) == WM_CREATE) {
+        AttachAppChromeHitTest(reinterpret_cast<HWND>(lparam));
+      }
+      break;
+
+    // The window keeps its native WS_CAPTION style on purpose (window_manager
+    // needs it for maximize/Snap and fullscreen detection), so DefWindowProc
+    // still paints the classic caption and frame on activation — a Windows 7
+    // style title bar flashing over the app-drawn one when the window is
+    // switched to. The app window is frameless: never let those paints land.
+    case WM_NCACTIVATE:
+      if (HasAppDrawnTitleBar(hwnd)) return TRUE;
+      break;
+
+    case WM_NCPAINT:
+    case 0x00AE:  // WM_NCUAHDRAWCAPTION: undocumented themed-caption draw
+    case 0x00AF:  // WM_NCUAHDRAWFRAME
+      if (HasAppDrawnTitleBar(hwnd)) return 0;
+      break;
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
@@ -246,7 +574,38 @@ void Win32Window::SetChildContent(HWND content) {
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
              frame.bottom - frame.top, true);
 
+  // Make the title bar and resize borders reach this window's message handler.
+  AttachAppChromeHitTest(content);
+
   SetFocus(child_content_);
+}
+
+void Win32Window::ResizeChildContent() {
+  if (child_content_ == nullptr) {
+    return;
+  }
+  RECT client = GetClientArea();
+  // WM_SIZE and WM_WINDOWPOSCHANGED both arrive for one resize; only move the
+  // child when it does not already cover the client area.
+  RECT content = {};
+  if (GetWindowRect(child_content_, &content)) {
+    MapWindowPoints(HWND_DESKTOP, window_handle_,
+                    reinterpret_cast<POINT*>(&content), 2);
+    if (content.left == client.left && content.top == client.top &&
+        content.right == client.right && content.bottom == client.bottom) {
+      return;
+    }
+  }
+  MoveWindow(child_content_, client.left, client.top, client.right - client.left,
+             client.bottom - client.top, TRUE);
+}
+
+void Win32Window::UpdateTitleBarHover(TitleBarButton button) {
+  if (button == title_bar_button_) {
+    return;
+  }
+  title_bar_button_ = button;
+  OnTitleBarHover(button);
 }
 
 RECT Win32Window::GetClientArea() {

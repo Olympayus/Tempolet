@@ -170,6 +170,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Notifications require the app to keep running';
 
   @override
+  String get notificationsWindowsNote =>
+      'Windows doesn\'t ask for notification permission; if reminders don\'t appear, allow notifications in system settings';
+
+  @override
+  String get accentHint => 'Used for today, selections and primary buttons';
+
+  @override
+  String get defaultRemindHint => 'Lead time used when creating a new reminder';
+
+  @override
+  String get overdueSummaryHint => 'Summarises unfinished items every morning';
+
+  @override
+  String get closeToTrayHint =>
+      'Keeps running in the tray after the window closes';
+
+  @override
+  String get launchAtStartupHint =>
+      'Starts automatically after you sign in to Windows';
+
+  @override
   String get invalidTitle => 'Please enter a title';
 
   @override
@@ -234,7 +255,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get leadLabel => 'Remind';
 
   @override
+  String get leadHelp => 'How early to send a reminder';
+
+  @override
   String get categoryLabel => 'Category';
+
+  @override
+  String get categoryHelp => 'Used for labels and filtering';
 
   @override
   String get uncategorized => 'Uncategorized';
@@ -259,7 +286,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String itemsCount(int count) {
-    return '$count items';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -275,10 +308,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get completedTitle => 'Completed';
 
   @override
+  String completedAt(String date, String time) {
+    return 'completed $date · $time';
+  }
+
+  @override
   String get clear => 'Clear';
 
   @override
   String get restore => 'Restore';
+
+  @override
+  String get select => 'Select';
+
+  @override
+  String get selectAll => 'Select all';
+
+  @override
+  String selectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get completedEmptyTitle => 'Nothing completed yet';
+
+  @override
+  String get completedEmptyHint =>
+      'Completed reminders and plans show up here.';
 
   @override
   String get todayGroup => 'Today';
@@ -324,12 +386,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String plansCount(int count) {
-    return '$count plans';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count plans',
+      one: '1 plan',
+    );
+    return '$_temp0';
   }
 
   @override
   String remindersCount(int count) {
-    return '$count reminders';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count reminders',
+      one: '1 reminder',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String planNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'plans',
+      one: 'plan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderNoun(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'reminders',
+      one: 'reminder',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -349,4 +445,73 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notifActionRemind => 'Remind in 10 minutes';
+
+  @override
+  String get navReminders => 'Reminders';
+
+  @override
+  String get remindersTitle => 'Reminders & Plans';
+
+  @override
+  String get remindersOverdue => 'Overdue';
+
+  @override
+  String get remindersToday => 'Today';
+
+  @override
+  String get remindersThisWeek => 'This week';
+
+  @override
+  String get remindersEmptyTitle => 'No reminders yet';
+
+  @override
+  String get remindersEmptyBody => 'Add a reminder or plan to get started.';
+
+  @override
+  String get manageCategories => 'Manage categories';
+
+  @override
+  String get newCategory => 'New category';
+
+  @override
+  String get newCategoryName => 'New category name';
+
+  @override
+  String get add => 'Add';
+
+  @override
+  String get categoryNameExists => 'A category with this name already exists';
+
+  @override
+  String get viewCompletedShort => 'View completed';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get restOfMonth => 'Rest of month';
+
+  @override
+  String get futureMonths => 'Next 6 months';
+
+  @override
+  String get completedChip => 'Completed';
+
+  @override
+  String get sidebarEmptyTitle => 'No schedule';
+
+  @override
+  String get sidebarEmptyHint => 'Add a reminder or plan to start the day.';
+
+  @override
+  String get plansGroupTitle => 'Plans';
+
+  @override
+  String get remindersGroupTitle => 'Reminders';
+
+  @override
+  String get dayOverviewTitle => 'Day overview';
+
+  @override
+  String get tomorrowPreviewTitle => 'Tomorrow preview';
 }

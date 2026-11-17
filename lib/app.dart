@@ -17,6 +17,7 @@ class TempoletApp extends ConsumerWidget {
     final locale = ref.watch(localeControllerProvider);
 
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: AppTheme.light(theme.accent),
       darkTheme: AppTheme.dark(theme.accent),

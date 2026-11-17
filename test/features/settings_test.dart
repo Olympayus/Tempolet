@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tempolet/core/app_info.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/l10n/locale_controller.dart';
 import 'package:tempolet/core/prefs.dart';
@@ -118,7 +119,7 @@ void main() {
   testWidgets('settings shows version and groups', (tester) async {
     await pumpSettings(tester, locale: const Locale('zh'));
 
-    expect(find.text('0.1.2'), findsOneWidget);
+    expect(find.text(kAppVersion), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
     expect(find.text('外观'), findsOneWidget);
     expect(find.text('通知'), findsOneWidget);
@@ -329,7 +330,7 @@ void main() {
   ) async {
     await pumpSettings(tester, locale: const Locale('zh'));
 
-    final version = tester.widget<Text>(find.text('0.1.2'));
+    final version = tester.widget<Text>(find.text(kAppVersion));
     expect(version.style?.fontSize, 13);
     expect(version.style?.color, _palette(tester).sub);
 
@@ -491,7 +492,7 @@ void main() {
   testWidgets('about group offers the data folder action', (tester) async {
     await pumpSettings(tester);
 
-    expect(find.text('0.1.2'), findsOneWidget);
+    expect(find.text(kAppVersion), findsOneWidget);
     expect(find.byKey(const ValueKey('open-data-folder')), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const ValueKey('open-data-folder')));

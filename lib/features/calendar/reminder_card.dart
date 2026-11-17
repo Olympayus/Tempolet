@@ -15,8 +15,10 @@ import 'category_marker.dart';
 ///
 /// Ticking the circle fades the card for 120ms and then calls [onComplete];
 /// the parent owns the actual write so it can capture its repository before
-/// the delay. When [onUndo] is set and the event is already completed, tapping
-/// the circle calls it immediately instead, keeping the card in place.
+/// the delay. [retainInPlace] marks the reminders page's cards, which stay
+/// mounted after completion: they complete without the fade because the page
+/// sweeps the strike in place instead. When [onUndo] is set and the event is
+/// already completed, tapping the circle undoes it.
 class ReminderCard extends ConsumerStatefulWidget {
   const ReminderCard({
     super.key,
@@ -26,6 +28,7 @@ class ReminderCard extends ConsumerStatefulWidget {
     this.onTap,
     this.onComplete,
     this.onUndo,
+    this.retainInPlace = false,
     this.progress,
     this.titleBuilder,
   });
@@ -41,6 +44,10 @@ class ReminderCard extends ConsumerStatefulWidget {
   /// Reverts a completed event without the completion fade.
   final Future<void> Function()? onUndo;
 
+  /// Keeps the card mounted after completion (reminders page): completing
+  /// skips the 120ms fade so the card never dims and bounces back.
+  final bool retainInPlace;
+
   /// External fill progress for the completion circle while the strike-through
   /// animates.
   final double? progress;
@@ -54,6 +61,10 @@ class ReminderCard extends ConsumerStatefulWidget {
 
 class _ReminderCardState extends ConsumerState<ReminderCard> {
   bool _completing = false;
+
+  /// Guards the retained path against a double tap while the write is in
+  /// flight; the fade path is already guarded by [_completing].
+  bool _submitting = false;
 
   /// The reminders page keeps this card mounted after completion and owns the
   /// completed snapshot. Without resetting the local fade flag, undo would
@@ -69,7 +80,24 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
 
   Future<void> _complete() async {
     final onComplete = widget.onComplete;
-    if (_completing || widget.event.isCompleted || onComplete == null) return;
+    if (_completing ||
+        _submitting ||
+        widget.event.isCompleted ||
+        onComplete == null) {
+      return;
+    }
+    // A retained card stays where it is and the page sweeps the strike in
+    // place (`08-motion.md`): dimming it for 120ms and bouncing back would
+    // read as a flash, so the write starts immediately instead.
+    if (widget.retainInPlace) {
+      _submitting = true;
+      try {
+        await onComplete();
+      } finally {
+        _submitting = false;
+      }
+      return;
+    }
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     setState(() => _completing = true);
     // Let the fade read as "done" before the completion is written; motion is
@@ -109,15 +137,19 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
     final time = event.startMinute == null
         ? l10n.allDay
         : formatMinuteOfDay(event.startMinute!);
-    // The builder owns its strike-through, so it only receives body + colour;
-    // the default title still paints the completed decoration itself.
+    // The builder owns its strike-through and colour sweep, so it always
+    // receives the pending ink style; the default title still paints the
+    // completed colour and decoration itself.
     final titleStyle = AppTextStyles.body.copyWith(
       fontWeight: FontWeight.w700,
       fontVariations: const [FontVariation('wght', 700)],
-      color: done ? palette.sub : palette.ink,
+      color: palette.ink,
     );
     final defaultTitleStyle = done
-        ? titleStyle.copyWith(decoration: TextDecoration.lineThrough)
+        ? titleStyle.copyWith(
+            color: palette.sub,
+            decoration: TextDecoration.lineThrough,
+          )
         : titleStyle;
 
     return AnimatedOpacity(

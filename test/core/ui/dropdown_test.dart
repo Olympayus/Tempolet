@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -270,6 +271,56 @@ void main() {
       8,
     );
     expect(find.byKey(const ValueKey('app-dropdown-dot-b')), findsNothing);
+  });
+
+  testWidgets('hovering a visible row does not scroll the panel', (
+    tester,
+  ) async {
+    final items = [
+      for (var i = 0; i < 30; i++)
+        AppDropdownItem(value: 'v$i', label: 'Item $i'),
+    ];
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 160,
+          child: AppDropdown<String>(
+            value: 'v0',
+            items: items,
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(_triggerKey));
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(_panelKey);
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: panel, matching: find.byType(Scrollable)),
+        )
+        .position;
+    expect(position.pixels, 0);
+
+    // Row 12 sits well inside the visible part of the capped panel; hover
+    // must only highlight it, not centre it (which would scroll the list).
+    final row = find.byKey(const ValueKey('app-dropdown-item-v12'));
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(row));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(position.pixels, 0);
+    // The hover still marks the row active.
+    final fill = tester.widget<AnimatedContainer>(
+      find.descendant(of: row, matching: find.byType(AnimatedContainer)),
+    );
+    expect(
+      (fill.decoration! as BoxDecoration).color,
+      isNot(Colors.transparent),
+    );
   });
 
   testWidgets('arrow keys keep the active row inside a short panel', (

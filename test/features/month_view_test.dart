@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -252,6 +253,37 @@ void main() {
     expect(find.byKey(const ValueKey('month-preview')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 360));
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+  });
+
+  testWidgets('leaving the cell while the preview closes allows a reopen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    final cell = tester.getCenter(
+      find.byKey(const ValueKey('month-day-2026-11-19')),
+    );
+    await gesture.moveTo(cell);
+    await tester.pump(const Duration(milliseconds: 360));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+
+    // Leave the cell (clearing the hover) and dismiss the popover while the
+    // pointer is away. The close must not re-arm suppression for a cell the
+    // pointer has already left.
+    await gesture.moveTo(const Offset(2, 2));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+
+    // Coming back must open it again after the hover delay.
+    await gesture.moveTo(cell);
+    await tester.pump(const Duration(milliseconds: 360));
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
   });
 

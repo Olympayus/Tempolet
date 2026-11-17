@@ -236,12 +236,17 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
     super.dispose();
   }
 
-  void _setActive(int index) {
+  /// Highlights [index]. Only keyboard navigation asks for [reveal]: pointer
+  /// hover follows the row under the cursor, and scrolling that row to the
+  /// centre would move the list out from under it (the new rows dispatched
+  /// after the scroll would then re-trigger hover).
+  void _setActive(int index, {bool reveal = false}) {
     if (_showActiveFill && _activeIndex == index) return;
     setState(() {
       _activeIndex = index;
       _showActiveFill = true;
     });
+    if (!reveal) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final rowContext = _rowKeys[_activeIndex].currentContext;
@@ -260,12 +265,13 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowDown) {
-      _setActive((_activeIndex + 1) % widget.items.length);
+      _setActive((_activeIndex + 1) % widget.items.length, reveal: true);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp) {
       _setActive(
         (_activeIndex - 1 + widget.items.length) % widget.items.length,
+        reveal: true,
       );
       return KeyEventResult.handled;
     }

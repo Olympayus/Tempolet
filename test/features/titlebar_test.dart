@@ -72,7 +72,7 @@ void main() {
     }
   });
 
-  testWidgets('rail background, bottom hairline and 12px app name at x=14', (
+  testWidgets('nav background, bottom hairline and 12px app name at x=14', (
     tester,
   ) async {
     await tester.pumpWidget(_app(_titlebar()));

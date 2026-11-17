@@ -106,6 +106,38 @@ void main() {
     expect(circle.borderColor, AppPalette.light.danger);
   });
 
+  testWidgets('a retained card completes without dimming', (tester) async {
+    var completed = 0;
+    await tester.pumpWidget(
+      _app(
+        ReminderCard(
+          event: _event(),
+          overdue: false,
+          showCheckbox: true,
+          // The reminders page keeps every timeline card mounted.
+          retainInPlace: true,
+          onComplete: () async {
+            completed++;
+          },
+          onUndo: () async {},
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('complete-e1')));
+    await tester.pump();
+
+    // The write starts immediately: no 120ms fade and no 0.35 opacity target.
+    expect(completed, 1);
+    final cardOpacity = find
+        .descendant(
+          of: find.byType(ReminderCard),
+          matching: find.byType(AnimatedOpacity),
+        )
+        .first;
+    expect(tester.widget<AnimatedOpacity>(cardOpacity).opacity, 1);
+  });
+
   testWidgets('titleBuilder replaces the card title and owns the strike', (
     tester,
   ) async {
@@ -128,7 +160,8 @@ void main() {
     expect(find.text('custom'), findsOneWidget);
     expect(find.text('寄快递'), findsNothing);
     final custom = tester.widget<Text>(find.text('custom'));
-    expect(custom.style?.color, AppPalette.light.sub);
+    // The builder receives the pending ink style and sweeps it itself.
+    expect(custom.style?.color, AppPalette.light.ink);
     // The builder draws the strike-through itself.
     expect(custom.style?.decoration, isNull);
   });

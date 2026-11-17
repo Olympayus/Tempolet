@@ -5,6 +5,9 @@ import '../../../core/l10n/generated/app_localizations.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/ui/app_dropdown.dart';
 
+/// Height of one custom numeric segment, matching `SegmentedDateField`.
+const double _segmentHeight = 28;
+
 /// Reminder lead-time picker.
 ///
 /// External semantics: null = no reminder, 0 = at the start, N = minutes before
@@ -245,7 +248,7 @@ class _CustomSegment extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 34,
-      height: 28,
+      height: _segmentHeight,
       child: ListenableBuilder(
         listenable: focusNode,
         builder: (context, _) {

@@ -136,11 +136,13 @@ class _MonthViewState extends ConsumerState<MonthView> {
     );
     future.whenComplete(() {
       if (!mounted || _openPreviewDay != day) return;
-      // Dismissed by an outside tap, Escape or ×. Keep the cell hovered but
-      // suppressed until the pointer leaves and enters again.
+      // Dismissed by an outside tap, Escape or ×. Suppress only while the
+      // pointer still rests on the cell, so leaving and coming back can open
+      // it again. If the pointer already left, `_exitCell` cleared the
+      // suppression and re-arming it here would swallow the next hover.
       _openPreviewDay = null;
       _closePreview = null;
-      _suppressedDay = day;
+      if (_hoveredDay == day) _suppressedDay = day;
     });
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,7 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
+import 'package:tempolet/features/events/event_list_row.dart';
 import 'package:tempolet/features/reminders/category_order.dart';
 import 'package:tempolet/features/reminders/reminders_page.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
@@ -111,6 +114,20 @@ Finder _inCategoryList(Finder matching) => find.descendant(
   of: find.byKey(const ValueKey('reminders-category-mode')),
   matching: matching,
 );
+
+/// Holds completion writes until [gate] completes, so a test can leave
+/// `/reminders` while a write is still in flight.
+class _GatedEventRepository extends EventRepository {
+  _GatedEventRepository(super.db);
+
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<void> setCompleted(String id, bool value) async {
+    await gate.future;
+    await super.setCompleted(id, value);
+  }
+}
 
 void main() {
   late AppDatabase db;
@@ -368,6 +385,35 @@ void main() {
     expect(_inCategoryList(find.text('Plan A')), findsOneWidget);
   });
 
+  testWidgets('kind filters also narrow the today and week counts', (
+    tester,
+  ) async {
+    await seed('Reminder A', date: _today, startMinute: 600);
+    await seed(
+      'Plan A',
+      kind: 'plan',
+      date: _today,
+      startMinute: 700,
+      endMinute: 760,
+    );
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    expect(find.text('今日 2'), findsOneWidget);
+    expect(find.text('本周 2'), findsOneWidget);
+
+    await tester.tap(find.text('计划'));
+    await _settle(tester);
+    expect(find.text('今日 1'), findsOneWidget);
+    expect(find.text('本周 1'), findsOneWidget);
+
+    await tester.tap(find.text('提醒'));
+    await _settle(tester);
+    expect(find.text('今日 1'), findsOneWidget);
+    expect(find.text('本周 1'), findsOneWidget);
+  });
+
   testWidgets('group toggle collapses and reopens its rows', (tester) async {
     await seed('Collapsible task', date: _today);
 
@@ -448,6 +494,10 @@ void main() {
 
     expect(rowOf(event.id), findsOneWidget);
     expect(rowStrike(event.id), findsOneWidget);
+    // A retained row is read-only apart from its circle: no editor on tap.
+    final row = tester.widget<EventListRow>(rowOf(event.id));
+    expect(row.onTap, isNull);
+    expect(row.onToggleComplete, isNotNull);
     // The group count still shows the item and the day/week stats count it.
     expect(find.text('1'), findsWidgets);
     expect(find.text('今日 1'), findsOneWidget);
@@ -548,6 +598,50 @@ void main() {
     expect(rowOf(event.id), findsNothing);
     expect(find.byType(StrikeThroughText), findsNothing);
   });
+
+  testWidgets(
+    'leaving during an in-flight completion does not retain the row',
+    (tester) async {
+      final event = await seed('Race me', date: _today);
+      final router = _testRouter();
+      addTearDown(router.dispose);
+      final gated = _GatedEventRepository(db);
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          databaseProvider.overrideWithValue(db),
+          notificationServiceProvider.overrideWithValue(
+            FakeNotificationService(),
+          ),
+          todayProvider.overrideWithValue(_today),
+          routerProvider.overrideWithValue(router),
+          eventRepositoryProvider.overrideWithValue(gated),
+        ],
+      );
+
+      await tester.pumpWidget(_routerApp(container, router));
+      await _settle(tester);
+
+      await tester.tap(rowCircle(event.id));
+      // Leave the page before the gated write finishes. The indexed stack keeps
+      // the page mounted, so only the route state can tell it was left.
+      router.go('/other');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('other-page')), findsOneWidget);
+
+      gated.gate.complete();
+      await _settle(tester);
+
+      router.go('/reminders');
+      await _settle(tester);
+
+      expect(rowOf(event.id), findsNothing);
+      expect(find.byType(StrikeThroughText), findsNothing);
+      final stored = await tester.runAsync(() => repo.getById(event.id));
+      expect(stored!.isCompleted, isTrue);
+    },
+  );
 
   testWidgets('left column keeps completed cards, counts them, and undoes', (
     tester,
@@ -653,6 +747,61 @@ void main() {
     final recompleted = await tester.runAsync(() => repo.getById(event.id));
     expect(recompleted!.isCompleted, isTrue);
   });
+
+  testWidgets(
+    'timeline completion skips the fade and sweeps the title colour',
+    (tester) async {
+      final event = await seed('Sweep task', date: _today, startMinute: 540);
+
+      await tester.pumpWidget(_pageApp(container));
+      await _settle(tester);
+
+      final card = find.byKey(ValueKey('reminders-timeline-event-${event.id}'));
+      final circle = find.descendant(
+        of: card,
+        matching: find.byKey(ValueKey('complete-${event.id}')),
+      );
+      double cardOpacity() => tester
+          .widget<AnimatedOpacity>(
+            find
+                .descendant(of: card, matching: find.byType(AnimatedOpacity))
+                .first,
+          )
+          .opacity;
+      StrikeThroughText strike() => tester.widget<StrikeThroughText>(
+        find.descendant(of: card, matching: find.byType(StrikeThroughText)),
+      );
+
+      await tester.tap(circle);
+      // The card must not dim while the write is in flight.
+      await tester.pump();
+      expect(cardOpacity(), 1);
+
+      // Let the write land without advancing the animation clock.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await tester.pump();
+
+      // The title starts at the pending ink colour, not the completed `sub`.
+      expect(strike().progress, 0);
+      expect(strike().style.color, AppPalette.light.ink);
+
+      await tester.pump(const Duration(milliseconds: 100));
+      final mid = strike();
+      expect(mid.progress, greaterThan(0));
+      expect(mid.progress, lessThan(1));
+      // The same progress drives the colour sweep, so mid-animation it is
+      // neither the pending ink nor the completed sub.
+      expect(mid.style.color, isNot(AppPalette.light.ink));
+      expect(mid.style.color, isNot(AppPalette.light.sub));
+
+      await tester.pumpAndSettle();
+      expect(strike().progress, 1);
+      expect(strike().style.color, AppPalette.light.sub);
+      expect(cardOpacity(), 1);
+    },
+  );
 
   testWidgets('reduce motion jumps straight to the completed state', (
     tester,

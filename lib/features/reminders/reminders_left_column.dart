@@ -304,6 +304,12 @@ class _TimelineReminder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final end = retained ? 1.0 : 0.0;
     // Reduce-motion (or an already-animated retake) starts at the terminal
@@ -319,6 +325,7 @@ class _TimelineReminder extends StatelessWidget {
           event: event,
           overdue: overdue,
           showCheckbox: true,
+          retainInPlace: true,
           onTap: retained
               ? null
               : () => showEventEditor(context, existing: event),
@@ -327,10 +334,16 @@ class _TimelineReminder extends StatelessWidget {
               : () => onComplete!(event),
           onUndo: !retained || onUndo == null ? null : () => onUndo!(event),
           progress: retained ? progress : null,
+          // Card titles get the same ink→sub sweep as the right-hand rows:
+          // the shared progress drives both the colour and the line.
           titleBuilder: retained
               ? (context, style) => StrikeThroughText(
                   text: event.title,
-                  style: style,
+                  style: TextStyle.lerp(
+                    style,
+                    style.copyWith(color: palette.sub),
+                    progress,
+                  )!,
                   progress: progress,
                 )
               : null,

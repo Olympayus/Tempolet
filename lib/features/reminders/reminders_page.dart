@@ -78,6 +78,13 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   /// Ids that completed during this session (drives the one-shot animation).
   final Set<String> _animatedIds = <String>{};
 
+  /// Set while the router is on another branch (`/reminders/completed`,
+  /// `/reminders/categories`, the calendar, settings). The indexed stack keeps
+  /// this page mounted, so `mounted` cannot tell whether the user is still
+  /// looking at it; an in-flight completion needs this flag to avoid dropping
+  /// a retained row into a page the user already left.
+  bool _leftPage = false;
+
   late final GoRouter _router;
 
   @override
@@ -98,8 +105,10 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   /// and any other branch all count as leaving the reminders page.
   void _onRouteChanged() {
     if (!mounted) return;
-    final path = _router.routerDelegate.currentConfiguration.uri.path;
-    if (path != '/reminders' && _recentlyCompleted.isNotEmpty) {
+    final onReminders =
+        _router.routerDelegate.currentConfiguration.uri.path == '/reminders';
+    _leftPage = !onReminders;
+    if (!onReminders && _recentlyCompleted.isNotEmpty) {
       setState(() {
         _recentlyCompleted.clear();
         _animatedIds.clear();
@@ -197,7 +206,10 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       isCompleted: true,
       completedAt: Value(DateTime.now()),
     );
-    if (mounted) {
+    // The write outlives a route change: if the user left `/reminders` while
+    // it was in flight, the item belongs in the completed page, not in a
+    // retained row on a page they are no longer looking at.
+    if (mounted && !_leftPage) {
       setState(() {
         _recentlyCompleted[event.id] = snapshot;
         _animatedIds.add(event.id);
@@ -392,11 +404,11 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
 
     final todayDisplay = _mergeById(
       retained.where((event) => inRange(event, today, tomorrow)),
-      todayEvents,
+      _filtered(todayEvents),
     );
     final weekDisplay = _mergeById(
       retained.where((event) => inRange(event, weekStart, weekEnd)),
-      weekEvents,
+      _filtered(weekEvents),
     );
 
     final knownIds = {for (final category in categories) category.id};

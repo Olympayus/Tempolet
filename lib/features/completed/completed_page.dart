@@ -40,7 +40,8 @@ const double _selectionBarClearance = 96;
 /// Groups by completion day, restores or permanently deletes rows, clears the
 /// list behind a confirmation, and (new in v0.1.3) layers a multi-select mode
 /// over the same list: long-press a row or press 选择, then act on the
-/// selection with 全选 / 恢复 / 删除.
+/// selection with 全选 / 全部取消 / 恢复 / 删除. Esc or the header's 完成
+/// leaves the mode and clears the selection.
 class CompletedPage extends ConsumerStatefulWidget {
   const CompletedPage({super.key});
 

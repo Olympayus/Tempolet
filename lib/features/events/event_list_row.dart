@@ -73,9 +73,9 @@ class EventListRow extends StatelessWidget {
   /// Overrides the title colour; defaults to `ink`.
   final Color? titleColor;
 
-  /// Replaces the default title [Text]. The row still computes the style
-  /// (body plus colour and completion strike) and keeps the slot expanded to
-  /// one line.
+  /// Replaces the default title [Text]. The row passes body plus the pending
+  /// ink colour and no completion decoration: the builder owns both the
+  /// strike-through and any colour sweep. The slot stays expanded to one line.
   final Widget Function(BuildContext context, TextStyle style)? titleBuilder;
 
   /// Optional 11px metadata rendered between the title and the time (e.g. the

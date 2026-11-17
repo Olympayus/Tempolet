@@ -67,10 +67,10 @@ class _MonthViewState extends ConsumerState<MonthView> {
   void _enterCell(DateTime day) {
     _openTimer?.cancel();
     _cancelClose();
+    if (_hoveredDay != day) setState(() => _hoveredDay = day);
     if (_openPreviewDay == day) return;
     // A preview cannot follow the pointer across cells.
     _closeOpenPreview();
-    setState(() => _hoveredDay = day);
     _openTimer = Timer(kMonthPreviewHoverDelay, () => _openPreview(day));
   }
 

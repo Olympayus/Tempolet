@@ -36,6 +36,8 @@ class AppPalette {
     required this.chip,
     required this.block,
     required this.rail,
+    required this.nav,
+    required this.side,
     required this.bg,
     required this.card,
     required this.accent,
@@ -43,6 +45,7 @@ class AppPalette {
     required this.danger,
     required this.dangerTint,
     required this.hover,
+    required this.surfaceSelected,
     required this.todayColumn,
     required this.festival,
     required this.festivalTint,
@@ -58,8 +61,10 @@ class AppPalette {
     line: Color(0xFFEDEDF0),
     lineStrong: Color(0xFFDCDCE1),
     chip: Color(0xFFF2F2F5),
-    block: Color(0xFFF7F7F9),
+    block: Color(0xFFF2F2F5),
     rail: Color(0xFFF7F7F9),
+    nav: Color(0xFFECEDF0),
+    side: Color(0xFFF2F3F5),
     bg: Color(0xFFFFFFFF),
     card: Color(0xFFFFFFFF),
     accent: Color(0xFF007AFF),
@@ -67,6 +72,7 @@ class AppPalette {
     danger: Color(0xFFFF3B30),
     dangerTint: Color(0x0FFF3B30),
     hover: Color(0xFFF7F7F9),
+    surfaceSelected: Color(0xFFF7F7FA),
     todayColumn: Color(0xFFFCFCFD),
     festival: Color(0xFFC22F2F),
     festivalTint: Color(0x1AC22F2F),
@@ -82,15 +88,18 @@ class AppPalette {
     line: Color(0x12FFFFFF),
     lineStrong: Color(0x24FFFFFF),
     chip: Color(0x0FFFFFFF),
-    block: Color(0xFF23262E),
+    block: Color(0xFF262A33),
     rail: Color(0xFF0C0D10),
-    bg: Color(0xFF101114),
-    card: Color(0xFF1B1E25),
+    nav: Color(0xFF0B0C0F),
+    side: Color(0xFF121419),
+    bg: Color(0xFF191C22),
+    card: Color(0xFF20232A),
     accent: Color(0xFF4DA3FF),
     accentTint: Color(0x294DA3FF),
     danger: Color(0xFFFF6B5E),
     dangerTint: Color(0x1AFF6B5E),
     hover: Color(0x0AFFFFFF),
+    surfaceSelected: Color(0x0CFFFFFF),
     todayColumn: Color(0x08FFFFFF),
     festival: Color(0xFFFF8F8A),
     festivalTint: Color(0x1FFF8F8A),
@@ -126,7 +135,13 @@ class AppPalette {
   /// Icon rail background.
   final Color rail;
 
-  /// Paper background.
+  /// Window titlebar and icon rail surface.
+  final Color nav;
+
+  /// Sidebar, header and axis gutter surface.
+  final Color side;
+
+  /// Main content background.
   final Color bg;
 
   /// Card background.
@@ -146,6 +161,9 @@ class AppPalette {
 
   /// Row hover background.
   final Color hover;
+
+  /// Selected-day column wash in week view.
+  final Color surfaceSelected;
 
   /// Today column background in week/day views.
   final Color todayColumn;
@@ -168,6 +186,8 @@ class AppPalette {
     chip: chip,
     block: block,
     rail: rail,
+    nav: nav,
+    side: side,
     bg: bg,
     card: card,
     accent: accent,
@@ -175,6 +195,7 @@ class AppPalette {
     danger: danger,
     dangerTint: dangerTint,
     hover: hover,
+    surfaceSelected: surfaceSelected,
     todayColumn: todayColumn,
     festival: festival,
     festivalTint: festivalTint,

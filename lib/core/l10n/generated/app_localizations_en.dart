@@ -325,6 +325,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectAll => 'Select all';
 
   @override
+  String get deselectAll => 'Deselect all';
+
+  @override
   String selectedCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

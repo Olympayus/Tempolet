@@ -680,6 +680,12 @@ abstract class AppLocalizations {
   /// **'Select all'**
   String get selectAll;
 
+  /// No description provided for @deselectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Deselect all'**
+  String get deselectAll;
+
   /// No description provided for @selectedCount.
   ///
   /// In en, this message translates to:

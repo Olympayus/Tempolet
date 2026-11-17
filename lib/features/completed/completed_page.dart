@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -79,6 +80,25 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
         ..clear()
         ..addAll(ids);
     });
+  }
+
+  /// 全部取消: empties the selection but stays in select mode, so the bar and
+  /// the counters stay put while the user starts a new selection.
+  void _deselectAll() {
+    setState(_selected.clear);
+  }
+
+  /// Esc exits multi-select (`v0.1.4` task 6). The page has no text field, so
+  /// the body-level [Focus] always owns the key unless a row's checkbox is
+  /// focused; either way the event bubbles to it.
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        _selecting) {
+      _exitSelection();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _restoreOne(Event event) async {
@@ -231,7 +251,6 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
               : null,
           onTap: _selecting ? () => _toggleSelected(event.id) : null,
           onLongPress: _selecting ? null : () => _enterSelection(event.id),
-          onToggleComplete: _selecting ? () => _toggleSelected(event.id) : null,
           trailing: _selecting
               ? null
               : Row(
@@ -267,210 +286,226 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
     return Scaffold(
       key: const ValueKey('completed-page'),
       backgroundColor: palette.bg,
-      body: Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: AppSizes.header,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        key: const ValueKey('completed-back'),
-                        onPressed: () => _back(context),
-                        icon: const Icon(LucideIcons.chevronLeft, size: 16),
-                        color: palette.sub,
-                        padding: EdgeInsets.zero,
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(
-                          width: AppSizes.control,
-                          height: AppSizes.control,
-                        ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: palette.chip,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppRadii.button,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: AppSizes.header,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          key: const ValueKey('completed-back'),
+                          onPressed: () => _back(context),
+                          icon: const Icon(LucideIcons.chevronLeft, size: 16),
+                          color: palette.sub,
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints.tightFor(
+                            width: AppSizes.control,
+                            height: AppSizes.control,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: palette.chip,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.button,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          l10n.completedTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.display.copyWith(
-                            color: palette.ink,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      if (_selecting) ...[
-                        Text(
-                          l10n.selectedCount(selected.length),
-                          key: const ValueKey('completed-selected-count'),
-                          style: AppTextStyles.body.copyWith(
-                            color: palette.sub,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            l10n.completedTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.display.copyWith(
+                              color: palette.ink,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        _HeaderAction(
-                          key: const ValueKey('completed-select-done'),
-                          label: l10n.done,
+                        if (_selecting) ...[
+                          Text(
+                            l10n.selectedCount(selected.length),
+                            key: const ValueKey('completed-selected-count'),
+                            style: AppTextStyles.body.copyWith(
+                              color: palette.sub,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _HeaderAction(
+                            key: const ValueKey('completed-select-done'),
+                            label: l10n.done,
+                            color: palette.accent,
+                            onPressed: _exitSelection,
+                          ),
+                        ] else ...[
+                          _HeaderAction(
+                            key: const ValueKey('completed-select'),
+                            label: l10n.select,
+                            color: palette.sub,
+                            onPressed: events.isEmpty
+                                ? null
+                                : () => _enterSelection(),
+                          ),
+                          const SizedBox(width: 8),
+                          _HeaderAction(
+                            key: const ValueKey('completed-clear'),
+                            label: l10n.clear,
+                            color: palette.danger,
+                            onPressed: events.isEmpty
+                                ? null
+                                : () => _clearAll(events),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: events.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l10n.completedEmptyTitle,
+                                  key: const ValueKey('completed-empty-title'),
+                                  style: AppTextStyles.rowTitle.copyWith(
+                                    color: palette.sub,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.completedEmptyHint,
+                                  key: const ValueKey('completed-empty-hint'),
+                                  style: AppTextStyles.body.copyWith(
+                                    color: palette.subWeak,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView(
+                          key: const ValueKey('completed-list'),
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            24,
+                            16,
+                            _selecting ? _selectionBarClearance : 24,
+                          ),
+                          children: [
+                            for (var i = 0; i < groups.length; i++) ...[
+                              if (i > 0) const SizedBox(height: _groupGap),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  _rowOuterInset,
+                                  0,
+                                  _rowOuterInset,
+                                  _groupTitleGap,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      groups[i].label,
+                                      style: AppTextStyles.section.copyWith(
+                                        color: palette.ink,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      l10n.itemsCount(groups[i].items.length),
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: palette.sub,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              for (final event in groups[i].items)
+                                rowFor(event),
+                            ],
+                          ],
+                        ),
+                ),
+              ],
+            ),
+            if (_selecting)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 24,
+                child: Center(
+                  child: Container(
+                    key: const ValueKey('completed-selection-bar'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.card,
+                      border: Border.all(color: palette.line),
+                      borderRadius: BorderRadius.circular(AppRadii.card),
+                      boxShadow: kCardShadow,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _SelectionAction(
+                          key: const ValueKey('completed-select-all'),
+                          label: l10n.selectAll,
+                          color: palette.ink,
+                          onPressed:
+                              displayedIds.isEmpty ||
+                                  selected.length == displayedIds.length
+                              ? null
+                              : () => _selectAll(displayedIds),
+                        ),
+                        const SizedBox(width: 4),
+                        _SelectionAction(
+                          key: const ValueKey('completed-clear-selection'),
+                          label: l10n.deselectAll,
+                          color: palette.ink,
+                          onPressed: selected.isEmpty ? null : _deselectAll,
+                        ),
+                        const SizedBox(width: 4),
+                        _SelectionAction(
+                          key: const ValueKey('completed-batch-restore'),
+                          label: l10n.restore,
                           color: palette.accent,
-                          onPressed: _exitSelection,
-                        ),
-                      ] else ...[
-                        _HeaderAction(
-                          key: const ValueKey('completed-select'),
-                          label: l10n.select,
-                          color: palette.sub,
-                          onPressed: events.isEmpty
+                          onPressed: selectedEventList.isEmpty
                               ? null
-                              : () => _enterSelection(),
+                              : () => _restoreSelected(selectedEventList),
                         ),
-                        const SizedBox(width: 8),
-                        _HeaderAction(
-                          key: const ValueKey('completed-clear'),
-                          label: l10n.clear,
+                        const SizedBox(width: 4),
+                        _SelectionAction(
+                          key: const ValueKey('completed-batch-delete'),
+                          label: l10n.delete,
                           color: palette.danger,
-                          onPressed: events.isEmpty
+                          onPressed: selectedEventList.isEmpty
                               ? null
-                              : () => _clearAll(events),
+                              : () => _deleteSelected(selectedEventList),
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-              Expanded(
-                child: events.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                        child: Align(
-                          alignment: Alignment.topLeft,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.completedEmptyTitle,
-                                key: const ValueKey('completed-empty-title'),
-                                style: AppTextStyles.rowTitle.copyWith(
-                                  color: palette.sub,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                l10n.completedEmptyHint,
-                                key: const ValueKey('completed-empty-hint'),
-                                style: AppTextStyles.body.copyWith(
-                                  color: palette.subWeak,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : ListView(
-                        key: const ValueKey('completed-list'),
-                        padding: EdgeInsets.fromLTRB(
-                          16,
-                          24,
-                          16,
-                          _selecting ? _selectionBarClearance : 24,
-                        ),
-                        children: [
-                          for (var i = 0; i < groups.length; i++) ...[
-                            if (i > 0) const SizedBox(height: _groupGap),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                _rowOuterInset,
-                                0,
-                                _rowOuterInset,
-                                _groupTitleGap,
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    groups[i].label,
-                                    style: AppTextStyles.section.copyWith(
-                                      color: palette.ink,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    l10n.itemsCount(groups[i].items.length),
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: palette.sub,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            for (final event in groups[i].items) rowFor(event),
-                          ],
-                        ],
-                      ),
-              ),
-            ],
-          ),
-          if (_selecting)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 24,
-              child: Center(
-                child: Container(
-                  key: const ValueKey('completed-selection-bar'),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: palette.card,
-                    border: Border.all(color: palette.line),
-                    borderRadius: BorderRadius.circular(AppRadii.card),
-                    boxShadow: kCardShadow,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _SelectionAction(
-                        key: const ValueKey('completed-select-all'),
-                        label: l10n.selectAll,
-                        color: palette.ink,
-                        onPressed: () => _selectAll(displayedIds),
-                      ),
-                      const SizedBox(width: 4),
-                      _SelectionAction(
-                        key: const ValueKey('completed-batch-restore'),
-                        label: l10n.restore,
-                        color: palette.accent,
-                        onPressed: selectedEventList.isEmpty
-                            ? null
-                            : () => _restoreSelected(selectedEventList),
-                      ),
-                      const SizedBox(width: 4),
-                      _SelectionAction(
-                        key: const ValueKey('completed-batch-delete'),
-                        label: l10n.delete,
-                        color: palette.danger,
-                        onPressed: selectedEventList.isEmpty
-                            ? null
-                            : () => _deleteSelected(selectedEventList),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

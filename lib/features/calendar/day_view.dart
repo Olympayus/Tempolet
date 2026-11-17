@@ -373,6 +373,7 @@ class _DayOverview extends ConsumerWidget {
       width: 216,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        color: palette.side,
         border: Border(left: BorderSide(color: palette.line)),
       ),
       child: Column(

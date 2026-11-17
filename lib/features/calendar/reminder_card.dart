@@ -55,12 +55,28 @@ class ReminderCard extends ConsumerStatefulWidget {
 class _ReminderCardState extends ConsumerState<ReminderCard> {
   bool _completing = false;
 
+  /// The reminders page keeps this card mounted after completion and owns the
+  /// completed snapshot. Without resetting the local fade flag, undo would
+  /// leave the card dimmed and completed-looking and the circle could never
+  /// start another completion.
+  @override
+  void didUpdateWidget(covariant ReminderCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.event.isCompleted != widget.event.isCompleted) {
+      _completing = false;
+    }
+  }
+
   Future<void> _complete() async {
     final onComplete = widget.onComplete;
     if (_completing || widget.event.isCompleted || onComplete == null) return;
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
     setState(() => _completing = true);
-    // Let the fade read as "done" before the completion is written.
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    // Let the fade read as "done" before the completion is written; motion is
+    // off, so there is nothing to read.
+    if (!reduceMotion) {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
     await onComplete();
   }
 
@@ -84,6 +100,7 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
                 : AppPalette.dark)
             .withAccent(theme.colorScheme.primary);
     final l10n = AppLocalizations.of(context);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
     final event = widget.event;
@@ -105,7 +122,9 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
 
     return AnimatedOpacity(
       opacity: _completing ? 0.35 : 1,
-      duration: const Duration(milliseconds: 120),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 120),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,

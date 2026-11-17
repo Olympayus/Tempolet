@@ -575,6 +575,68 @@ void main() {
     expect(stored!.isCompleted, isFalse);
   });
 
+  testWidgets('timeline card can complete, undo, and complete again', (
+    tester,
+  ) async {
+    final event = await seed('Cycle task', date: _today, startMinute: 540);
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final card = find.byKey(ValueKey('reminders-timeline-event-${event.id}'));
+    final circleKey = find.descendant(
+      of: card,
+      matching: find.byKey(ValueKey('complete-${event.id}')),
+    );
+    Finder strike() =>
+        find.descendant(of: card, matching: find.byType(StrikeThroughText));
+    bool circleChecked() => tester
+        .widget<AppCheckCircle>(
+          find.descendant(of: card, matching: find.byType(AppCheckCircle)),
+        )
+        .checked;
+    // The card's own fade-out must not stick once the page owns the retained
+    // snapshot.
+    double cardOpacity() => tester
+        .widget<AnimatedOpacity>(
+          find
+              .descendant(of: card, matching: find.byType(AnimatedOpacity))
+              .first,
+        )
+        .opacity;
+
+    await tester.tap(circleKey);
+    await _settle(tester);
+
+    expect(circleChecked(), isTrue);
+    expect(strike(), findsOneWidget);
+    expect(cardOpacity(), 1);
+
+    await tester.tap(circleKey);
+    await _settle(tester);
+
+    // Undo restores the pending look: un-ticked, no strike, full opacity.
+    expect(circleChecked(), isFalse);
+    expect(strike(), findsNothing);
+    expect(cardOpacity(), 1);
+    final undoneTitle = tester.widget<Text>(
+      find.descendant(of: card, matching: find.text('Cycle task')),
+    );
+    expect(undoneTitle.style?.decoration, isNull);
+    final undone = await tester.runAsync(() => repo.getById(event.id));
+    expect(undone!.isCompleted, isFalse);
+
+    // The same card must be able to complete again.
+    await tester.tap(circleKey);
+    await _settle(tester);
+
+    expect(circleChecked(), isTrue);
+    expect(strike(), findsOneWidget);
+    expect(cardOpacity(), 1);
+    final recompleted = await tester.runAsync(() => repo.getById(event.id));
+    expect(recompleted!.isCompleted, isTrue);
+  });
+
   testWidgets('reduce motion jumps straight to the completed state', (
     tester,
   ) async {

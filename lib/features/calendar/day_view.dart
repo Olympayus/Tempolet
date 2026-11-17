@@ -192,7 +192,11 @@ class _DayViewState extends ConsumerState<DayView> {
                     lane: lanes[event.id] ?? 0,
                     unit: laneUnit,
                   ),
-                if (isToday) const NowLine(key: ValueKey('day-now-line')),
+                if (isToday)
+                  NowLine(
+                    key: const ValueKey('day-now-line'),
+                    now: ref.watch(pinnedNowProvider),
+                  ),
               ],
             );
           },

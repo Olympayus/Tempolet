@@ -22,8 +22,8 @@ const double _hairline = 1;
 /// Desktop compact segmented control (`docs/design/05-components.md` §2).
 ///
 /// A chip-filled 28px track with equal-width items sized to the longest label
-/// (never stretched beyond its content); the selected item is a white capsule
-/// with a 1px `lineStrong` border and a 1px top highlight. Safe inside a plain
+/// (never stretched beyond its content); the selected item is a raised
+/// capsule with a 1px `lineStrong` border. Safe inside a plain
 /// [Row]: it measures its own intrinsic width and never needs a bounded width.
 /// Interaction is deliberately Material-free: [MouseRegion] + [GestureDetector].
 class AppSegmented<T> extends StatelessWidget {
@@ -137,18 +137,6 @@ class _SegmentItem extends StatelessWidget {
                       child: label,
                     ),
                   ),
-                  if (selected)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: IgnorePointer(
-                        child: Container(
-                          height: _hairline,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

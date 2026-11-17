@@ -173,7 +173,10 @@ class _WeekViewState extends ConsumerState<WeekView> {
                           ),
                         ),
                       // Owns its own clock and position; always visible.
-                      const NowLine(key: ValueKey('week-now-line')),
+                      NowLine(
+                        key: const ValueKey('week-now-line'),
+                        now: ref.watch(pinnedNowProvider),
+                      ),
                     ],
                   ),
                 ),

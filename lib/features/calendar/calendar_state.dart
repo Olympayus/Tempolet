@@ -8,6 +8,11 @@ import 'month_model.dart';
 /// not depend on the calendar date they run on.
 final todayProvider = Provider<DateTime>((ref) => DateTime.now());
 
+/// Pins the "now" the [NowLine] rules track. Tests and goldens override it so
+/// screenshots do not depend on the wall-clock minute they run in; null keeps
+/// the live clock.
+final pinnedNowProvider = Provider<DateTime?>((ref) => null);
+
 enum CalendarViewMode { month, week, day }
 
 final calendarViewModeProvider =

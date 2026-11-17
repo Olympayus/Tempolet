@@ -163,7 +163,12 @@ class _AppPopoverHostState extends State<_AppPopoverHost> {
             }
             return KeyEventResult.ignored;
           },
-          child: Builder(builder: widget.builder),
+          // Overlay entries have no Material ancestor; without it Flutter
+          // paints debug-style yellow underlines beneath every text run.
+          child: Material(
+            type: MaterialType.transparency,
+            child: Builder(builder: widget.builder),
+          ),
         ),
       ),
     );

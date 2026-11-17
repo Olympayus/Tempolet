@@ -86,22 +86,26 @@ class _MonthViewState extends ConsumerState<MonthView> {
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
       child: Column(
         children: [
-          SizedBox(
-            height: 24,
-            child: Row(
-              children: [
-                for (var i = 0; i < 7; i++)
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        AppFormats.weekday(locale, DateTime(2024, 1, 1 + i)),
-                        style: AppTextStyles.caption.copyWith(
-                          color: palette.sub,
+          ColoredBox(
+            key: const ValueKey('month-weekday-band'),
+            color: palette.side,
+            child: SizedBox(
+              height: 24,
+              child: Row(
+                children: [
+                  for (var i = 0; i < 7; i++)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          AppFormats.weekday(locale, DateTime(2024, 1, 1 + i)),
+                          style: AppTextStyles.caption.copyWith(
+                            color: palette.sub,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 4),

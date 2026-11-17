@@ -70,6 +70,7 @@ class CalendarSidebar extends ConsumerWidget {
     return Container(
       width: _sidebarWidth,
       decoration: BoxDecoration(
+        color: palette.side,
         border: Border(left: BorderSide(color: palette.line)),
       ),
       child: Column(

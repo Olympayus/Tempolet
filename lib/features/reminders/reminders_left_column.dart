@@ -124,6 +124,7 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
       key: const ValueKey('reminders-left-column'),
       width: kRemindersLeftColumnWidth,
       decoration: BoxDecoration(
+        color: palette.side,
         border: Border(right: BorderSide(color: palette.line)),
       ),
       child: Column(

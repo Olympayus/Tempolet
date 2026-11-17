@@ -74,7 +74,7 @@ class AppTitlebar extends StatelessWidget {
             child: Container(
               key: const ValueKey('titlebar-surface'),
               decoration: BoxDecoration(
-                color: palette.rail,
+                color: palette.nav,
                 border: Border(bottom: BorderSide(color: palette.line)),
               ),
             ),

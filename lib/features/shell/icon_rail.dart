@@ -43,7 +43,7 @@ class IconRail extends StatelessWidget {
       key: const ValueKey('icon-rail'),
       width: kRailWidth,
       decoration: BoxDecoration(
-        color: p.rail,
+        color: p.nav,
         border: Border(right: BorderSide(color: p.line)),
       ),
       child: Padding(

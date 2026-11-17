@@ -342,6 +342,13 @@ void main() {
     expect(calendar, findsOneWidget);
     expect(tester.getSize(calendar).width, 180);
     expect(find.byKey(const ValueKey('reminders-timeline')), findsOneWidget);
+    final leftColumn = tester.widget<Container>(
+      find.byKey(const ValueKey('reminders-left-column')),
+    );
+    expect(
+      (leftColumn.decoration! as BoxDecoration).color,
+      AppPalette.light.side,
+    );
   });
 
   testWidgets('checking a row completes it and removes it from the list', (

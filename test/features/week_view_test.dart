@@ -173,6 +173,28 @@ void main() {
       expect(tint.color, AppPalette.light.todayColumn);
     });
 
+    testWidgets('week header and axis gutter use the side surface', (
+      tester,
+    ) async {
+      await pumpWeek(tester, DateTime(2026, 11, 11));
+
+      final header = tester.widget<Container>(
+        find.byKey(const ValueKey('week-header-band')),
+      );
+      expect(
+        (header.decoration as BoxDecoration).color,
+        AppPalette.light.side,
+      );
+
+      final gutter = tester.widget<Container>(
+        find.byKey(const ValueKey('hour-grid-gutter')),
+      );
+      expect(
+        (gutter.decoration as BoxDecoration).color,
+        AppPalette.light.side,
+      );
+    });
+
     testWidgets('renders seven keyed headers for the week of 2026-11-11', (
       tester,
     ) async {

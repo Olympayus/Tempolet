@@ -37,6 +37,7 @@ class HourGrid extends StatelessWidget {
     this.labelBuilder,
     this.gutterWidth = kAxisGutter,
     this.labelRightPadding = 6,
+    this.gutterColor,
   });
 
   final Widget Function(BuildContext context, int hour)? labelBuilder;
@@ -45,6 +46,10 @@ class HourGrid extends StatelessWidget {
   /// Right padding inside the label gutter. The reminders left column uses 0
   /// so an 11px `HH:MM` label plus its `left: 8` inset fits in a 40px gutter.
   final double labelRightPadding;
+
+  /// Background of the hour-label gutter. Week and day views pass the side
+  /// surface; the reminders timeline leaves it transparent.
+  final Color? gutterColor;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +63,20 @@ class HourGrid extends StatelessWidget {
       height: kHoursInDay * kHourHeight,
       child: Stack(
         children: [
+          if (gutterColor != null)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: gutterWidth,
+              child: Container(
+                key: const ValueKey('hour-grid-gutter'),
+                decoration: BoxDecoration(
+                  color: gutterColor,
+                  border: Border(right: BorderSide(color: palette.line)),
+                ),
+              ),
+            ),
           for (var hour = 0; hour < kHoursInDay; hour++)
             Positioned(
               top: hour * kHourHeight,

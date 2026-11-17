@@ -35,7 +35,6 @@ class AppPalette {
     required this.lineStrong,
     required this.chip,
     required this.block,
-    required this.rail,
     required this.nav,
     required this.side,
     required this.bg,
@@ -62,7 +61,6 @@ class AppPalette {
     lineStrong: Color(0xFFDCDCE1),
     chip: Color(0xFFF2F2F5),
     block: Color(0xFFF2F2F5),
-    rail: Color(0xFFF7F7F9),
     nav: Color(0xFFECEDF0),
     side: Color(0xFFF2F3F5),
     bg: Color(0xFFFFFFFF),
@@ -89,7 +87,6 @@ class AppPalette {
     lineStrong: Color(0x24FFFFFF),
     chip: Color(0x0FFFFFFF),
     block: Color(0xFF262A33),
-    rail: Color(0xFF0C0D10),
     nav: Color(0xFF0B0C0F),
     side: Color(0xFF121419),
     bg: Color(0xFF191C22),
@@ -131,9 +128,6 @@ class AppPalette {
 
   /// Paper block behind plan rows.
   final Color block;
-
-  /// Icon rail background.
-  final Color rail;
 
   /// Window titlebar and icon rail surface.
   final Color nav;
@@ -185,7 +179,6 @@ class AppPalette {
     lineStrong: lineStrong,
     chip: chip,
     block: block,
-    rail: rail,
     nav: nav,
     side: side,
     bg: bg,

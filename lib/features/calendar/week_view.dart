@@ -100,24 +100,28 @@ class _WeekViewState extends ConsumerState<WeekView> {
 
         return Column(
           children: [
-            Row(
-              children: [
-                const SizedBox(width: kAxisGutter),
-                for (final day in days)
-                  SizedBox(
-                    width: columnWidth,
-                    child: _DayHeaderCell(
-                      day: day,
-                      today: today,
-                      selected: day == selectedDay,
-                      holiday: holidayByDay[day],
-                      locale: locale,
-                      palette: palette,
-                      onSelect: () => _selectDay(day),
-                      onOpenDay: () => _openDay(day),
+            Container(
+              key: const ValueKey('week-header-band'),
+              decoration: BoxDecoration(color: palette.side),
+              child: Row(
+                children: [
+                  const SizedBox(width: kAxisGutter),
+                  for (final day in days)
+                    SizedBox(
+                      width: columnWidth,
+                      child: _DayHeaderCell(
+                        day: day,
+                        today: today,
+                        selected: day == selectedDay,
+                        holiday: holidayByDay[day],
+                        locale: locale,
+                        palette: palette,
+                        onSelect: () => _selectDay(day),
+                        onOpenDay: () => _openDay(day),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             AppHairline(color: palette.line),
             Expanded(
@@ -154,8 +158,11 @@ class _WeekViewState extends ConsumerState<WeekView> {
                       ),
                       // Hour rules and axis ticks span all seven columns as
                       // their own layer, above the today tint.
-                      const Positioned.fill(
-                        child: HourGrid(gutterWidth: kAxisGutter),
+                      Positioned.fill(
+                        child: HourGrid(
+                          gutterWidth: kAxisGutter,
+                          gutterColor: palette.side,
+                        ),
                       ),
                       for (var i = 0; i < 7; i++)
                         Positioned(

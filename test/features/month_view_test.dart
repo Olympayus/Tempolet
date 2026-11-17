@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
@@ -158,6 +159,16 @@ void main() {
     expect(textRect.top, greaterThanOrEqualTo(cellRect.top));
     expect(textRect.bottom, lessThanOrEqualTo(cellRect.bottom));
     expect(textRect.bottom, lessThanOrEqualTo(moreRect.top));
+  });
+
+  testWidgets('weekday band uses the side surface', (tester) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final band = tester.widget<ColoredBox>(
+      find.byKey(const ValueKey('month-weekday-band')),
+    );
+    expect(band.color, AppPalette.light.side);
   });
 
   testWidgets('single click opens an anchored popover without changing view', (

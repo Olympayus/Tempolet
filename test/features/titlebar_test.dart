@@ -81,7 +81,7 @@ void main() {
       find.byKey(const ValueKey('titlebar-surface')),
     );
     final decoration = surface.decoration! as BoxDecoration;
-    expect(decoration.color, AppPalette.light.rail);
+    expect(decoration.color, AppPalette.light.nav);
     expect(
       decoration.border,
       Border(bottom: BorderSide(color: AppPalette.light.line)),

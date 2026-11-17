@@ -1,15 +1,19 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_segmented.dart';
+import '../../core/ui/strike_through_text.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
+import '../../data/models/event_status.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
 import '../../notifications/notification_scheduler.dart';
@@ -38,6 +42,10 @@ const int _futureHorizonYears = 100;
 /// Stable group id for the overdue bucket (not a real category id).
 const String _overdueGroupId = '__overdue__';
 
+/// Title strike/fill sweep for a retained completion (`08-motion.md`);
+/// collapse to zero under reduce-motion.
+const Duration _retainDuration = Duration(milliseconds: 200);
+
 enum RemindersFilter { all, reminder, plan }
 
 enum RemindersMode { category, date }
@@ -63,10 +71,40 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   final ScrollController _dateScroll = ScrollController();
   final Map<String, GlobalKey> _dayAnchors = <String, GlobalKey>{};
 
+  /// Session-only completed snapshots: rows stay in place until the user
+  /// leaves `/reminders`, then silently fall back to the completed page.
+  final Map<String, Event> _recentlyCompleted = <String, Event>{};
+
+  /// Ids that completed during this session (drives the one-shot animation).
+  final Set<String> _animatedIds = <String>{};
+
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = ref.read(routerProvider);
+    _router.routerDelegate.addListener(_onRouteChanged);
+  }
+
   @override
   void dispose() {
+    _router.routerDelegate.removeListener(_onRouteChanged);
     _dateScroll.dispose();
     super.dispose();
+  }
+
+  /// `/reminders/completed`, `/reminders/categories`, the calendar, settings
+  /// and any other branch all count as leaving the reminders page.
+  void _onRouteChanged() {
+    if (!mounted) return;
+    final path = _router.routerDelegate.currentConfiguration.uri.path;
+    if (path != '/reminders' && _recentlyCompleted.isNotEmpty) {
+      setState(() {
+        _recentlyCompleted.clear();
+        _animatedIds.clear();
+      });
+    }
   }
 
   String _dayKey(DateTime day) =>
@@ -109,11 +147,82 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     return showEventEditor(context, date: day, categoryId: categoryId);
   }
 
+  /// Concatenates two event lists without duplicating ids. [preferred] wins,
+  /// so a just-completed retention snapshot masks the stream's stale pending
+  /// copy during the frame before the database stream catches up.
+  List<Event> _mergeById(Iterable<Event> preferred, Iterable<Event> fallback) {
+    final merged = <Event>[];
+    final seen = <String>{};
+    for (final event in preferred) {
+      if (seen.add(event.id)) merged.add(event);
+    }
+    for (final event in fallback) {
+      if (seen.add(event.id)) merged.add(event);
+    }
+    return merged;
+  }
+
+  /// Completion must not hide the overdue placement: `eventStatus` returns
+  /// `done` for completed rows, so judge a pending copy.
+  bool _isOverdue(Event event, DateTime today) =>
+      eventStatus(event.copyWith(isCompleted: false), today) ==
+      EventStatus.overdue;
+
+  /// Session-retained events honouring the active kind filter.
+  List<Event> _retained() => _filtered(_recentlyCompleted.values);
+
+  /// Retained overdue items, earliest day first, for the date band's start.
+  List<Event> _retainedOverdue(DateTime today) =>
+      _sortedByDate(_retained().where((event) => _isOverdue(event, today)));
+
+  /// The date band starts on the oldest pending overdue day, or on the oldest
+  /// retained overdue day while this session shows one. It only shrinks once
+  /// leaving the page clears retention.
+  DateTime _bandStart(DateTime today, List<Event> overdue) {
+    DateTime? start;
+    if (overdue.isNotEmpty) start = dateOnly(overdue.first.date);
+    final retained = _retainedOverdue(today);
+    if (retained.isNotEmpty) {
+      final candidate = dateOnly(retained.first.date);
+      if (start == null || candidate.isBefore(start)) start = candidate;
+    }
+    return start ?? today;
+  }
+
   Future<void> _complete(Event event) async {
     final repo = ref.read(eventRepositoryProvider);
     final sync = ref.read(eventNotifierSyncProvider);
     await repo.setCompleted(event.id, true);
-    sync.afterCompletion(event.copyWith(isCompleted: true));
+    final snapshot = event.copyWith(
+      isCompleted: true,
+      completedAt: Value(DateTime.now()),
+    );
+    if (mounted) {
+      setState(() {
+        _recentlyCompleted[event.id] = snapshot;
+        _animatedIds.add(event.id);
+      });
+    }
+    sync.afterCompletion(snapshot);
+  }
+
+  Future<void> _undo(Event event) async {
+    final repo = ref.read(eventRepositoryProvider);
+    final sync = ref.read(eventNotifierSyncProvider);
+    await repo.setCompleted(event.id, false);
+    if (mounted) {
+      setState(() {
+        _recentlyCompleted.remove(event.id);
+        _animatedIds.remove(event.id);
+      });
+    }
+    sync.afterUpdate(
+      event.copyWith(
+        isCompleted: false,
+        completedAt: const Value(null),
+        updatedAt: DateTime.now(),
+      ),
+    );
   }
 
   void _toggleGroup(String id) {
@@ -143,7 +252,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     final today = dateOnly(ref.read(todayProvider));
     final overdue =
         ref.read(overdueEventsProvider(today)).value ?? const <Event>[];
-    final bandStart = overdue.isEmpty ? today : dateOnly(overdue.first.date);
+    final bandStart = _bandStart(today, overdue);
     final bandEnd = DateTime(today.year, today.month, today.day + 6);
     final target = dateOnly(picked);
     final afterBand = DateTime(bandEnd.year, bandEnd.month, bandEnd.day + 1);
@@ -152,12 +261,20 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
 
     // Read the exact range the date-mode page already watches. A cold
     // `ref.read` of an unwatched family instance would be AsyncLoading and
-    // silently look empty on the first pick.
-    final events = _filtered(
-      ref
-              .read(rangeEventsProvider((start: bandStart, end: sixMonthsEnd)))
-              .value ??
-          const <Event>[],
+    // silently look empty on the first pick. Retained rows are merged in so a
+    // month whose only item was completed this session still expands.
+    final events = _sortedByDate(
+      _mergeById(
+        _retained(),
+        _filtered(
+          ref
+                  .read(
+                    rangeEventsProvider((start: bandStart, end: sixMonthsEnd)),
+                  )
+                  .value ??
+              const <Event>[],
+        ),
+      ),
     );
 
     String? monthKey;
@@ -253,10 +370,38 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
 
     final overdue = _sortedByDate(_filtered(overdueAll));
     final upcoming = _sortedByDate(_filtered(upcomingAll));
+    final retained = _retained();
+    final retainedOverdue = _sortedByDate(
+      retained.where((event) => _isOverdue(event, today)),
+    );
+    final retainedUpcoming = retained.where(
+      (event) => !_isOverdue(event, today),
+    );
+
+    // Merge the session's completed snapshots into every display list: group
+    // counts, header stats and the rows themselves must show what is on
+    // screen, including items completed a moment ago.
+    final overdueDisplay = _sortedByDate(_mergeById(retainedOverdue, overdue));
+    final upcomingDisplay = _sortedByDate(
+      _mergeById(retainedUpcoming, upcoming),
+    );
+    bool inRange(Event event, DateTime start, DateTime end) {
+      final day = dateOnly(event.date);
+      return !day.isBefore(start) && day.isBefore(end);
+    }
+
+    final todayDisplay = _mergeById(
+      retained.where((event) => inRange(event, today, tomorrow)),
+      todayEvents,
+    );
+    final weekDisplay = _mergeById(
+      retained.where((event) => inRange(event, weekStart, weekEnd)),
+      weekEvents,
+    );
 
     final knownIds = {for (final category in categories) category.id};
     final byCategory = <String?, List<Event>>{};
-    for (final event in upcoming) {
+    for (final event in upcomingDisplay) {
       final categoryId = event.categoryId;
       final key = categoryId != null && knownIds.contains(categoryId)
           ? categoryId
@@ -265,12 +410,12 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     }
 
     final groups = <_CategoryGroup>[];
-    if (overdue.isNotEmpty) {
+    if (overdueDisplay.isNotEmpty) {
       groups.add(
         _CategoryGroup(
           id: _overdueGroupId,
           title: l10n.remindersOverdue,
-          events: overdue,
+          events: overdueDisplay,
           danger: true,
         ),
       );
@@ -299,12 +444,11 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
         l10n: l10n,
       );
     } else {
-      // The band starts on the oldest overdue day (or today) and always runs
-      // through today+6. Deriving it from the already-watched overdue stream
-      // keeps it responsive when that event is completed or deleted.
-      final bandStart = overdueAll.isEmpty
-          ? today
-          : dateOnly(overdueAll.first.date);
+      // The band starts on the oldest overdue day — including retained
+      // completions — or today, and always runs through today+6. Deriving it
+      // from the already-watched overdue stream keeps it responsive when that
+      // event is completed or deleted; retention only shrinks it on leave.
+      final bandStart = _bandStart(today, overdueAll);
       final bandEnd = DateTime(today.year, today.month, today.day + 6);
       final sixMonthsEnd = DateTime(today.year, today.month + 7, 1);
       final raw =
@@ -316,7 +460,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
         today: today,
         bandStart: bandStart,
         bandEnd: bandEnd,
-        events: _sortedByDate(_filtered(raw)),
+        events: _sortedByDate(_mergeById(retained, _filtered(raw))),
         categories: categories,
         palette: palette,
         l10n: l10n,
@@ -330,7 +474,13 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          RemindersLeftColumn(onSelectDay: _locateDate),
+          RemindersLeftColumn(
+            onSelectDay: _locateDate,
+            recentlyCompleted: _recentlyCompleted,
+            animatingIds: _animatedIds,
+            onComplete: _complete,
+            onUndo: _undo,
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -352,20 +502,20 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                       _Stat(
                         key: const ValueKey('reminders-stat-overdue'),
                         label: l10n.remindersOverdue,
-                        count: overdueAll.length,
+                        count: overdueDisplay.length,
                         danger: true,
                       ),
                       const SizedBox(width: 16),
                       _Stat(
                         key: const ValueKey('reminders-stat-today'),
                         label: l10n.remindersToday,
-                        count: todayEvents.length,
+                        count: todayDisplay.length,
                       ),
                       const SizedBox(width: 16),
                       _Stat(
                         key: const ValueKey('reminders-stat-week'),
                         label: l10n.remindersThisWeek,
-                        count: weekEvents.length,
+                        count: weekDisplay.length,
                       ),
                     ],
                   ),
@@ -711,6 +861,28 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     );
   }
 
+  /// Strike-through title for a retained row: the line sweeps in over 200ms
+  /// while the ink colour fades to `sub`. Reduce-motion paints the final
+  /// state on the first frame.
+  Widget _strikeTitle({
+    required Event event,
+    required TextStyle style,
+    required Color endColor,
+  }) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    Widget title(double progress) => StrikeThroughText(
+      text: event.title,
+      style: TextStyle.lerp(style, style.copyWith(color: endColor), progress)!,
+      progress: progress,
+    );
+    if (reduceMotion) return title(1);
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: _retainDuration,
+      builder: (context, progress, _) => title(progress),
+    );
+  }
+
   Widget _dateDay({
     required DateTime day,
     required List<Event> events,
@@ -856,8 +1028,19 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                   showDate: false,
                   timeColor: isOverdueDay ? palette.danger : null,
                   timeSuffix: isOverdueDay ? l10n.remindersOverdue : null,
-                  onTap: () => showEventEditor(context, existing: event),
-                  onToggleComplete: () => _complete(event),
+                  onTap: _recentlyCompleted.containsKey(event.id)
+                      ? null
+                      : () => showEventEditor(context, existing: event),
+                  onToggleComplete: _recentlyCompleted.containsKey(event.id)
+                      ? () => _undo(event)
+                      : () => _complete(event),
+                  titleBuilder: _recentlyCompleted.containsKey(event.id)
+                      ? (context, style) => _strikeTitle(
+                          event: event,
+                          style: style,
+                          endColor: palette.sub,
+                        )
+                      : null,
                 ),
               ),
         ],
@@ -941,8 +1124,19 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                 color: categoryMarkerColor(event.categoryId, categories),
                 showDate: true,
                 timeColor: group.danger ? palette.danger : null,
-                onTap: () => showEventEditor(context, existing: event),
-                onToggleComplete: () => _complete(event),
+                onTap: _recentlyCompleted.containsKey(event.id)
+                    ? null
+                    : () => showEventEditor(context, existing: event),
+                onToggleComplete: _recentlyCompleted.containsKey(event.id)
+                    ? () => _undo(event)
+                    : () => _complete(event),
+                titleBuilder: _recentlyCompleted.containsKey(event.id)
+                    ? (context, style) => _strikeTitle(
+                        event: event,
+                        style: style,
+                        endColor: palette.sub,
+                      )
+                    : null,
               ),
             ),
       ],

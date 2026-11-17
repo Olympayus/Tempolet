@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_hairline.dart';
+import '../../core/ui/strike_through_text.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
-import '../../notifications/notification_scheduler.dart';
 import '../calendar/calendar_state.dart';
 import '../calendar/category_marker.dart';
 import '../calendar/mini_month_calendar.dart';
@@ -29,13 +29,34 @@ const double _timelineGutter = 40;
 const double _timelineItemLeft = 44;
 const double _timelineItemRight = 8;
 
+/// Strike/fill sweep for a retained card; zero under reduce-motion.
+const Duration _retainDuration = Duration(milliseconds: 200);
+
 /// Left column of the reminders page: a shared [MiniMonthCalendar] over the
 /// selected day's 68px/hour timeline (`04-reminders.md` §2, §9.7).
 class RemindersLeftColumn extends ConsumerStatefulWidget {
-  const RemindersLeftColumn({super.key, this.onSelectDay});
+  const RemindersLeftColumn({
+    super.key,
+    this.onSelectDay,
+    this.recentlyCompleted = const {},
+    this.animatingIds = const {},
+    this.onComplete,
+    this.onUndo,
+  });
 
   /// Called after a mini-calendar pick, so the date-mode list can locate it.
   final ValueChanged<DateTime>? onSelectDay;
+
+  /// Session-retained completions from the page. Cards stay in place and the
+  /// title count includes them until the page is left.
+  final Map<String, Event> recentlyCompleted;
+
+  /// Ids completed during this session; drives the one-shot strike/fill.
+  final Set<String> animatingIds;
+
+  /// Page-owned write path; the column never touches the repositories.
+  final Future<void> Function(Event)? onComplete;
+  final Future<void> Function(Event)? onUndo;
 
   @override
   ConsumerState<RemindersLeftColumn> createState() =>
@@ -50,13 +71,6 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
   void dispose() {
     _scroll.dispose();
     super.dispose();
-  }
-
-  Future<void> _complete(Event event) async {
-    final repo = ref.read(eventRepositoryProvider);
-    final sync = ref.read(eventNotifierSyncProvider);
-    await repo.setCompleted(event.id, true);
-    sync.afterCompletion(event.copyWith(isCompleted: true));
   }
 
   List<Event> _sorted(List<Event> events) {
@@ -109,9 +123,19 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
       if (event.kind == 'plan') planDays.add(day);
     }
 
-    final dayEvents = _sorted(
-      ref.watch(eventsForDayProvider(selected)).value ?? const <Event>[],
-    );
+    // Completed reminders stay on the timeline for the session; plans have no
+    // completion circle and are not retained here. The retained snapshot wins
+    // over a lagging stream copy of the pending event.
+    final retained = <Event>[
+      for (final event in widget.recentlyCompleted.values)
+        if (event.kind != 'plan' && dateOnly(event.date) == selected) event,
+    ];
+    final seen = {for (final event in retained) event.id};
+    final dayEvents = _sorted([
+      ...retained,
+      ...(ref.watch(eventsForDayProvider(selected)).value ?? const <Event>[])
+          .where((event) => !seen.contains(event.id)),
+    ]);
     // Intentional locale-aware join: Chinese keeps `11月17日 周一 · 3 项`,
     // English uses the `·` separator between date, weekday and count.
     final separator = locale.languageCode == 'zh' ? ' ' : ' · ';
@@ -240,20 +264,78 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
       0.0,
       kHoursInDay * kHourHeight - 24,
     );
+    final retained = widget.recentlyCompleted.containsKey(event.id);
     return [
       Positioned(
         left: _timelineItemLeft,
         right: _timelineItemRight,
         top: top,
-        child: ReminderCard(
+        child: _TimelineReminder(
+          event: event,
+          overdue: overdue,
+          retained: retained,
+          animate: widget.animatingIds.contains(event.id),
+          onComplete: widget.onComplete,
+          onUndo: widget.onUndo,
+        ),
+      ),
+    ];
+  }
+}
+
+/// Keeps the timeline card widget type and position stable across completion
+/// so the circle fill and title strike animate in place.
+class _TimelineReminder extends StatelessWidget {
+  const _TimelineReminder({
+    required this.event,
+    required this.overdue,
+    required this.retained,
+    required this.animate,
+    this.onComplete,
+    this.onUndo,
+  });
+
+  final Event event;
+  final bool overdue;
+  final bool retained;
+  final bool animate;
+  final Future<void> Function(Event)? onComplete;
+  final Future<void> Function(Event)? onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final end = retained ? 1.0 : 0.0;
+    // Reduce-motion (or an already-animated retake) starts at the terminal
+    // value, so the first frame is already the final state.
+    final begin = retained && (reduceMotion || !animate) ? 1.0 : 0.0;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: begin, end: end),
+      duration: reduceMotion || !retained ? Duration.zero : _retainDuration,
+      builder: (context, progress, _) {
+        return ReminderCard(
           key: ValueKey('reminders-timeline-event-${event.id}'),
           event: event,
           overdue: overdue,
           showCheckbox: true,
-          onTap: () => showEventEditor(context, existing: event),
-          onComplete: () => _complete(event),
-        ),
-      ),
-    ];
+          onTap: retained
+              ? null
+              : () => showEventEditor(context, existing: event),
+          onComplete: retained || onComplete == null
+              ? null
+              : () => onComplete!(event),
+          onUndo: !retained || onUndo == null ? null : () => onUndo!(event),
+          progress: retained ? progress : null,
+          titleBuilder: retained
+              ? (context, style) => StrikeThroughText(
+                  text: event.title,
+                  style: style,
+                  progress: progress,
+                )
+              : null,
+        );
+      },
+    );
   }
 }

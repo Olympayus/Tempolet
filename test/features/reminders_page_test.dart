@@ -2,13 +2,16 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/app.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/router/app_router.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_buttons.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
+import 'package:tempolet/core/ui/strike_through_text.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
@@ -30,6 +33,7 @@ Future<void> _settle(WidgetTester tester) async {
 Widget _pageApp(
   ProviderContainer container, {
   Locale locale = const Locale('zh'),
+  bool disableAnimations = false,
 }) {
   return UncontrolledProviderScope(
     container: container,
@@ -37,7 +41,59 @@ Widget _pageApp(
       locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const RemindersPage(),
+      home: disableAnimations
+          ? Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(disableAnimations: true),
+                child: const RemindersPage(),
+              ),
+            )
+          : const RemindersPage(),
+    ),
+  );
+}
+
+/// A two-branch shell matching the app: leaving `/reminders` keeps its page
+/// alive in the indexed stack, so only the route listener can clear the
+/// retained completions.
+GoRouter _testRouter() {
+  return GoRouter(
+    initialLocation: '/reminders',
+    routes: [
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) => navigationShell,
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/reminders',
+                builder: (context, state) => const RemindersPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/other',
+                builder: (context, state) =>
+                    const Scaffold(body: SizedBox(key: ValueKey('other-page'))),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+Widget _routerApp(ProviderContainer container, GoRouter router) {
+  return UncontrolledProviderScope(
+    container: container,
+    child: MaterialApp.router(
+      locale: const Locale('zh'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      routerConfig: router,
     ),
   );
 }
@@ -61,10 +117,11 @@ void main() {
   late ProviderContainer container;
   late EventRepository repo;
   late CategoryRepository categories;
+  late SharedPreferences prefs;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+    prefs = await SharedPreferences.getInstance();
     db = AppDatabase(NativeDatabase.memory());
     repo = EventRepository(db);
     categories = CategoryRepository(db);
@@ -351,7 +408,17 @@ void main() {
     );
   });
 
-  testWidgets('checking a row completes it and removes it from the list', (
+  /// The left column's timeline repeats the card, so completion assertions are
+  /// scoped to the right-hand list row.
+  Finder rowOf(String id) => find.byKey(ValueKey('reminders-row-$id'));
+
+  Finder rowCircle(String id) =>
+      find.descendant(of: rowOf(id), matching: find.byType(AppCheckCircle));
+
+  Finder rowStrike(String id) =>
+      find.descendant(of: rowOf(id), matching: find.byType(StrikeThroughText));
+
+  testWidgets('completing keeps the row with strike and counts include it', (
     tester,
   ) async {
     final event = await seed('Finish me', date: _today);
@@ -359,19 +426,186 @@ void main() {
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
-    // The left column timeline repeats the card, so scope the circle to the
-    // right-hand list row.
+    await tester.tap(rowCircle(event.id));
+    await _settle(tester);
+
+    expect(rowOf(event.id), findsOneWidget);
+    expect(rowStrike(event.id), findsOneWidget);
+    // The group count still shows the item and the day/week stats count it.
+    expect(find.text('1'), findsWidgets);
+    expect(find.text('今日 1'), findsOneWidget);
+    expect(find.text('本周 1'), findsOneWidget);
+    final stored = await tester.runAsync(() => repo.getById(event.id));
+    expect(stored!.isCompleted, isTrue);
+  });
+
+  testWidgets('tapping the circle again undoes completion', (tester) async {
+    final event = await seed('Undo me', date: _today);
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.tap(rowCircle(event.id));
+    await _settle(tester);
+    expect(rowStrike(event.id), findsOneWidget);
+
+    await tester.tap(rowCircle(event.id));
+    await _settle(tester);
+
+    expect(find.byType(StrikeThroughText), findsNothing);
+    expect(rowOf(event.id), findsOneWidget);
+    final stored = await tester.runAsync(() => repo.getById(event.id));
+    expect(stored!.isCompleted, isFalse);
+    expect(stored.completedAt, isNull);
+  });
+
+  testWidgets(
+    'all items completed still shows retained rows instead of the empty state',
+    (tester) async {
+      final event = await seed('Only task', date: _today);
+
+      await tester.pumpWidget(_pageApp(container));
+      await _settle(tester);
+
+      await tester.tap(rowCircle(event.id));
+      await _settle(tester);
+
+      expect(find.byKey(const ValueKey('reminders-empty-title')), findsNothing);
+      expect(rowOf(event.id), findsOneWidget);
+      expect(rowStrike(event.id), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'completed overdue item stays in the overdue group while retained',
+    (tester) async {
+      final event = await seed('Overdue task', date: DateTime(2026, 11, 15));
+
+      await tester.pumpWidget(_pageApp(container));
+      await _settle(tester);
+
+      await tester.tap(rowCircle(event.id));
+      await _settle(tester);
+
+      expect(
+        find.byKey(const ValueKey('reminders-group-__overdue__')),
+        findsOneWidget,
+      );
+      expect(rowOf(event.id), findsOneWidget);
+      expect(rowStrike(event.id), findsOneWidget);
+      expect(find.text('逾期 1'), findsOneWidget);
+    },
+  );
+
+  testWidgets('leaving the page clears retained rows', (tester) async {
+    final event = await seed('Clear me', date: _today);
+    final router = _testRouter();
+    addTearDown(router.dispose);
+    container.dispose();
+    container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        databaseProvider.overrideWithValue(db),
+        notificationServiceProvider.overrideWithValue(
+          FakeNotificationService(),
+        ),
+        todayProvider.overrideWithValue(_today),
+        routerProvider.overrideWithValue(router),
+      ],
+    );
+
+    await tester.pumpWidget(_routerApp(container, router));
+    await _settle(tester);
+
+    await tester.tap(rowCircle(event.id));
+    await _settle(tester);
+    expect(rowStrike(event.id), findsOneWidget);
+
+    router.go('/other');
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('other-page')), findsOneWidget);
+
+    router.go('/reminders');
+    await _settle(tester);
+
+    expect(rowOf(event.id), findsNothing);
+    expect(find.byType(StrikeThroughText), findsNothing);
+  });
+
+  testWidgets('left column keeps completed cards, counts them, and undoes', (
+    tester,
+  ) async {
+    final event = await seed('Timeline task', date: _today, startMinute: 540);
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final card = find.byKey(ValueKey('reminders-timeline-event-${event.id}'));
+    final title = find.byKey(const ValueKey('reminders-timeline-title'));
+    expect(tester.widget<Text>(title).data, contains('1 项'));
+
     await tester.tap(
       find.descendant(
-        of: find.byKey(ValueKey('reminders-row-${event.id}')),
-        matching: find.byType(AppCheckCircle),
+        of: card,
+        matching: find.byKey(ValueKey('complete-${event.id}')),
       ),
     );
     await _settle(tester);
 
-    expect(find.text('Finish me'), findsNothing);
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(of: card, matching: find.byType(StrikeThroughText)),
+      findsOneWidget,
+    );
+    expect(tester.widget<Text>(title).data, contains('1 项'));
+
+    await tester.tap(
+      find.descendant(
+        of: card,
+        matching: find.byKey(ValueKey('complete-${event.id}')),
+      ),
+    );
+    await _settle(tester);
+
+    expect(
+      find.descendant(of: card, matching: find.byType(StrikeThroughText)),
+      findsNothing,
+    );
     final stored = await tester.runAsync(() => repo.getById(event.id));
-    expect(stored!.isCompleted, isTrue);
+    expect(stored!.isCompleted, isFalse);
+  });
+
+  testWidgets('reduce motion jumps straight to the completed state', (
+    tester,
+  ) async {
+    final event = await seed('Instant task', date: _today);
+
+    await tester.pumpWidget(_pageApp(container, disableAnimations: true));
+    await _settle(tester);
+
+    await tester.tap(rowCircle(event.id));
+    await tester.runAsync(() async {
+      while (!(await repo.getById(event.id))!.isCompleted) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    });
+    // A single frame after the completion write: no animation ticks.
+    await tester.pump();
+
+    final strike = tester.widget<StrikeThroughText>(rowStrike(event.id));
+    expect(strike.progress, 1);
+    final circle = tester.widget<AppCheckCircle>(rowCircle(event.id));
+    expect(circle.checked, isTrue);
+    final glyph = tester.widget<AnimatedContainer>(
+      find.descendant(
+        of: rowOf(event.id),
+        matching: find.byKey(const ValueKey('check-circle-glyph')),
+      ),
+    );
+    expect(
+      (glyph.decoration! as BoxDecoration).color,
+      Theme.of(tester.element(rowOf(event.id))).colorScheme.primary,
+    );
   });
 
   testWidgets('row tap opens the shared event editor', (tester) async {

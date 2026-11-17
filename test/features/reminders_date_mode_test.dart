@@ -2,11 +2,14 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/router/app_router.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
+import 'package:tempolet/core/ui/strike_through_text.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
@@ -32,6 +35,51 @@ Widget _pageApp(ProviderContainer container) {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const RemindersPage(),
+    ),
+  );
+}
+
+/// A two-branch shell matching the app: leaving `/reminders` keeps its page
+/// alive in the indexed stack, so only the route listener clears retained
+/// completions.
+GoRouter _testRouter() {
+  return GoRouter(
+    initialLocation: '/reminders',
+    routes: [
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) => navigationShell,
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/reminders',
+                builder: (context, state) => const RemindersPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/other',
+                builder: (context, state) =>
+                    const Scaffold(body: SizedBox(key: ValueKey('other-page'))),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+Widget _routerApp(ProviderContainer container, GoRouter router) {
+  return UncontrolledProviderScope(
+    container: container,
+    child: MaterialApp.router(
+      locale: const Locale('zh'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      routerConfig: router,
     ),
   );
 }
@@ -362,38 +410,80 @@ void main() {
     },
   );
 
-  testWidgets('completing the earliest overdue event shrinks the band start', (
-    tester,
-  ) async {
-    final earliest = await seed(
-      'Earliest',
-      date: DateTime(2026, 11, 13),
-      startMinute: 600,
-    );
-    await seed('Later', date: DateTime(2026, 11, 15), startMinute: 600);
+  testWidgets(
+    'completing the earliest overdue keeps the band until the page is left',
+    (tester) async {
+      final earliest = await seed(
+        'Earliest',
+        date: DateTime(2026, 11, 13),
+        startMinute: 600,
+      );
+      await seed('Later', date: DateTime(2026, 11, 15), startMinute: 600);
 
-    await openDateMode(tester);
-    expect(find.byKey(const ValueKey('date-group-2026-11-13')), findsOneWidget);
-    // 11-14 is inside the original band as an empty day.
-    expect(find.byKey(const ValueKey('empty-day-2026-11-14')), findsOneWidget);
+      final router = _testRouter();
+      addTearDown(router.dispose);
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          databaseProvider.overrideWithValue(db),
+          notificationServiceProvider.overrideWithValue(
+            FakeNotificationService(),
+          ),
+          todayProvider.overrideWithValue(_today),
+          routerProvider.overrideWithValue(router),
+        ],
+      );
+      await tester.pumpWidget(_routerApp(container, router));
+      await _settle(tester);
+      await tester.tap(find.text('日期'));
+      await _settle(tester);
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(ValueKey('date-row-${earliest.id}')),
-        matching: find.byType(AppCheckCircle),
-      ),
-    );
-    await _settle(tester);
+      expect(
+        find.byKey(const ValueKey('date-group-2026-11-13')),
+        findsOneWidget,
+      );
+      // 11-14 is inside the original band as an empty day.
+      expect(
+        find.byKey(const ValueKey('empty-day-2026-11-14')),
+        findsOneWidget,
+      );
 
-    expect(find.byKey(const ValueKey('date-group-2026-11-13')), findsNothing);
-    // The band now starts on 11-15, so neither former band day is rendered at
-    // all (an old band start of 11-13 would render both as empty-day rows).
-    expect(find.byKey(const ValueKey('empty-day-2026-11-13')), findsNothing);
-    expect(find.byKey(const ValueKey('empty-day-2026-11-14')), findsNothing);
-    expect(find.byKey(const ValueKey('date-group-2026-11-15')), findsOneWidget);
-  });
+      final row = find.byKey(ValueKey('date-row-${earliest.id}'));
+      await tester.tap(
+        find.descendant(of: row, matching: find.byType(AppCheckCircle)),
+      );
+      await _settle(tester);
 
-  testWidgets('completing the only event in an expanded month collapses it', (
+      // The session keeps the original band start: the completed row stays in
+      // its day group.
+      expect(
+        find.byKey(const ValueKey('date-group-2026-11-13')),
+        findsOneWidget,
+      );
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.byType(StrikeThroughText)),
+        findsOneWidget,
+      );
+
+      router.go('/other');
+      await _settle(tester);
+      router.go('/reminders');
+      await _settle(tester);
+
+      // Leaving cleared the retention, so the band shrinks to 11-15.
+      expect(find.byKey(const ValueKey('date-group-2026-11-13')), findsNothing);
+      expect(find.byKey(const ValueKey('empty-day-2026-11-13')), findsNothing);
+      expect(find.byKey(const ValueKey('empty-day-2026-11-14')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('date-group-2026-11-15')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('completing the only event in an expanded month keeps it', (
     tester,
   ) async {
     final event = await seed(
@@ -418,12 +508,16 @@ void main() {
     );
     await _settle(tester);
 
+    // The retained row keeps the month count, expansion and label alive.
     final label = tester.widget<Text>(
       find.byKey(const ValueKey('month-summary-2026-12-label')),
     );
-    expect(label.style?.color, AppPalette.light.subWeak);
-    expect(find.byKey(const ValueKey('date-group-2026-12-05')), findsNothing);
-    expect(find.byKey(const ValueKey('empty-day-2026-12-05')), findsNothing);
+    expect(label.style?.color, AppPalette.light.ink);
+    expect(rowEvent, findsOneWidget);
+    expect(
+      find.descendant(of: rowEvent, matching: find.byType(StrikeThroughText)),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the left column hosts the shared mini calendar and timeline', (

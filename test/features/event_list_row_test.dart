@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
+import 'package:tempolet/core/ui/app_list_checkbox.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/features/events/event_list_row.dart';
 
@@ -280,6 +281,51 @@ void main() {
     expect(opened, 1);
     expect(toggled, 1);
   });
+
+  testWidgets(
+    'selection mode swaps the completion circle for a list checkbox',
+    (tester) async {
+      var toggled = 0;
+      await tester.pumpWidget(
+        _app(
+          Column(
+            children: [
+              EventListRow(
+                event: _event(id: 'normal', title: 'Normal'),
+                color: _markerColor,
+                onToggleComplete: () {},
+              ),
+              EventListRow(
+                event: _event(id: 'unchecked', title: 'Unchecked'),
+                color: _markerColor,
+                selectionChecked: false,
+                onToggleSelection: () => toggled++,
+              ),
+              EventListRow(
+                event: _event(id: 'checked', title: 'Checked'),
+                color: _markerColor,
+                selectionChecked: true,
+                onToggleSelection: () => toggled++,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Only the plain row shows the completion circle; both selection rows
+      // show the square checkbox instead.
+      expect(find.byType(AppCheckCircle), findsOneWidget);
+      final checkboxes = find.byType(AppListCheckbox);
+      expect(checkboxes, findsNWidgets(2));
+      expect(
+        tester.widgetList<AppListCheckbox>(checkboxes).map((c) => c.checked),
+        [false, true],
+      );
+
+      await tester.tap(checkboxes.first);
+      expect(toggled, 1);
+    },
+  );
 
   testWidgets('trailing renders after the time', (tester) async {
     await tester.pumpWidget(

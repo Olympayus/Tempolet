@@ -225,7 +225,10 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
             style: AppTextStyles.caption.copyWith(color: palette.sub),
           ),
           timeLabel: completionLabel,
-          checked: _selecting ? selected.contains(event.id) : null,
+          selectionChecked: _selecting ? selected.contains(event.id) : null,
+          onToggleSelection: _selecting
+              ? () => _toggleSelected(event.id)
+              : null,
           onTap: _selecting ? () => _toggleSelected(event.id) : null,
           onLongPress: _selecting ? null : () => _enterSelection(event.id),
           onToggleComplete: _selecting ? () => _toggleSelected(event.id) : null,

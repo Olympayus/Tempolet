@@ -5,6 +5,7 @@ import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_buttons.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/core/ui/app_hairline.dart';
+import 'package:tempolet/core/ui/app_list_checkbox.dart';
 import 'package:tempolet/core/ui/app_segmented.dart';
 import 'package:tempolet/core/ui/app_switch.dart';
 
@@ -100,6 +101,29 @@ void main() {
     await tester.tap(find.byType(AppCheckCircle));
     expect(taps, 1);
   });
+
+  testWidgets(
+    'list checkbox is square, 16px, hit area 24 and keyboard activatable',
+    (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: AppListCheckbox(checked: false, onTap: () => taps++),
+          ),
+        ),
+      );
+      final box = tester.getSize(find.byType(AppListCheckbox));
+      expect(box, const Size(24, 24));
+      final glyph = tester.getSize(
+        find.byKey(const ValueKey('list-checkbox-glyph')),
+      );
+      expect(glyph, const Size(16, 16));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      expect(taps, 1);
+    },
+  );
 
   testWidgets('hairline is 1px and defaults to the line token', (tester) async {
     await tester.pumpWidget(

@@ -205,10 +205,13 @@ void main() {
     );
     final decoration = fill.decoration! as BoxDecoration;
     expect(decoration.borderRadius, BorderRadius.circular(AppRadii.block));
+    // All four sides: the first/last hoverable rows sit flush against the
+    // card's top/bottom border too, so a horizontal-only inset would still
+    // let the fill paint over it.
     expect(
       fill.margin,
-      const EdgeInsets.symmetric(horizontal: 1),
-      reason: 'the hover fill must leave the group card 1px border visible',
+      const EdgeInsets.all(1),
+      reason: 'the hover fill must leave every 1px card border visible',
     );
   });
 

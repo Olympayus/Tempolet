@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/app_check_circle.dart';
 import '../../core/utils/dates.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
@@ -15,7 +15,8 @@ import 'category_marker.dart';
 ///
 /// Ticking the circle fades the card for 120ms and then calls [onComplete];
 /// the parent owns the actual write so it can capture its repository before
-/// the delay.
+/// the delay. When [onUndo] is set and the event is already completed, tapping
+/// the circle calls it immediately instead, keeping the card in place.
 class ReminderCard extends ConsumerStatefulWidget {
   const ReminderCard({
     super.key,
@@ -24,6 +25,9 @@ class ReminderCard extends ConsumerStatefulWidget {
     required this.showCheckbox,
     this.onTap,
     this.onComplete,
+    this.onUndo,
+    this.progress,
+    this.titleBuilder,
   });
 
   final Event event;
@@ -33,6 +37,16 @@ class ReminderCard extends ConsumerStatefulWidget {
   final bool showCheckbox;
   final VoidCallback? onTap;
   final Future<void> Function()? onComplete;
+
+  /// Reverts a completed event without the completion fade.
+  final Future<void> Function()? onUndo;
+
+  /// External fill progress for the completion circle while the strike-through
+  /// animates.
+  final double? progress;
+
+  /// Replaces the default title [Text]; receives the card's title style.
+  final Widget Function(BuildContext context, TextStyle style)? titleBuilder;
 
   @override
   ConsumerState<ReminderCard> createState() => _ReminderCardState();
@@ -48,6 +62,17 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
     // Let the fade read as "done" before the completion is written.
     await Future<void>.delayed(const Duration(milliseconds: 120));
     await onComplete();
+  }
+
+  VoidCallback? _circleTap() {
+    final onUndo = widget.onUndo;
+    if (onUndo != null && widget.event.isCompleted) {
+      return () => onUndo();
+    }
+    if (!widget.event.isCompleted && widget.onComplete != null) {
+      return _complete;
+    }
+    return null;
   }
 
   @override
@@ -67,6 +92,16 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
     final time = event.startMinute == null
         ? l10n.allDay
         : formatMinuteOfDay(event.startMinute!);
+    // The builder owns its strike-through, so it only receives body + colour;
+    // the default title still paints the completed decoration itself.
+    final titleStyle = AppTextStyles.body.copyWith(
+      fontWeight: FontWeight.w700,
+      fontVariations: const [FontVariation('wght', 700)],
+      color: done ? palette.sub : palette.ink,
+    );
+    final defaultTitleStyle = done
+        ? titleStyle.copyWith(decoration: TextDecoration.lineThrough)
+        : titleStyle;
 
     return AnimatedOpacity(
       opacity: _completing ? 0.35 : 1,
@@ -85,49 +120,24 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
           child: Row(
             children: [
               if (widget.showCheckbox) ...[
-                GestureDetector(
+                AppCheckCircle(
                   key: ValueKey('complete-${event.id}'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _complete,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    alignment: Alignment.center,
-                    decoration: done
-                        ? BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: palette.accent,
-                          )
-                        : BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: danger ? palette.danger : palette.subWeak,
-                              width: 1.5,
-                            ),
-                          ),
-                    child: done
-                        ? const Icon(
-                            LucideIcons.check,
-                            size: 9,
-                            color: Colors.white,
-                          )
-                        : null,
-                  ),
+                  checked: done,
+                  progress: widget.progress,
+                  borderColor: danger ? palette.danger : null,
+                  onTap: _circleTap(),
                 ),
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: Text(
-                  event.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.body.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontVariations: const [FontVariation('wght', 700)],
-                    color: done ? palette.sub : palette.ink,
-                    decoration: done ? TextDecoration.lineThrough : null,
-                  ),
-                ),
+                child: widget.titleBuilder != null
+                    ? widget.titleBuilder!(context, titleStyle)
+                    : Text(
+                        event.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: defaultTitleStyle,
+                      ),
               ),
               const SizedBox(width: 8),
               Text(

@@ -359,7 +359,14 @@ void main() {
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
-    await tester.tap(find.byType(AppCheckCircle));
+    // The left column timeline repeats the card, so scope the circle to the
+    // right-hand list row.
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(ValueKey('reminders-row-${event.id}')),
+        matching: find.byType(AppCheckCircle),
+      ),
+    );
     await _settle(tester);
 
     expect(find.text('Finish me'), findsNothing);

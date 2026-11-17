@@ -344,4 +344,52 @@ void main() {
       greaterThan(tester.getRect(find.text('09:00')).right),
     );
   });
+
+  testWidgets('titleBuilder replaces the default title in the same slot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        Column(
+          children: [
+            EventListRow(
+              event: _event(id: 'default', title: 'Default title'),
+              color: _markerColor,
+            ),
+            EventListRow(
+              event: _event(
+                id: 'custom',
+                title: 'Default title',
+                isCompleted: true,
+              ),
+              color: _markerColor,
+              titleBuilder: (context, style) => Text(
+                'custom',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('custom'), findsOneWidget);
+    // Only the row without a builder still paints its default title.
+    expect(find.text('Default title'), findsOneWidget);
+
+    final custom = tester.widget<Text>(find.text('custom'));
+    expect(custom.style?.fontSize, 13);
+    expect(custom.style?.color, AppPalette.light.ink);
+    // The builder owns the strike-through; the row only supplies body + colour.
+    expect(custom.style?.decoration, isNull);
+
+    // The builder keeps the row's expanded one-line title slot instead of
+    // shrinking to the text, so long titles still ellipsize.
+    final defaultTitle = tester.getRect(find.text('Default title'));
+    final customTitle = tester.getRect(find.text('custom'));
+    expect(customTitle.left, defaultTitle.left);
+    expect(customTitle.width, defaultTitle.width);
+  });
 }

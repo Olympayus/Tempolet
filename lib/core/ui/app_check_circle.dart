@@ -14,23 +14,47 @@ const double _checkIconInset = 4;
 
 const double _checkPressedScale = 0.92;
 
-const Duration _checkAnimation = Duration(milliseconds: 90);
+/// Scale the check mark starts from while it fades in.
+const double _checkHiddenScale = 0.5;
+
+/// Scale the solid fill starts from while it grows under external progress.
+const double _checkFillStartScale = 0.6;
+
+/// Press feedback (`docs/design/08-motion.md` §2).
+const Duration _checkPressAnimation = Duration(milliseconds: 90);
+
+/// Border, fill and check transition for the binary state.
+const Duration _checkFillAnimation = Duration(milliseconds: 120);
 
 /// Completion circle used by reminder rows, plan rows and the preview popover
 /// (`docs/design/05-components.md` §4).
 ///
 /// The glyph is [size] (14 by default); the tappable area is always 24×24.
+///
+/// With [progress] null the circle animates between the binary [checked]
+/// states. When [progress] is set (0..1) the caller drives the fill instead:
+/// the ring fades out, the solid circle grows from [_checkFillStartScale] and
+/// the check mark scales up.
 class AppCheckCircle extends StatefulWidget {
   const AppCheckCircle({
     super.key,
     required this.checked,
     this.onTap,
     this.size = 14,
+    this.progress,
+    this.borderColor,
   });
 
   final bool checked;
   final VoidCallback? onTap;
   final double size;
+
+  /// External fill progress. Null keeps the binary [checked] behaviour.
+  final double? progress;
+
+  /// Unchecked border colour; defaults to `subWeak` (overdue cards pass
+  /// `danger`).
+  final Color? borderColor;
 
   @override
   State<AppCheckCircle> createState() => _AppCheckCircleState();
@@ -48,25 +72,94 @@ class _AppCheckCircleState extends State<AppCheckCircle> {
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
     final enabled = widget.onTap != null;
-    final glyph = Container(
-      key: const ValueKey('check-circle-glyph'),
-      width: widget.size,
-      height: widget.size,
-      alignment: Alignment.center,
-      decoration: widget.checked
-          ? BoxDecoration(color: palette.accent, shape: BoxShape.circle)
-          : BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: palette.subWeak, width: _checkBorder),
-            ),
-      child: widget.checked
-          ? Icon(
-              LucideIcons.check,
-              size: widget.size - _checkIconInset,
-              color: Colors.white,
-            )
-          : null,
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final pressDuration = reduceMotion ? Duration.zero : _checkPressAnimation;
+    final fillDuration = reduceMotion ? Duration.zero : _checkFillAnimation;
+    final progress = widget.progress?.clamp(0.0, 1.0).toDouble();
+    final borderColor = widget.borderColor ?? palette.subWeak;
+    final checkIcon = Icon(
+      LucideIcons.check,
+      size: widget.size - _checkIconInset,
+      color: Colors.white,
     );
+
+    final Widget glyph;
+    if (progress == null) {
+      glyph = AnimatedContainer(
+        key: const ValueKey('check-circle-glyph'),
+        duration: fillDuration,
+        curve: Curves.easeOut,
+        width: widget.size,
+        height: widget.size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: widget.checked ? palette.accent : Colors.transparent,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: widget.checked ? Colors.transparent : borderColor,
+            width: _checkBorder,
+          ),
+        ),
+        child: AnimatedScale(
+          scale: widget.checked ? 1 : _checkHiddenScale,
+          duration: fillDuration,
+          curve: Curves.easeOut,
+          child: AnimatedOpacity(
+            opacity: widget.checked ? 1 : 0,
+            duration: fillDuration,
+            curve: Curves.easeOut,
+            child: checkIcon,
+          ),
+        ),
+      );
+    } else {
+      glyph = SizedBox(
+        key: const ValueKey('check-circle-glyph'),
+        width: widget.size,
+        height: widget.size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Opacity(
+              key: const ValueKey('check-circle-ring'),
+              opacity: 1 - progress,
+              child: Container(
+                width: widget.size,
+                height: widget.size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: borderColor, width: _checkBorder),
+                ),
+              ),
+            ),
+            Opacity(
+              key: const ValueKey('check-circle-fill'),
+              opacity: progress,
+              child: Transform.scale(
+                scale:
+                    _checkFillStartScale +
+                    (1 - _checkFillStartScale) * progress,
+                child: Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    color: palette.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+            Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: _checkHiddenScale + (1 - _checkHiddenScale) * progress,
+                child: checkIcon,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return SizedBox(
       width: _checkHitSize,
@@ -111,7 +204,7 @@ class _AppCheckCircleState extends State<AppCheckCircle> {
               child: Center(
                 child: AnimatedScale(
                   scale: _pressed ? _checkPressedScale : 1,
-                  duration: _checkAnimation,
+                  duration: pressDuration,
                   curve: Curves.easeOut,
                   child: glyph,
                 ),

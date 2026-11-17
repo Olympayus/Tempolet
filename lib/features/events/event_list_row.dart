@@ -40,6 +40,7 @@ class EventListRow extends StatelessWidget {
     this.timeSuffix,
     this.timeLabel,
     this.titleColor,
+    this.titleBuilder,
     this.metadata,
     this.selectionChecked,
     this.onTap,
@@ -71,6 +72,11 @@ class EventListRow extends StatelessWidget {
 
   /// Overrides the title colour; defaults to `ink`.
   final Color? titleColor;
+
+  /// Replaces the default title [Text]. The row still computes the style
+  /// (body plus colour and completion strike) and keeps the slot expanded to
+  /// one line.
+  final Widget Function(BuildContext context, TextStyle style)? titleBuilder;
 
   /// Optional 11px metadata rendered between the title and the time (e.g. the
   /// completed page's kind label).
@@ -118,10 +124,14 @@ class EventListRow extends StatelessWidget {
           if (time.isNotEmpty) time,
           if (timeSuffix != null && timeSuffix!.isNotEmpty) timeSuffix!,
         ].join(dateSeparator);
+    // The builder owns its strike-through, so it only receives body + colour;
+    // the default title still paints the completed decoration itself.
     final titleStyle = AppTextStyles.body.copyWith(
       color: titleColor ?? palette.ink,
-      decoration: event.isCompleted ? TextDecoration.lineThrough : null,
     );
+    final defaultTitleStyle = event.isCompleted
+        ? titleStyle.copyWith(decoration: TextDecoration.lineThrough)
+        : titleStyle;
 
     return SizedBox(
       height: AppSizes.row,
@@ -191,12 +201,14 @@ class EventListRow extends StatelessWidget {
                     ),
                     const SizedBox(width: _gap),
                     Expanded(
-                      child: Text(
-                        event.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: titleStyle,
-                      ),
+                      child: titleBuilder != null
+                          ? titleBuilder!(context, titleStyle)
+                          : Text(
+                              event.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: defaultTitleStyle,
+                            ),
                     ),
                     if (metadata != null) ...[
                       const SizedBox(width: 12),

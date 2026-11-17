@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -16,10 +17,17 @@ import 'holiday_badge.dart';
 import 'month_model.dart';
 import 'month_preview_popover.dart';
 
+/// How long the pointer must rest on a month cell before its preview opens.
+const Duration kMonthPreviewHoverDelay = Duration(milliseconds: 350);
+
+/// Grace period for moving the pointer from a cell into its preview; leaving
+/// both for this long dismisses the preview.
+const Duration kMonthPreviewCloseGrace = Duration(milliseconds: 200);
+
 /// Current-month grid: only real dates of the selected month, with blank
 /// leading/trailing cells and no hovering summary (`docs/design/03-calendar.md`
-/// §1). A single click opens the anchored [MonthPreviewPopover]; a double
-/// click selects the day and opens the sidebar.
+/// §1). A single click selects the day; resting the pointer on a cell for
+/// [kMonthPreviewHoverDelay] opens the anchored [MonthPreviewPopover].
 class MonthView extends ConsumerStatefulWidget {
   const MonthView({super.key});
 
@@ -28,12 +36,105 @@ class MonthView extends ConsumerStatefulWidget {
 }
 
 class _MonthViewState extends ConsumerState<MonthView> {
-  /// Stable per-day keys so the tapped cell can report its rectangle to the
+  /// Stable per-day keys so the hovered cell can report its rectangle to the
   /// popover without depending on a context outside its own subtree.
   final Map<DateTime, GlobalKey> _cellKeys = <DateTime, GlobalKey>{};
 
+  DateTime? _openPreviewDay;
+  Timer? _openTimer;
+  Timer? _closeTimer;
+  VoidCallback? _closePreview;
+  DateTime? _suppressedDay;
+  DateTime? _hoveredDay;
+
   GlobalKey _cellKey(DateTime day) =>
       _cellKeys.putIfAbsent(day, GlobalKey.new);
+
+  @override
+  void dispose() {
+    _openTimer?.cancel();
+    _closeTimer?.cancel();
+    // Dismissing through the captured scope keeps the overlay from surviving
+    // a view switch after this state is gone.
+    _closePreview?.call();
+    super.dispose();
+  }
+
+  void _handleCellTap(DateTime day) {
+    ref.read(selectedDayProvider.notifier).select(day);
+  }
+
+  void _enterCell(DateTime day) {
+    _openTimer?.cancel();
+    _cancelClose();
+    if (_openPreviewDay == day) return;
+    // A preview cannot follow the pointer across cells.
+    _closeOpenPreview();
+    setState(() => _hoveredDay = day);
+    _openTimer = Timer(kMonthPreviewHoverDelay, () => _openPreview(day));
+  }
+
+  void _exitCell(DateTime day) {
+    _openTimer?.cancel();
+    _openTimer = null;
+    if (_hoveredDay == day) setState(() => _hoveredDay = null);
+    if (_suppressedDay == day) _suppressedDay = null;
+    if (_openPreviewDay == day) _scheduleClose();
+  }
+
+  void _cancelClose() {
+    _closeTimer?.cancel();
+    _closeTimer = null;
+  }
+
+  void _scheduleClose() {
+    _closeTimer?.cancel();
+    _closeTimer = Timer(kMonthPreviewCloseGrace, () {
+      _closeTimer = null;
+      _closeOpenPreview();
+    });
+  }
+
+  void _closeOpenPreview() {
+    if (_openPreviewDay == null) return;
+    _openPreviewDay = null;
+    final close = _closePreview;
+    _closePreview = null;
+    close?.call();
+  }
+
+  void _openPreview(DateTime day) {
+    _openTimer = null;
+    if (!mounted || _suppressedDay == day || _openPreviewDay == day) return;
+    _closeOpenPreview();
+    final box = _cellKey(day).currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final anchor = box.localToGlobal(Offset.zero) & box.size;
+    _openPreviewDay = day;
+    final future = showAppPopover<void>(
+      context: context,
+      anchor: anchor,
+      builder: (popoverContext) {
+        // Capture the scope's close callback up front: it stays callable from
+        // `dispose` even after the popover's own context is deactivated.
+        final scope = AppPopoverScope.maybeOf(popoverContext);
+        if (scope != null) _closePreview = () => scope.close(null);
+        return MouseRegion(
+          onEnter: (_) => _cancelClose(),
+          onExit: (_) => _scheduleClose(),
+          child: MonthPreviewPopover(day: day),
+        );
+      },
+    );
+    future.whenComplete(() {
+      if (!mounted || _openPreviewDay != day) return;
+      // Dismissed by an outside tap, Escape or ×. Keep the cell hovered but
+      // suppressed until the pointer leaves and enters again.
+      _openPreviewDay = null;
+      _closePreview = null;
+      _suppressedDay = day;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,22 +166,6 @@ class _MonthViewState extends ConsumerState<MonthView> {
     final holidayByDay = <DateTime, Holiday>{
       for (final holiday in holidays) dateOnly(holiday.date): holiday,
     };
-
-    void openPreview(DateTime day) {
-      final box = _cellKey(day).currentContext?.findRenderObject();
-      if (box is! RenderBox || !box.hasSize) return;
-      final anchor = box.localToGlobal(Offset.zero) & box.size;
-      showAppPopover<void>(
-        context: context,
-        anchor: anchor,
-        builder: (_) => MonthPreviewPopover(day: day),
-      );
-    }
-
-    void openSidebar(DateTime day) {
-      ref.read(selectedDayProvider.notifier).select(day);
-      ref.read(sidebarPreferenceProvider.notifier).set(true);
-    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
@@ -127,18 +212,22 @@ class _MonthViewState extends ConsumerState<MonthView> {
                             Expanded(
                               child: day == null
                                   ? _GridBlank(palette: palette)
-                                  : _DayCell(
-                                      key: _cellKey(day),
-                                      day: day,
-                                      isToday: day == today,
-                                      isSelected: day == selected,
-                                      events:
-                                          eventsByDay[day] ?? const <Event>[],
-                                      holiday: holidayByDay[day],
-                                      categories: categories,
-                                      palette: palette,
-                                      onTap: () => openPreview(day),
-                                      onDoubleTap: () => openSidebar(day),
+                                  : MouseRegion(
+                                      onEnter: (_) => _enterCell(day),
+                                      onExit: (_) => _exitCell(day),
+                                      child: _DayCell(
+                                        key: _cellKey(day),
+                                        day: day,
+                                        isToday: day == today,
+                                        isSelected: day == selected,
+                                        isHovered: day == _hoveredDay,
+                                        events:
+                                            eventsByDay[day] ?? const <Event>[],
+                                        holiday: holidayByDay[day],
+                                        categories: categories,
+                                        palette: palette,
+                                        onTap: () => _handleCellTap(day),
+                                      ),
                                     ),
                             ),
                         ],
@@ -230,39 +319,43 @@ class _DayCell extends StatelessWidget {
     required this.day,
     required this.isToday,
     required this.isSelected,
+    required this.isHovered,
     required this.events,
     required this.holiday,
     required this.categories,
     required this.palette,
     required this.onTap,
-    required this.onDoubleTap,
   });
 
   final DateTime day;
   final bool isToday;
   final bool isSelected;
+  final bool isHovered;
   final List<Event> events;
   final Holiday? holiday;
   final List<Category> categories;
   final AppPalette palette;
   final VoidCallback onTap;
-  final VoidCallback onDoubleTap;
 
   @override
   Widget build(BuildContext context) {
+    // Today owns the solid accent circle, so a selected today does not also
+    // wash the whole cell (`docs/design/10-ui-refinement.md` §9.15). Hover is
+    // a flat tint only; selection keeps the accent wash and wins over it.
+    Color? cellColor;
+    if (isSelected && !isToday) {
+      cellColor = palette.accentTint;
+    } else if (isHovered && !isSelected) {
+      cellColor = palette.hover;
+    }
+
     return GestureDetector(
       key: ValueKey('month-day-${_dateKey(day)}'),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      onDoubleTap: onDoubleTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: _cellBorder(
-          palette,
-          // Today owns the solid accent circle, so a selected today does not
-          // also wash the whole cell (`docs/design/10-ui-refinement.md` §9.15).
-          color: isSelected && !isToday ? palette.accentTint : null,
-        ),
+        decoration: _cellBorder(palette, color: cellColor),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

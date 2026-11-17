@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -189,8 +190,13 @@ void main() {
 
     await tester.pumpWidget(_app(container));
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-11')));
-    await tester.pump(const Duration(milliseconds: 350));
+    // The month preview opens after resting the pointer on the cell.
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-day-2026-11-11'))),
+    );
+    await tester.pump(const Duration(milliseconds: 360));
     await tester.pumpAndSettle();
 
     final title = tester.widget<Text>(find.text('11月11日 周三 · Test Holiday'));

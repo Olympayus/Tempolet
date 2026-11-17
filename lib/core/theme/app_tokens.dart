@@ -45,7 +45,6 @@ class AppPalette {
     required this.dangerTint,
     required this.hover,
     required this.surfaceSelected,
-    required this.todayColumn,
     required this.festival,
     required this.festivalTint,
   });
@@ -71,7 +70,6 @@ class AppPalette {
     dangerTint: Color(0x0FFF3B30),
     hover: Color(0xFFF7F7F9),
     surfaceSelected: Color(0xFFF7F7FA),
-    todayColumn: Color(0xFFFCFCFD),
     festival: Color(0xFFC22F2F),
     festivalTint: Color(0x1AC22F2F),
   );
@@ -97,7 +95,6 @@ class AppPalette {
     dangerTint: Color(0x1AFF6B5E),
     hover: Color(0x0AFFFFFF),
     surfaceSelected: Color(0x0CFFFFFF),
-    todayColumn: Color(0x08FFFFFF),
     festival: Color(0xFFFF8F8A),
     festivalTint: Color(0x1FFF8F8A),
   );
@@ -159,9 +156,6 @@ class AppPalette {
   /// Selected-day column wash in week view.
   final Color surfaceSelected;
 
-  /// Today column background in week/day views.
-  final Color todayColumn;
-
   /// Festival names and the "休" pill text.
   final Color festival;
 
@@ -189,7 +183,6 @@ class AppPalette {
     dangerTint: dangerTint,
     hover: hover,
     surfaceSelected: surfaceSelected,
-    todayColumn: todayColumn,
     festival: festival,
     festivalTint: festivalTint,
   );

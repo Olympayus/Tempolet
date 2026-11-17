@@ -160,18 +160,42 @@ void main() {
       );
     });
 
-    testWidgets('today column has a tint', (tester) async {
-      await pumpWeek(tester, dateOnly(DateTime.now()));
+    testWidgets(
+      'selected day washes its column and today has no separate wash',
+      (tester) async {
+        // selected = default today (2026-11-11 per existing harness)
+        await pumpWeek(tester, DateTime(2026, 11, 11));
 
-      expect(find.byKey(const ValueKey('week-today-column')), findsOneWidget);
-      final tint = tester.widget<ColoredBox>(
-        find.descendant(
-          of: find.byKey(const ValueKey('week-today-column')),
-          matching: find.byType(ColoredBox),
-        ),
-      );
-      expect(tint.color, AppPalette.light.todayColumn);
-    });
+        final sel = find.byKey(
+          const ValueKey('week-selected-column-2026-11-11'),
+        );
+        expect(sel, findsOneWidget);
+        expect(
+          tester.widget<ColoredBox>(sel).color,
+          AppPalette.light.surfaceSelected,
+        );
+        expect(find.byKey(const ValueKey('week-today-column')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'header tap selects immediately and second tap within 300ms opens day view',
+      (tester) async {
+        container
+            .read(calendarViewModeProvider.notifier)
+            .set(CalendarViewMode.week);
+        await pumpWeek(tester, DateTime(2026, 11, 11));
+
+        // tap another day once -> selected immediately (one pump, no 300ms wait)
+        await tester.tap(find.byKey(const ValueKey('week-day-2026-11-12')));
+        await tester.pump();
+        expect(container.read(selectedDayProvider), DateTime(2026, 11, 12));
+        // tap again within threshold -> day view
+        await tester.tap(find.byKey(const ValueKey('week-day-2026-11-12')));
+        await tester.pump();
+        expect(container.read(calendarViewModeProvider), CalendarViewMode.day);
+      },
+    );
 
     testWidgets('week header and axis gutter use the side surface', (
       tester,

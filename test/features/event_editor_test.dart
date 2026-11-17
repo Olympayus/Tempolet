@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_segmented.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
@@ -110,7 +111,10 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('editor-title'))).height,
       34,
     );
-    expect(tester.getSize(find.byKey(const ValueKey('editor-note'))).height, 72);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('editor-note'))).height,
+      72,
+    );
   });
 
   testWidgets('plan defaults to 30 minutes and clamps end at 24:00', (
@@ -378,6 +382,86 @@ void main() {
 
     rows = await tester.runAsync(() => _db.select(_db.events).get());
     expect(rows!.single.deletedAt, isNotNull);
+  });
+
+  testWidgets('category dropdown shows the category colour dot', (
+    tester,
+  ) async {
+    await _init();
+    final category = await CategoryRepository(_db)
+        .create(name: 'Work', color: 0xFF34C759);
+    await _pumpEditor(
+      tester,
+      date: DateTime(2026, 11, 15),
+      initialKind: EventKind.reminder,
+      startMinute: 540,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('editor-category')));
+    await tester.pumpAndSettle();
+
+    final dot = find.byKey(ValueKey('app-dropdown-dot-${category.id}'));
+    expect(dot, findsOneWidget);
+    expect(tester.getSize(dot), const Size(6, 6));
+    final decoration =
+        tester.widget<Container>(dot).decoration! as BoxDecoration;
+    expect(decoration.color, const Color(0xFF34C759));
+    expect(decoration.shape, BoxShape.circle);
+  });
+
+  testWidgets('date and time rows are AppSizes.field high', (tester) async {
+    await _init();
+    await _pumpEditor(
+      tester,
+      date: DateTime(2026, 11, 15),
+      initialKind: EventKind.plan,
+      startMinute: 540,
+      endMinute: 600,
+    );
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('editor-date-row'))).height,
+      AppSizes.field,
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('editor-start-row'))).height,
+      AppSizes.field,
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('editor-end-row'))).height,
+      AppSizes.field,
+    );
+  });
+
+  testWidgets('helper-field labels top-align with their fields', (
+    tester,
+  ) async {
+    await _init();
+    await _pumpEditor(
+      tester,
+      date: DateTime(2026, 11, 15),
+      initialKind: EventKind.reminder,
+      startMinute: 540,
+    );
+
+    Finder labelBox(String label) => find
+        .ancestor(of: find.text(label), matching: find.byType(SizedBox))
+        .first;
+
+    expect(
+      (tester.getTopLeft(labelBox('Remind')).dy -
+              tester.getTopLeft(find.byKey(const ValueKey('editor-lead'))).dy)
+          .abs(),
+      lessThanOrEqualTo(1),
+    );
+    expect(
+      (tester.getTopLeft(labelBox('Category')).dy -
+              tester
+                  .getTopLeft(find.byKey(const ValueKey('editor-category')))
+                  .dy)
+          .abs(),
+      lessThanOrEqualTo(1),
+    );
   });
 
   testWidgets('saving a future reminder registers a notification', (

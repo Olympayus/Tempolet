@@ -20,6 +20,10 @@ const List<BoxShadow> kCardShadow = [
   BoxShadow(color: Color(0x0D000000), blurRadius: 6, offset: Offset(0, 2)),
 ];
 
+/// Fill of the focused segment in date/time/custom segmented fields
+/// (`rgba(0,0,0,.06)` on paper).
+const Color kSelectedSegmentFill = Color(0x0F000000);
+
 /// Semantic palette from `docs/design/01-tokens.md`.
 ///
 /// UI code reads tokens through this class (or `Theme.of`), never hex.

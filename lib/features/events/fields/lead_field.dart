@@ -245,40 +245,47 @@ class _CustomSegment extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 34,
-      child: TextField(
-        key: fieldKey,
-        controller: controller,
-        focusNode: focusNode,
-        keyboardType: TextInputType.number,
-        textAlign: TextAlign.center,
-        maxLength: 2,
-        textInputAction: TextInputAction.next,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(2),
-        ],
-        onChanged: (_) => onChanged(),
-        onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-        style: AppTextStyles.secondary.copyWith(color: palette.ink),
-        decoration: InputDecoration(
-          isDense: true,
-          counterText: '',
-          filled: true,
-          fillColor: palette.card,
-          contentPadding: const EdgeInsets.symmetric(vertical: 7),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            borderSide: BorderSide(color: palette.lineStrong),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            borderSide: BorderSide(color: palette.accent),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            borderSide: BorderSide(color: palette.lineStrong),
-          ),
-        ),
+      height: 28,
+      child: ListenableBuilder(
+        listenable: focusNode,
+        builder: (context, _) {
+          final focused = focusNode.hasFocus;
+          return TextField(
+            key: fieldKey,
+            controller: controller,
+            focusNode: focusNode,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            maxLength: 2,
+            textInputAction: TextInputAction.next,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(2),
+            ],
+            onChanged: (_) => onChanged(),
+            onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+            style: AppTextStyles.body.copyWith(color: palette.ink),
+            decoration: InputDecoration(
+              isDense: true,
+              counterText: '',
+              filled: true,
+              fillColor: focused ? kSelectedSegmentFill : palette.chip,
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.chip),
+                borderSide: BorderSide(color: palette.lineStrong),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.chip),
+                borderSide: BorderSide(color: palette.accent),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.chip),
+                borderSide: BorderSide(color: palette.lineStrong),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -338,14 +338,18 @@ class _DropdownRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A quiet ink wash rather than a filled block: the row should read as
+    // highlighted, not light up. 5% black on the white panel, 3% white in the
+    // dark, fading in over 90ms.
+    final hoverFill = Theme.of(context).brightness == Brightness.light
+        ? const Color(0x0D000000)
+        : const Color(0x08FFFFFF);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => onHover(),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        // The fill fades in instead of popping, and stays a gentle wash: a
-        // full-strength block reads as too heavy inside the panel.
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 90),
           curve: Curves.easeOut,
@@ -353,9 +357,7 @@ class _DropdownRow<T> extends StatelessWidget {
           padding: _rowPadding,
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
-            color: active
-                ? palette.hover.withValues(alpha: .65)
-                : Colors.transparent,
+            color: active ? hoverFill : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadii.chip),
           ),
           child: Text(

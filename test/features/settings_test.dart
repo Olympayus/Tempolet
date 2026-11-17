@@ -190,6 +190,28 @@ void main() {
     expect(find.text('每天早上汇总未完成事项'), findsOneWidget);
   });
 
+  testWidgets('hover fill is inset so it never covers the card border', (
+    tester,
+  ) async {
+    await pumpSettings(tester, locale: const Locale('zh'));
+
+    final fill = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('settings-row-sound')),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final decoration = fill.decoration! as BoxDecoration;
+    expect(decoration.borderRadius, BorderRadius.circular(AppRadii.block));
+    expect(
+      fill.margin,
+      const EdgeInsets.symmetric(horizontal: 1),
+      reason: 'the hover fill must leave the group card 1px border visible',
+    );
+  });
+
   testWidgets('every setting row is at least 64 high', (tester) async {
     await pumpSettings(tester, locale: const Locale('zh'));
 

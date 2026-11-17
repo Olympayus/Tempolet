@@ -424,6 +424,9 @@ class _SettingsRowState extends State<_SettingsRow> {
 
     final content = Container(
       constraints: const BoxConstraints(minHeight: AppSizes.rowTall),
+      // Inset the hover fill so it never paints over the group card's 1px
+      // border.
+      margin: const EdgeInsets.symmetric(horizontal: 1),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: interactive && _hovered ? palette.hover : Colors.transparent,

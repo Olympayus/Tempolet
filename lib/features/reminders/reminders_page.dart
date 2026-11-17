@@ -1073,7 +1073,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                   decoration: BoxDecoration(
                     color: group.danger
                         ? palette.danger
-                        : (group.color ?? palette.sub),
+                        : (group.color ?? kUncategorizedColor),
                     shape: BoxShape.circle,
                   ),
                 ),

@@ -317,6 +317,23 @@ void main() {
     expect(_inCategoryList(find.text('Work task')), findsOneWidget);
   });
 
+  testWidgets('uncategorized group dot uses the uncategorized token colour', (
+    tester,
+  ) async {
+    await seed('No category task', date: _today, startMinute: 600);
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final dot = tester.widget<Container>(
+      find.byKey(
+        const ValueKey('reminders-group-dot-$uncategorizedOrderId'),
+      ),
+    );
+    final decoration = dot.decoration! as BoxDecoration;
+    expect(decoration.color, kUncategorizedColor);
+  });
+
   testWidgets('filter segmented hides plans and reminders', (tester) async {
     await seed('Reminder A', date: _today, startMinute: 600);
     await seed(

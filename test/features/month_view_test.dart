@@ -14,6 +14,7 @@ import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_page.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
 import 'package:tempolet/features/calendar/month_preview_popover.dart';
+import 'package:tempolet/features/calendar/month_view.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -222,6 +223,34 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const ValueKey('month-preview')), findsNothing);
     }
+    await tester.pump(const Duration(milliseconds: 360));
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+  });
+
+  testWidgets('a preview closed before its first frame leaves no orphan', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-day-2026-11-19'))),
+    );
+    // Fire the hover timer without pumping a frame: the overlay entry exists
+    // while its builder (and thus its close handle) has not run yet.
+    await tester.binding.delayed(kMonthPreviewHoverDelay);
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+
+    // Enter another cell during that sub-frame window; the stale entry must
+    // be dismissed instead of mounting when the next frame builds it.
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-day-2026-11-20'))),
+    );
+    await tester.pump();
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+
     await tester.pump(const Duration(milliseconds: 360));
     expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
   });

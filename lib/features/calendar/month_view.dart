@@ -115,9 +115,17 @@ class _MonthViewState extends ConsumerState<MonthView> {
       context: context,
       anchor: anchor,
       builder: (popoverContext) {
+        final scope = AppPopoverScope.maybeOf(popoverContext);
+        // The entry is inserted a frame before this builder runs. If this
+        // state is gone or has moved on to another day by then, dismiss the
+        // orphaned entry instead of mounting a panel whose callbacks would
+        // outlive the state.
+        if (!mounted || _openPreviewDay != day) {
+          scope?.close(null);
+          return const SizedBox.shrink();
+        }
         // Capture the scope's close callback up front: it stays callable from
         // `dispose` even after the popover's own context is deactivated.
-        final scope = AppPopoverScope.maybeOf(popoverContext);
         if (scope != null) _closePreview = () => scope.close(null);
         return MouseRegion(
           onEnter: (_) => _cancelClose(),

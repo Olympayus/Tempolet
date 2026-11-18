@@ -243,12 +243,20 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
                         labelRightPadding: 0,
                         labelBuilder: (context, hour) => Padding(
                           padding: const EdgeInsets.only(left: 8),
-                          child: Text(
-                            '${hour.toString().padLeft(2, '0')}:00',
-                            maxLines: 1,
-                            textAlign: TextAlign.left,
-                            style: AppTextStyles.caption.copyWith(
-                              color: palette.sub,
+                          // The 40px gutter leaves ~0.5px next to a 11px
+                          // `HH:MM` label at 100% text size, and system text
+                          // scaling pushes the last digit across the hour
+                          // rule. Shrink only when the label would overflow.
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${hour.toString().padLeft(2, '0')}:00',
+                              maxLines: 1,
+                              textAlign: TextAlign.left,
+                              style: AppTextStyles.caption.copyWith(
+                                color: palette.sub,
+                              ),
                             ),
                           ),
                         ),

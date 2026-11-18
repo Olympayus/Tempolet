@@ -599,6 +599,45 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('hour labels shrink instead of crossing the rule at large text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(1.25)),
+            child: child!,
+          ),
+          home: const RemindersPage(),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    final timeline = tester.getRect(
+      find.byKey(const ValueKey('reminders-timeline')),
+    );
+    final label = find.text('09:00');
+    final fitted = find.ancestor(of: label, matching: find.byType(FittedBox));
+    expect(fitted, findsOneWidget);
+    expect(
+      tester.widget<FittedBox>(fitted).fit,
+      BoxFit.scaleDown,
+    );
+    final fittedRect = tester.getRect(fitted);
+    // Scaled into the gutter: the 8px inset plus the fitted label stay left
+    // of the hour rule rather than painting the last digit over it.
+    expect(fittedRect.width, lessThanOrEqualTo(32.0));
+    expect(fittedRect.right, lessThanOrEqualTo(timeline.left + 40.0 + 0.5));
+  });
+
   /// The left column's timeline repeats the card, so completion assertions are
   /// scoped to the right-hand list row.
   Finder rowOf(String id) => find.byKey(ValueKey('reminders-row-$id'));

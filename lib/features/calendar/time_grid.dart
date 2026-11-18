@@ -91,11 +91,15 @@ class HourGrid extends StatelessWidget {
                       padding: EdgeInsets.only(right: labelRightPadding),
                       child: labelBuilder != null
                           ? labelBuilder!(context, hour)
-                          : Text(
-                              '${hour.toString().padLeft(2, '0')}:00',
-                              textAlign: TextAlign.right,
-                              style: AppTextStyles.caption.copyWith(
-                                color: palette.sub,
+                          : FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                '${hour.toString().padLeft(2, '0')}:00',
+                                textAlign: TextAlign.right,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: palette.sub,
+                                ),
                               ),
                             ),
                     ),

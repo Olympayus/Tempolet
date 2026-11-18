@@ -501,6 +501,9 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
             animatingIds: _animatedIds,
             onComplete: _complete,
             onUndo: _undo,
+            defaultKind: _filter == RemindersFilter.plan
+                ? EventKind.plan
+                : EventKind.reminder,
           ),
           Expanded(
             child: Column(

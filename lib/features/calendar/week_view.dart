@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_hairline.dart';
+import '../../core/ui/dashed_border_painter.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -564,7 +565,7 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
             borderRadius: BorderRadius.circular(AppRadii.block),
           ),
           child: CustomPaint(
-            painter: _DashedBorderPainter(color: widget.palette.accent),
+            painter: DashedBorderPainter(color: widget.palette.accent),
           ),
         ),
       ),
@@ -728,41 +729,7 @@ class _TwoLineReminderCard extends ConsumerWidget {
 }
 
 /// 1px dashed border for the drag-created plan preview.
-class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Offset.zero & size,
-          const Radius.circular(AppRadii.block),
-        ),
-      );
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    const dash = 4.0;
-    const gap = 3.0;
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final end = (distance + dash).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance = end + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
+// Moved to core/ui/dashed_border_painter.dart.
 
 String _isoDay(DateTime day) =>
     '${day.year}-${day.month.toString().padLeft(2, '0')}-'

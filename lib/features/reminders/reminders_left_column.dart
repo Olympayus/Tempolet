@@ -1,9 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_hairline.dart';
+import '../../core/ui/dashed_border_painter.dart';
 import '../../core/ui/strike_through_text.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
@@ -16,6 +18,7 @@ import '../calendar/mini_month_calendar.dart';
 import '../calendar/plan_block.dart';
 import '../calendar/reminder_card.dart';
 import '../calendar/time_grid.dart';
+import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 
 /// Fixed width of the reminders page's left column (`04-reminders.md` §2).
@@ -33,7 +36,9 @@ const double _timelineItemRight = 8;
 const Duration _retainDuration = Duration(milliseconds: 200);
 
 /// Left column of the reminders page: a shared [MiniMonthCalendar] over the
-/// selected day's 68px/hour timeline (`04-reminders.md` §2, §9.7).
+/// selected day's 68px/hour timeline (`04-reminders.md` §2, §9.7). Blank
+/// timeline slots take the week/day grids' quick add: a tap opens a reminder
+/// at the snapped minute, a vertical drag selects a range for a plan.
 class RemindersLeftColumn extends ConsumerStatefulWidget {
   const RemindersLeftColumn({
     super.key,
@@ -42,6 +47,7 @@ class RemindersLeftColumn extends ConsumerStatefulWidget {
     this.animatingIds = const {},
     this.onComplete,
     this.onUndo,
+    this.defaultKind = EventKind.reminder,
   });
 
   /// Called after a mini-calendar pick, so the date-mode list can locate it.
@@ -58,19 +64,46 @@ class RemindersLeftColumn extends ConsumerStatefulWidget {
   final Future<void> Function(Event)? onComplete;
   final Future<void> Function(Event)? onUndo;
 
+  /// Kind for a blank-slot tap. The plan filter passes plan so a tap does not
+  /// create an item that the filter would hide; a drag always makes a plan.
+  final EventKind defaultKind;
+
   @override
   ConsumerState<RemindersLeftColumn> createState() =>
       _RemindersLeftColumnState();
 }
 
 class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
+  /// A drag shorter than this is a tap in disguise (matches the week/day
+  /// grids).
+  static const double _minimumDragMinutes = 5;
+
   final _scroll = ScrollController(initialScrollOffset: kDefaultScrollOffset);
   DateTime? _month;
+  int? _dragStartMinute;
+  int? _dragCurrentMinute;
 
   @override
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  int _minuteAt(double localY) => yToMinute(localY).clamp(0, 1440);
+
+  Future<void> _openCreate({
+    required DateTime date,
+    required EventKind kind,
+    int? start,
+    int? end,
+  }) {
+    return showEventEditor(
+      context,
+      date: date,
+      initialKind: kind,
+      startMinute: start,
+      endMinute: end,
+    );
   }
 
   List<Event> _sorted(List<Event> events) {
@@ -221,6 +254,64 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
                         ),
                       ),
                     ),
+                    // Blank-slot quick add, matching the week/day grids: a tap
+                    // opens a reminder at the snapped minute and a vertical
+                    // drag selects a range for a plan.
+                    Positioned.fill(
+                      child: GestureDetector(
+                        key: const ValueKey('reminders-timeline-create'),
+                        behavior: HitTestBehavior.opaque,
+                        dragStartBehavior: DragStartBehavior.down,
+                        onTapUp: (details) => _openCreate(
+                          date: selected,
+                          kind: widget.defaultKind,
+                          start: _minuteAt(details.localPosition.dy),
+                        ),
+                        onVerticalDragStart: (details) {
+                          final minute = _minuteAt(details.localPosition.dy);
+                          setState(() {
+                            _dragStartMinute = minute;
+                            _dragCurrentMinute = minute;
+                          });
+                        },
+                        onVerticalDragUpdate: (details) {
+                          setState(() {
+                            _dragCurrentMinute = _minuteAt(
+                              details.localPosition.dy,
+                            );
+                          });
+                        },
+                        onVerticalDragEnd: (_) {
+                          final start = _dragStartMinute;
+                          final current = _dragCurrentMinute;
+                          setState(() {
+                            _dragStartMinute = null;
+                            _dragCurrentMinute = null;
+                          });
+                          if (start == null || current == null) return;
+                          final selection = selectionFromDrag(start, current);
+                          if (selection.end - selection.start <
+                              _minimumDragMinutes) {
+                            // A tiny drag is a tap in disguise.
+                            _openCreate(
+                              date: selected,
+                              kind: widget.defaultKind,
+                              start: selection.start,
+                            );
+                            return;
+                          }
+                          _openCreate(
+                            date: selected,
+                            kind: EventKind.plan,
+                            start: selection.start,
+                            end: selection.end,
+                          );
+                        },
+                      ),
+                    ),
+                    if (_dragStartMinute != null &&
+                        _dragCurrentMinute != null)
+                      _dragPreview(palette),
                     for (final event in dayEvents)
                       ..._timelineEvent(event, selected, today),
                   ],
@@ -280,6 +371,32 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
         ),
       ),
     ];
+  }
+
+  Widget _dragPreview(AppPalette palette) {
+    final selection = selectionFromDrag(_dragStartMinute!, _dragCurrentMinute!);
+    final top = minuteToY(selection.start);
+    return Positioned(
+      left: _timelineGutter,
+      right: _timelineItemRight,
+      top: top,
+      height: (minuteToY(selection.end) - top).clamp(
+        2.0,
+        kHoursInDay * kHourHeight,
+      ),
+      child: IgnorePointer(
+        child: Container(
+          key: const ValueKey('reminders-timeline-create-preview'),
+          decoration: BoxDecoration(
+            color: palette.accent.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(AppRadii.block),
+          ),
+          child: CustomPaint(
+            painter: DashedBorderPainter(color: palette.accent),
+          ),
+        ),
+      ),
+    );
   }
 }
 

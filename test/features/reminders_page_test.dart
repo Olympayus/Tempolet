@@ -19,7 +19,9 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
+import 'package:tempolet/features/calendar/time_grid.dart';
 import 'package:tempolet/features/events/event_draft.dart';
+import 'package:tempolet/features/events/event_editor_sheet.dart';
 import 'package:tempolet/features/events/event_list_row.dart';
 import 'package:tempolet/features/reminders/category_order.dart';
 import 'package:tempolet/features/reminders/reminders_page.dart';
@@ -471,6 +473,130 @@ void main() {
       (leftColumn.decoration! as BoxDecoration).color,
       AppPalette.light.side,
     );
+  });
+
+  testWidgets('tapping the timeline opens a reminder at the snapped minute', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final timeline = tester.getRect(
+      find.byKey(const ValueKey('reminders-timeline')),
+    );
+    // The timeline starts scrolled to 07:00, so 09:00 sits 136px down.
+    await tester.tapAt(
+      Offset(
+        timeline.left + 60,
+        timeline.top + minuteToY(9 * 60) - kDefaultScrollOffset,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editor = tester.widget<EventEditorDialog>(
+      find.byType(EventEditorDialog),
+    );
+    expect(editor.initialKind, EventKind.reminder);
+    expect(editor.date, _today);
+    expect(editor.startMinute, 9 * 60);
+    expect(editor.endMinute, isNull);
+  });
+
+  testWidgets('plan filter makes a timeline tap default to a plan', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.tap(find.text('计划'));
+    await _settle(tester);
+
+    final timeline = tester.getRect(
+      find.byKey(const ValueKey('reminders-timeline')),
+    );
+    await tester.tapAt(
+      Offset(
+        timeline.left + 60,
+        timeline.top + minuteToY(9 * 60) - kDefaultScrollOffset,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editor = tester.widget<EventEditorDialog>(
+      find.byType(EventEditorDialog),
+    );
+    expect(editor.initialKind, EventKind.plan);
+    expect(editor.startMinute, 9 * 60);
+  });
+
+  testWidgets('dragging the timeline opens a plan over the dragged range', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final timeline = tester.getRect(
+      find.byKey(const ValueKey('reminders-timeline')),
+    );
+    await tester.dragFrom(
+      Offset(
+        timeline.left + 60,
+        timeline.top + minuteToY(9 * 60) - kDefaultScrollOffset,
+      ),
+      const Offset(0, kHourHeight),
+    );
+    await tester.pumpAndSettle();
+
+    final editor = tester.widget<EventEditorDialog>(
+      find.byType(EventEditorDialog),
+    );
+    expect(editor.initialKind, EventKind.plan);
+    expect(editor.date, _today);
+    expect(editor.startMinute, 9 * 60);
+    expect(editor.endMinute, 10 * 60);
+  });
+
+  testWidgets('dragging the timeline shows the accent selection preview', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    final timeline = tester.getRect(
+      find.byKey(const ValueKey('reminders-timeline')),
+    );
+    final gesture = await tester.startGesture(
+      Offset(
+        timeline.left + 60,
+        timeline.top + minuteToY(9 * 60) - kDefaultScrollOffset,
+      ),
+    );
+    await gesture.moveBy(const Offset(0, kHourHeight));
+    await tester.pump();
+
+    final preview = tester.widget<Container>(
+      find.byKey(const ValueKey('reminders-timeline-create-preview')),
+    );
+    final decoration = preview.decoration! as BoxDecoration;
+    final theme = Theme.of(
+      tester.element(find.byKey(const ValueKey('reminders-timeline'))),
+    );
+    final accent = AppPalette.light
+        .withAccent(theme.colorScheme.primary)
+        .accent;
+    expect(decoration.color, accent.withValues(alpha: .08));
+
+    final previewRect = tester.getRect(
+      find.byKey(const ValueKey('reminders-timeline-create-preview')),
+    );
+    expect(
+      previewRect.top,
+      closeTo(timeline.top + minuteToY(9 * 60) - kDefaultScrollOffset, 0.5),
+    );
+    expect(previewRect.height, closeTo(kHourHeight, 0.5));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   /// The left column's timeline repeats the card, so completion assertions are

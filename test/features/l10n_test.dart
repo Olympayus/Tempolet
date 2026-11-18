@@ -87,4 +87,14 @@ void main() {
       expect(zh.tomorrowPreviewTitle, '次日预览');
     });
   });
+
+  group('v0.1.4 strings', () {
+    final en = lookupAppLocalizations(const Locale('en'));
+    final zh = lookupAppLocalizations(const Locale('zh'));
+
+    test('deselectAll is keyed in both languages', () {
+      expect(en.deselectAll, 'Deselect all');
+      expect(zh.deselectAll, '全部取消');
+    });
+  });
 }

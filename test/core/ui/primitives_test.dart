@@ -5,8 +5,10 @@ import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_buttons.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/core/ui/app_hairline.dart';
+import 'package:tempolet/core/ui/app_list_checkbox.dart';
 import 'package:tempolet/core/ui/app_segmented.dart';
 import 'package:tempolet/core/ui/app_switch.dart';
+import 'package:tempolet/core/ui/strike_through_text.dart';
 
 void main() {
   testWidgets('segmented is 28 high, equal width, taps report value', (
@@ -100,6 +102,29 @@ void main() {
     await tester.tap(find.byType(AppCheckCircle));
     expect(taps, 1);
   });
+
+  testWidgets(
+    'list checkbox is square, 16px, hit area 24 and keyboard activatable',
+    (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: AppListCheckbox(checked: false, onTap: () => taps++),
+          ),
+        ),
+      );
+      final box = tester.getSize(find.byType(AppListCheckbox));
+      expect(box, const Size(24, 24));
+      final glyph = tester.getSize(
+        find.byKey(const ValueKey('list-checkbox-glyph')),
+      );
+      expect(glyph, const Size(16, 16));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      expect(taps, 1);
+    },
+  );
 
   testWidgets('hairline is 1px and defaults to the line token', (tester) async {
     await tester.pumpWidget(
@@ -275,5 +300,115 @@ void main() {
       Focus.of(tester.element(find.text('Disabled'))).canRequestFocus,
       isFalse,
     );
+  });
+
+  testWidgets('strike-through text draws a line that grows with progress', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 200,
+            child: StrikeThroughText(
+              text: '寄快递',
+              style: const TextStyle(fontSize: 13),
+              progress: 0.5,
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(CustomPaint), findsWidgets);
+    final painter = tester.widget<CustomPaint>(
+      find.descendant(
+        of: find.byType(StrikeThroughText),
+        matching: find.byType(CustomPaint),
+      ),
+    );
+    expect((painter.painter as StrikeLinePainter).progress, 0.5);
+  });
+
+  testWidgets('strike line never exceeds an ellipsized CJK title', (
+    tester,
+  ) async {
+    const title = '寄快递到楼下的菜鸟驿站再取回来';
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 60,
+            child: StrikeThroughText(
+              text: title,
+              style: TextStyle(fontSize: 13),
+              progress: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+    final painter =
+        tester
+                .widget<CustomPaint>(
+                  find.descendant(
+                    of: find.byType(StrikeThroughText),
+                    matching: find.byType(CustomPaint),
+                  ),
+                )
+                .painter
+            as StrikeLinePainter;
+    final rendered = tester.getSize(
+      find.descendant(
+        of: find.byType(StrikeThroughText),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(painter.width, lessThanOrEqualTo(rendered.width));
+    expect(painter.width, lessThanOrEqualTo(60));
+  });
+
+  testWidgets('external progress drives the check fill', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(child: AppCheckCircle(checked: true, progress: 0.5)),
+      ),
+    );
+    expect(
+      tester
+          .widget<Opacity>(find.byKey(const ValueKey('check-circle-ring')))
+          .opacity,
+      0.5,
+    );
+    expect(
+      tester
+          .widget<Opacity>(find.byKey(const ValueKey('check-circle-fill')))
+          .opacity,
+      0.5,
+    );
+  });
+
+  testWidgets('check circle honours reduced motion and the border override', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Center(
+            child: AppCheckCircle(
+              checked: false,
+              borderColor: AppPalette.light.danger,
+              onTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    final glyph = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('check-circle-glyph')),
+    );
+    expect(glyph.duration, Duration.zero);
+    final border = (glyph.decoration! as BoxDecoration).border! as Border;
+    expect(border.top.color, AppPalette.light.danger);
   });
 }

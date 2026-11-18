@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -150,9 +151,7 @@ void main() {
     expect(chevron.size, 14);
     expect(chevron.icon, LucideIcons.chevronDown);
 
-    await tester.pumpWidget(
-      _host(_dropdown(triggerHeight: 36)),
-    );
+    await tester.pumpWidget(_host(_dropdown(triggerHeight: 36)));
     expect(tester.getSize(find.byKey(_triggerKey)).height, 36);
   });
 
@@ -225,6 +224,145 @@ void main() {
     expect(tester.getTopLeft(find.byKey(_panelKey)).dx, 572);
   });
 
+  testWidgets('coloured items show a 6px dot in the trigger and panel rows', (
+    tester,
+  ) async {
+    const color = Color(0xFF34C759);
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 160,
+          child: AppDropdown<String>(
+            value: 'a',
+            items: const [
+              AppDropdownItem(value: 'a', label: 'A', color: color),
+              AppDropdownItem(value: 'b', label: 'B'),
+            ],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final triggerDot = find.byKey(const ValueKey('app-dropdown-trigger-dot'));
+    expect(triggerDot, findsOneWidget);
+    expect(tester.getSize(triggerDot), const Size(6, 6));
+
+    await tester.tap(find.byKey(_triggerKey));
+    await tester.pumpAndSettle();
+
+    final rowDot = find.byKey(const ValueKey('app-dropdown-dot-a'));
+    expect(rowDot, findsOneWidget);
+    expect(tester.getSize(rowDot), const Size(6, 6));
+    final decoration =
+        tester.widget<Container>(rowDot).decoration! as BoxDecoration;
+    expect(decoration.color, color);
+    expect(decoration.shape, BoxShape.circle);
+    expect(
+      tester
+              .getRect(
+                find.descendant(
+                  of: find.byKey(_panelKey),
+                  matching: find.text('A'),
+                ),
+              )
+              .left -
+          tester.getRect(rowDot).right,
+      8,
+    );
+    expect(find.byKey(const ValueKey('app-dropdown-dot-b')), findsNothing);
+  });
+
+  testWidgets('hovering a visible row does not scroll the panel', (
+    tester,
+  ) async {
+    final items = [
+      for (var i = 0; i < 30; i++)
+        AppDropdownItem(value: 'v$i', label: 'Item $i'),
+    ];
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 160,
+          child: AppDropdown<String>(
+            value: 'v0',
+            items: items,
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(_triggerKey));
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(_panelKey);
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: panel, matching: find.byType(Scrollable)),
+        )
+        .position;
+    expect(position.pixels, 0);
+
+    // Row 12 sits well inside the visible part of the capped panel; hover
+    // must only highlight it, not centre it (which would scroll the list).
+    final row = find.byKey(const ValueKey('app-dropdown-item-v12'));
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(row));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(position.pixels, 0);
+    // The hover still marks the row active.
+    final fill = tester.widget<AnimatedContainer>(
+      find.descendant(of: row, matching: find.byType(AnimatedContainer)),
+    );
+    expect(
+      (fill.decoration! as BoxDecoration).color,
+      isNot(Colors.transparent),
+    );
+  });
+
+  testWidgets('arrow keys keep the active row inside a short panel', (
+    tester,
+  ) async {
+    final items = [
+      for (var i = 0; i < 30; i++)
+        AppDropdownItem(value: 'v$i', label: 'Item $i'),
+    ];
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 160,
+          child: AppDropdown<String>(
+            value: 'v0',
+            items: items,
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(_triggerKey));
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(_panelKey);
+    // 30 rows do not fit in the 600-high test window, so the list scrolls.
+    expect(tester.getSize(panel).height, lessThan(30 * 36));
+
+    for (var i = 0; i < 20; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+
+    final panelRect = tester.getRect(panel);
+    final rowRect = tester.getRect(
+      find.byKey(const ValueKey('app-dropdown-item-v20')),
+    );
+    expect(rowRect.top, greaterThanOrEqualTo(panelRect.top));
+    expect(rowRect.bottom, lessThanOrEqualTo(panelRect.bottom));
+  });
+
   testWidgets('panel uses card surface, line border and dialog shadow; the '
       'selected row is ink/600 with no checkmark', (tester) async {
     await tester.pumpWidget(_host(_dropdown()));
@@ -232,7 +370,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final panel = find.byKey(_panelKey);
-    final decoration = tester.widget<Container>(panel).decoration! as BoxDecoration;
+    final decoration =
+        tester.widget<Container>(panel).decoration! as BoxDecoration;
     expect(decoration.color, AppPalette.light.card);
     expect(decoration.borderRadius, BorderRadius.circular(AppRadii.card));
     expect(decoration.border, Border.all(color: AppPalette.light.line));

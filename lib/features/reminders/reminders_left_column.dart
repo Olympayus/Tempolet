@@ -1,21 +1,24 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_hairline.dart';
+import '../../core/ui/dashed_border_painter.dart';
+import '../../core/ui/strike_through_text.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
-import '../../notifications/notification_scheduler.dart';
 import '../calendar/calendar_state.dart';
 import '../calendar/category_marker.dart';
 import '../calendar/mini_month_calendar.dart';
 import '../calendar/plan_block.dart';
 import '../calendar/reminder_card.dart';
 import '../calendar/time_grid.dart';
+import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 
 /// Fixed width of the reminders page's left column (`04-reminders.md` §2).
@@ -29,13 +32,41 @@ const double _timelineGutter = 40;
 const double _timelineItemLeft = 44;
 const double _timelineItemRight = 8;
 
+/// Strike/fill sweep for a retained card; zero under reduce-motion.
+const Duration _retainDuration = Duration(milliseconds: 200);
+
 /// Left column of the reminders page: a shared [MiniMonthCalendar] over the
-/// selected day's 68px/hour timeline (`04-reminders.md` §2, §9.7).
+/// selected day's 68px/hour timeline (`04-reminders.md` §2, §9.7). Blank
+/// timeline slots take the week/day grids' quick add: a tap opens a reminder
+/// at the snapped minute, a vertical drag selects a range for a plan.
 class RemindersLeftColumn extends ConsumerStatefulWidget {
-  const RemindersLeftColumn({super.key, this.onSelectDay});
+  const RemindersLeftColumn({
+    super.key,
+    this.onSelectDay,
+    this.recentlyCompleted = const {},
+    this.animatingIds = const {},
+    this.onComplete,
+    this.onUndo,
+    this.defaultKind = EventKind.reminder,
+  });
 
   /// Called after a mini-calendar pick, so the date-mode list can locate it.
   final ValueChanged<DateTime>? onSelectDay;
+
+  /// Session-retained completions from the page. Cards stay in place and the
+  /// title count includes them until the page is left.
+  final Map<String, Event> recentlyCompleted;
+
+  /// Ids completed during this session; drives the one-shot strike/fill.
+  final Set<String> animatingIds;
+
+  /// Page-owned write path; the column never touches the repositories.
+  final Future<void> Function(Event)? onComplete;
+  final Future<void> Function(Event)? onUndo;
+
+  /// Kind for a blank-slot tap. The plan filter passes plan so a tap does not
+  /// create an item that the filter would hide; a drag always makes a plan.
+  final EventKind defaultKind;
 
   @override
   ConsumerState<RemindersLeftColumn> createState() =>
@@ -43,8 +74,14 @@ class RemindersLeftColumn extends ConsumerStatefulWidget {
 }
 
 class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
+  /// A drag shorter than this is a tap in disguise (matches the week/day
+  /// grids).
+  static const double _minimumDragMinutes = 5;
+
   final _scroll = ScrollController(initialScrollOffset: kDefaultScrollOffset);
   DateTime? _month;
+  int? _dragStartMinute;
+  int? _dragCurrentMinute;
 
   @override
   void dispose() {
@@ -52,11 +89,21 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
     super.dispose();
   }
 
-  Future<void> _complete(Event event) async {
-    final repo = ref.read(eventRepositoryProvider);
-    final sync = ref.read(eventNotifierSyncProvider);
-    await repo.setCompleted(event.id, true);
-    sync.afterCompletion(event.copyWith(isCompleted: true));
+  int _minuteAt(double localY) => yToMinute(localY).clamp(0, 1440);
+
+  Future<void> _openCreate({
+    required DateTime date,
+    required EventKind kind,
+    int? start,
+    int? end,
+  }) {
+    return showEventEditor(
+      context,
+      date: date,
+      initialKind: kind,
+      startMinute: start,
+      endMinute: end,
+    );
   }
 
   List<Event> _sorted(List<Event> events) {
@@ -109,9 +156,19 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
       if (event.kind == 'plan') planDays.add(day);
     }
 
-    final dayEvents = _sorted(
-      ref.watch(eventsForDayProvider(selected)).value ?? const <Event>[],
-    );
+    // Completed reminders stay on the timeline for the session; plans have no
+    // completion circle and are not retained here. The retained snapshot wins
+    // over a lagging stream copy of the pending event.
+    final retained = <Event>[
+      for (final event in widget.recentlyCompleted.values)
+        if (event.kind != 'plan' && dateOnly(event.date) == selected) event,
+    ];
+    final seen = {for (final event in retained) event.id};
+    final dayEvents = _sorted([
+      ...retained,
+      ...(ref.watch(eventsForDayProvider(selected)).value ?? const <Event>[])
+          .where((event) => !seen.contains(event.id)),
+    ]);
     // Intentional locale-aware join: Chinese keeps `11月17日 周一 · 3 项`,
     // English uses the `·` separator between date, weekday and count.
     final separator = locale.languageCode == 'zh' ? ' ' : ' · ';
@@ -124,6 +181,7 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
       key: const ValueKey('reminders-left-column'),
       width: kRemindersLeftColumnWidth,
       decoration: BoxDecoration(
+        color: palette.side,
         border: Border(right: BorderSide(color: palette.line)),
       ),
       child: Column(
@@ -185,17 +243,83 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
                         labelRightPadding: 0,
                         labelBuilder: (context, hour) => Padding(
                           padding: const EdgeInsets.only(left: 8),
-                          child: Text(
-                            '${hour.toString().padLeft(2, '0')}:00',
-                            maxLines: 1,
-                            textAlign: TextAlign.left,
-                            style: AppTextStyles.caption.copyWith(
-                              color: palette.sub,
+                          // The 40px gutter leaves ~0.5px next to a 11px
+                          // `HH:MM` label at 100% text size, and system text
+                          // scaling pushes the last digit across the hour
+                          // rule. Shrink only when the label would overflow.
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${hour.toString().padLeft(2, '0')}:00',
+                              maxLines: 1,
+                              textAlign: TextAlign.left,
+                              style: AppTextStyles.caption.copyWith(
+                                color: palette.sub,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
+                    // Blank-slot quick add, matching the week/day grids: a tap
+                    // opens a reminder at the snapped minute and a vertical
+                    // drag selects a range for a plan.
+                    Positioned.fill(
+                      child: GestureDetector(
+                        key: const ValueKey('reminders-timeline-create'),
+                        behavior: HitTestBehavior.opaque,
+                        dragStartBehavior: DragStartBehavior.down,
+                        onTapUp: (details) => _openCreate(
+                          date: selected,
+                          kind: widget.defaultKind,
+                          start: _minuteAt(details.localPosition.dy),
+                        ),
+                        onVerticalDragStart: (details) {
+                          final minute = _minuteAt(details.localPosition.dy);
+                          setState(() {
+                            _dragStartMinute = minute;
+                            _dragCurrentMinute = minute;
+                          });
+                        },
+                        onVerticalDragUpdate: (details) {
+                          setState(() {
+                            _dragCurrentMinute = _minuteAt(
+                              details.localPosition.dy,
+                            );
+                          });
+                        },
+                        onVerticalDragEnd: (_) {
+                          final start = _dragStartMinute;
+                          final current = _dragCurrentMinute;
+                          setState(() {
+                            _dragStartMinute = null;
+                            _dragCurrentMinute = null;
+                          });
+                          if (start == null || current == null) return;
+                          final selection = selectionFromDrag(start, current);
+                          if (selection.end - selection.start <
+                              _minimumDragMinutes) {
+                            // A tiny drag is a tap in disguise.
+                            _openCreate(
+                              date: selected,
+                              kind: widget.defaultKind,
+                              start: selection.start,
+                            );
+                            return;
+                          }
+                          _openCreate(
+                            date: selected,
+                            kind: EventKind.plan,
+                            start: selection.start,
+                            end: selection.end,
+                          );
+                        },
+                      ),
+                    ),
+                    if (_dragStartMinute != null &&
+                        _dragCurrentMinute != null)
+                      _dragPreview(palette),
                     for (final event in dayEvents)
                       ..._timelineEvent(event, selected, today),
                   ],
@@ -239,20 +363,117 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
       0.0,
       kHoursInDay * kHourHeight - 24,
     );
+    final retained = widget.recentlyCompleted.containsKey(event.id);
     return [
       Positioned(
         left: _timelineItemLeft,
         right: _timelineItemRight,
         top: top,
-        child: ReminderCard(
+        child: _TimelineReminder(
+          event: event,
+          overdue: overdue,
+          retained: retained,
+          animate: widget.animatingIds.contains(event.id),
+          onComplete: widget.onComplete,
+          onUndo: widget.onUndo,
+        ),
+      ),
+    ];
+  }
+
+  Widget _dragPreview(AppPalette palette) {
+    final selection = selectionFromDrag(_dragStartMinute!, _dragCurrentMinute!);
+    final top = minuteToY(selection.start);
+    return Positioned(
+      left: _timelineGutter,
+      right: _timelineItemRight,
+      top: top,
+      height: (minuteToY(selection.end) - top).clamp(
+        2.0,
+        kHoursInDay * kHourHeight,
+      ),
+      child: IgnorePointer(
+        child: Container(
+          key: const ValueKey('reminders-timeline-create-preview'),
+          decoration: BoxDecoration(
+            color: palette.accent.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(AppRadii.block),
+          ),
+          child: CustomPaint(
+            painter: DashedBorderPainter(color: palette.accent),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Keeps the timeline card widget type and position stable across completion
+/// so the circle fill and title strike animate in place.
+class _TimelineReminder extends StatelessWidget {
+  const _TimelineReminder({
+    required this.event,
+    required this.overdue,
+    required this.retained,
+    required this.animate,
+    this.onComplete,
+    this.onUndo,
+  });
+
+  final Event event;
+  final bool overdue;
+  final bool retained;
+  final bool animate;
+  final Future<void> Function(Event)? onComplete;
+  final Future<void> Function(Event)? onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final end = retained ? 1.0 : 0.0;
+    // Reduce-motion (or an already-animated retake) starts at the terminal
+    // value, so the first frame is already the final state.
+    final begin = retained && (reduceMotion || !animate) ? 1.0 : 0.0;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: begin, end: end),
+      duration: reduceMotion || !retained ? Duration.zero : _retainDuration,
+      builder: (context, progress, _) {
+        return ReminderCard(
           key: ValueKey('reminders-timeline-event-${event.id}'),
           event: event,
           overdue: overdue,
           showCheckbox: true,
-          onTap: () => showEventEditor(context, existing: event),
-          onComplete: () => _complete(event),
-        ),
-      ),
-    ];
+          retainInPlace: true,
+          onTap: retained
+              ? null
+              : () => showEventEditor(context, existing: event),
+          onComplete: retained || onComplete == null
+              ? null
+              : () => onComplete!(event),
+          onUndo: !retained || onUndo == null ? null : () => onUndo!(event),
+          progress: retained ? progress : null,
+          // Card titles get the same ink→sub sweep as the right-hand rows:
+          // the shared progress drives both the colour and the line.
+          titleBuilder: retained
+              ? (context, style) => StrikeThroughText(
+                  text: event.title,
+                  style: TextStyle.lerp(
+                    style,
+                    style.copyWith(color: palette.sub),
+                    progress,
+                  )!,
+                  progress: progress,
+                )
+              : null,
+        );
+      },
+    );
   }
 }

@@ -266,18 +266,20 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     );
   }
 
-  Widget _label(AppPalette p, String text) => Text(
-    text,
-    style: AppTextStyles.body.copyWith(color: p.sub),
-  );
+  Widget _label(AppPalette p, String text) =>
+      Text(text, style: AppTextStyles.body.copyWith(color: p.sub));
 
-  Widget _fieldRow(AppPalette p, String label, Widget child) {
-    return Row(
-      children: [
-        SizedBox(width: _labelWidth, child: _label(p, label)),
-        const SizedBox(width: _labelGap),
-        Expanded(child: child),
-      ],
+  Widget _fieldRow(AppPalette p, String label, Widget child, {Key? rowKey}) {
+    return SizedBox(
+      key: rowKey,
+      height: AppSizes.field,
+      child: Row(
+        children: [
+          SizedBox(width: _labelWidth, child: _label(p, label)),
+          const SizedBox(width: _labelGap),
+          Expanded(child: child),
+        ],
+      ),
     );
   }
 
@@ -287,20 +289,32 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     Widget field,
     String helper,
   ) {
-    return _fieldRow(
-      p,
-      label,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          field,
-          const SizedBox(height: _helperGap),
-          Text(
-            helper,
-            style: AppTextStyles.secondary.copyWith(color: p.sub),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: _labelWidth,
+          height: AppSizes.field,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _label(p, label),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: _labelGap),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              field,
+              const SizedBox(height: _helperGap),
+              Text(
+                helper,
+                style: AppTextStyles.secondary.copyWith(color: p.sub),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -367,10 +381,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                         children: [
                           AppSegmented<EventKind>(
                             key: const ValueKey('editor-kind'),
-                            values: const [
-                              EventKind.reminder,
-                              EventKind.plan,
-                            ],
+                            values: const [EventKind.reminder, EventKind.plan],
                             labelFor: (kind) => Text(
                               kind == EventKind.reminder
                                   ? l10n.kindReminder
@@ -402,9 +413,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                             SegmentedDateField(
                               key: const ValueKey('editor-date'),
                               value: _date,
-                              onChanged: (date) =>
-                                  setState(() => _date = date),
+                              onChanged: (date) => setState(() => _date = date),
                             ),
+                            rowKey: const ValueKey('editor-date-row'),
                           ),
                           const SizedBox(height: _fieldGap),
                           if (_kind == EventKind.reminder)
@@ -418,6 +429,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                                 onChanged: _onStartChanged,
                                 keyPrefix: 'start',
                               ),
+                              rowKey: const ValueKey('editor-start-row'),
                             )
                           else ...[
                             _fieldRow(
@@ -430,6 +442,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                                 onChanged: _onStartChanged,
                                 keyPrefix: 'start',
                               ),
+                              rowKey: const ValueKey('editor-start-row'),
                             ),
                             const SizedBox(height: _fieldGap),
                             _fieldRow(
@@ -444,6 +457,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                                 keyPrefix: 'end',
                                 allowEndOfDay: true,
                               ),
+                              rowKey: const ValueKey('editor-end-row'),
                             ),
                           ],
                           const SizedBox(height: _fieldGap),
@@ -568,10 +582,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     );
   }
 
-  Widget _categoryDropdown(
-    AppLocalizations l10n,
-    List<Category> categories,
-  ) {
+  Widget _categoryDropdown(AppLocalizations l10n, List<Category> categories) {
     final hasCurrent =
         _categoryId != null && categories.any((c) => c.id == _categoryId);
     return AppDropdown<String?>(
@@ -580,12 +591,13 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
       triggerHeight: AppSizes.field,
       semanticLabel: l10n.categoryLabel,
       items: [
-        AppDropdownItem<String?>(
-          value: null,
-          label: l10n.uncategorized,
-        ),
+        AppDropdownItem<String?>(value: null, label: l10n.uncategorized),
         for (final category in categories)
-          AppDropdownItem<String?>(value: category.id, label: category.name),
+          AppDropdownItem<String?>(
+            value: category.id,
+            label: category.name,
+            color: category.color == null ? null : Color(category.color!),
+          ),
       ],
       onChanged: (value) => setState(() => _categoryId = value),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_check_circle.dart';
+import '../../core/ui/app_list_checkbox.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 
@@ -24,11 +25,11 @@ const double _blockRadius = 7;
 /// preview popover and day overview (`docs/design/10-ui-refinement.md` §9.11).
 ///
 /// A row is 46px tall. From the left: a 24px completion hit target (14px
-/// circle), an 8px gap, a 14px marker slot (a 2.5×16 category-coloured bar for
-/// plans, a 6px dot for reminders), an 8px gap, the 13px title, an 8px gap and
-/// the 11px right-aligned time. Plan rows also draw a paper block behind the
-/// content, inset 12px on the right; the time still aligns to the row's 16px
-/// right padding.
+/// circle, or a 16px square [AppListCheckbox] in selection mode), an 8px gap,
+/// a 14px marker slot (a 2.5×16 category-coloured bar for plans, a 6px dot for
+/// reminders), an 8px gap, the 13px title, an 8px gap and the 11px right-aligned
+/// time. Plan rows also draw a paper block behind the content, inset 12px on
+/// the right; the time still aligns to the row's 16px right padding.
 class EventListRow extends StatelessWidget {
   const EventListRow({
     super.key,
@@ -39,11 +40,13 @@ class EventListRow extends StatelessWidget {
     this.timeSuffix,
     this.timeLabel,
     this.titleColor,
+    this.titleBuilder,
     this.metadata,
-    this.checked,
+    this.selectionChecked,
     this.onTap,
     this.onLongPress,
     this.onToggleComplete,
+    this.onToggleSelection,
     this.trailing,
   });
 
@@ -70,13 +73,19 @@ class EventListRow extends StatelessWidget {
   /// Overrides the title colour; defaults to `ink`.
   final Color? titleColor;
 
+  /// Replaces the default title [Text]. The row passes body plus the pending
+  /// ink colour and no completion decoration: the builder owns both the
+  /// strike-through and any colour sweep. The slot stays expanded to one line.
+  final Widget Function(BuildContext context, TextStyle style)? titleBuilder;
+
   /// Optional 11px metadata rendered between the title and the time (e.g. the
   /// completed page's kind label).
   final Widget? metadata;
 
-  /// Overrides the completion circle's state (e.g. multi-select rows show the
-  /// selection instead of completion).
-  final bool? checked;
+  /// When non-null the row is in selection mode: the leading control becomes a
+  /// square [AppListCheckbox] carrying this state instead of the completion
+  /// circle.
+  final bool? selectionChecked;
 
   /// Opens the event editor.
   final VoidCallback? onTap;
@@ -87,6 +96,9 @@ class EventListRow extends StatelessWidget {
 
   /// Toggles [Event.isCompleted]; when null the circle is display-only.
   final VoidCallback? onToggleComplete;
+
+  /// Toggles the row's selection; only used when [selectionChecked] is set.
+  final VoidCallback? onToggleSelection;
 
   /// Optional widget rendered after the time (e.g. completed-row actions).
   final Widget? trailing;
@@ -112,10 +124,15 @@ class EventListRow extends StatelessWidget {
           if (time.isNotEmpty) time,
           if (timeSuffix != null && timeSuffix!.isNotEmpty) timeSuffix!,
         ].join(dateSeparator);
+    // The builder owns its strike-through, so it only receives body + colour;
+    // the default title still paints the completed decoration itself.
     final titleStyle = AppTextStyles.body.copyWith(
       color: titleColor ?? palette.ink,
-      decoration: event.isCompleted ? TextDecoration.lineThrough : null,
     );
+    final defaultTitleStyle = event.isCompleted
+        ? titleStyle.copyWith(decoration: TextDecoration.lineThrough)
+        : titleStyle;
+    final note = event.note.trim();
 
     return SizedBox(
       height: AppSizes.row,
@@ -144,10 +161,16 @@ class EventListRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: _rowPadding),
                 child: Row(
                   children: [
-                    AppCheckCircle(
-                      checked: checked ?? event.isCompleted,
-                      onTap: onToggleComplete,
-                    ),
+                    if (selectionChecked != null)
+                      AppListCheckbox(
+                        checked: selectionChecked!,
+                        onTap: onToggleSelection,
+                      )
+                    else
+                      AppCheckCircle(
+                        checked: event.isCompleted,
+                        onTap: onToggleComplete,
+                      ),
                     const SizedBox(width: _gap),
                     SizedBox(
                       width: _markerSlot,
@@ -179,12 +202,27 @@ class EventListRow extends StatelessWidget {
                     ),
                     const SizedBox(width: _gap),
                     Expanded(
-                      child: Text(
-                        event.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: titleStyle,
-                      ),
+                      child: titleBuilder != null
+                          ? titleBuilder!(context, titleStyle)
+                          : Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: event.title,
+                                    style: defaultTitleStyle,
+                                  ),
+                                  if (note.isNotEmpty)
+                                    TextSpan(
+                                      text: ' · $note',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: palette.subMuted,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                     ),
                     if (metadata != null) ...[
                       const SizedBox(width: 12),

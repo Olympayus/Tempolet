@@ -1,17 +1,21 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_page.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
 import 'package:tempolet/features/calendar/month_preview_popover.dart';
+import 'package:tempolet/features/calendar/month_view.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -160,44 +164,127 @@ void main() {
     expect(textRect.bottom, lessThanOrEqualTo(moreRect.top));
   });
 
-  testWidgets('single click opens an anchored popover without changing view', (
-    tester,
-  ) async {
+  testWidgets('weekday band uses the side surface', (tester) async {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-11')));
-    await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MonthPreviewPopover), findsOneWidget);
-    expect(find.byType(Dialog), findsNothing);
-    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
-    expect(container.read(calendarViewModeProvider), CalendarViewMode.month);
+    final band = tester.widget<ColoredBox>(
+      find.byKey(const ValueKey('month-weekday-band')),
+    );
+    expect(band.color, AppPalette.light.side);
   });
 
-  testWidgets('double click selects the day and opens the sidebar', (
+  testWidgets('single click selects the day and does not open the sidebar', (
     tester,
   ) async {
-    // Wide enough to host the 280px sidebar (the engine default 800px sits
-    // below the app's 960px minimum and would squeeze the header).
-    tester.view.physicalSize = const Size(1000, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    final cell = find.byKey(const ValueKey('month-day-2026-11-11'));
-    await tester.tap(cell);
-    await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(cell);
-    await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-19')));
+    await tester.pump();
 
-    expect(container.read(selectedDayProvider), DateTime(2026, 11, 11));
-    expect(container.read(sidebarPreferenceProvider), isTrue);
+    expect(container.read(selectedDayProvider), DateTime(2026, 11, 19));
+    expect(container.read(sidebarPreferenceProvider), isNot(true));
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
     expect(find.byType(MonthPreviewPopover), findsNothing);
+  });
+
+  testWidgets('hovering 350ms opens the preview, leaving 200ms closes it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-day-2026-11-19'))),
+    );
+    await tester.pump(const Duration(milliseconds: 340));
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+    await gesture.moveTo(const Offset(2, 2));
+    await tester.pump(const Duration(milliseconds: 210));
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+  });
+
+  testWidgets('sweeping across cells never opens a preview until rest', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    for (final day in ['2026-11-18', '2026-11-19', '2026-11-20']) {
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(ValueKey('month-day-$day'))),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+    }
+    await tester.pump(const Duration(milliseconds: 360));
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+  });
+
+  testWidgets('a preview closed before its first frame leaves no orphan', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-day-2026-11-19'))),
+    );
+    // Fire the hover timer without pumping a frame: the overlay entry exists
+    // while its builder (and thus its close handle) has not run yet.
+    await tester.binding.delayed(kMonthPreviewHoverDelay);
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+
+    // Enter another cell during that sub-frame window; the stale entry must
+    // be dismissed instead of mounting when the next frame builds it.
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-day-2026-11-20'))),
+    );
+    await tester.pump();
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 360));
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+  });
+
+  testWidgets('leaving the cell while the preview closes allows a reopen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    final cell = tester.getCenter(
+      find.byKey(const ValueKey('month-day-2026-11-19')),
+    );
+    await gesture.moveTo(cell);
+    await tester.pump(const Duration(milliseconds: 360));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+
+    // Leave the cell (clearing the hover) and dismiss the popover while the
+    // pointer is away. The close must not re-arm suppression for a cell the
+    // pointer has already left.
+    await gesture.moveTo(const Offset(2, 2));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('month-preview')), findsNothing);
+
+    // Coming back must open it again after the hover delay.
+    await gesture.moveTo(cell);
+    await tester.pump(const Duration(milliseconds: 360));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
   });
 
   testWidgets('header navigation moves the month grid', (tester) async {
@@ -217,8 +304,12 @@ void main() {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    await tester.tap(find.byKey(const ValueKey('month-day-2026-11-11')));
-    await tester.pump(const Duration(milliseconds: 350));
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-day-2026-11-11'))),
+    );
+    await tester.pump(const Duration(milliseconds: 360));
     await tester.pumpAndSettle();
 
     await tester.tap(

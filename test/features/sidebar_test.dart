@@ -203,6 +203,19 @@ void main() {
     expect(_sidebarText('查看已完成'), findsOneWidget);
   });
 
+  testWidgets('sidebar surface uses the side token', (tester) async {
+    _useWindow(tester, const Size(1600, 900));
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final surface = tester.widget<Container>(
+      find
+          .descendant(of: find.byKey(_sidebar), matching: find.byType(Container))
+          .first,
+    );
+    expect((surface.decoration! as BoxDecoration).color, AppPalette.light.side);
+  });
+
   testWidgets('lists the selected day and opens rows and add in the editor', (
     tester,
   ) async {

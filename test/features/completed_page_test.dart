@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -8,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/app.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/ui/app_check_circle.dart';
+import 'package:tempolet/core/ui/app_list_checkbox.dart';
 import 'package:tempolet/core/utils/dates.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
@@ -318,6 +321,93 @@ void main() {
     expect(restoredSecond!.isCompleted, isFalse);
     expect(find.text('还没有已完成事项'), findsOneWidget);
     expect(find.byKey(const ValueKey('completed-selection-bar')), findsNothing);
+  });
+
+  testWidgets(
+    'clear selection empties every selection without leaving select mode',
+    (tester) async {
+      final today = dateOnly(DateTime.now());
+      final first = await seed('Done A');
+      final second = await seed('Done B');
+      final third = await seed('Done C');
+      await completeAt(
+        first.id,
+        DateTime(today.year, today.month, today.day, 9),
+      );
+      await completeAt(
+        second.id,
+        DateTime(today.year, today.month, today.day, 10),
+      );
+      await completeAt(
+        third.id,
+        DateTime(today.year, today.month, today.day, 11),
+      );
+
+      await tester.pumpWidget(_pageApp(container));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const ValueKey('completed-select')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('completed-select-all')));
+      await tester.pumpAndSettle();
+      expect(find.text('已选 3 项'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('completed-clear-selection')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('completed-selected-count')),
+        findsOneWidget,
+      );
+      expect(find.text('已选 0 项'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('completed-selection-bar')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('Escape leaves select mode', (tester) async {
+    final today = dateOnly(DateTime.now());
+    final event = await seed('Esc task');
+    await completeAt(event.id, DateTime(today.year, today.month, today.day, 9));
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const ValueKey('completed-select')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('completed-selection-bar')),
+      findsOneWidget,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('completed-selection-bar')), findsNothing);
+    expect(find.byKey(const ValueKey('completed-select')), findsOneWidget);
+  });
+
+  testWidgets('selection mode rows use the square checkbox', (tester) async {
+    final today = dateOnly(DateTime.now());
+    final first = await seed('Checkbox A');
+    final second = await seed('Checkbox B');
+    await completeAt(first.id, DateTime(today.year, today.month, today.day, 9));
+    await completeAt(
+      second.id,
+      DateTime(today.year, today.month, today.day, 10),
+    );
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+    expect(find.byType(AppListCheckbox), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('completed-select')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppListCheckbox), findsNWidgets(2));
+    expect(find.byType(AppCheckCircle), findsNothing);
   });
 
   testWidgets('restore clears the completion and returns the item to its day', (

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
+import 'package:tempolet/core/ui/app_list_checkbox.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/features/events/event_list_row.dart';
 
@@ -11,6 +12,7 @@ const _markerColor = Color(0xFFFF9500);
 Event _event({
   String id = 'e1',
   required String title,
+  String note = '',
   String kind = 'reminder',
   DateTime? date,
   int? startMinute = 540,
@@ -21,7 +23,7 @@ Event _event({
   return Event(
     id: id,
     title: title,
-    note: '',
+    note: note,
     kind: kind,
     date: date ?? DateTime(2026, 11, 16),
     startMinute: startMinute,
@@ -247,9 +249,11 @@ void main() {
     );
 
     final title = tester.widget<Text>(find.text('Done thing'));
-    expect(title.style?.decoration, TextDecoration.lineThrough);
-    expect(title.style?.fontSize, 13);
-    expect(title.style?.color, AppPalette.light.ink);
+    final titleSpan =
+        (title.textSpan! as TextSpan).children!.first as TextSpan;
+    expect(titleSpan.style?.decoration, TextDecoration.lineThrough);
+    expect(titleSpan.style?.fontSize, 13);
+    expect(titleSpan.style?.color, AppPalette.light.ink);
     expect(
       tester.widget<AppCheckCircle>(find.byType(AppCheckCircle)).checked,
       isTrue,
@@ -281,6 +285,51 @@ void main() {
     expect(toggled, 1);
   });
 
+  testWidgets(
+    'selection mode swaps the completion circle for a list checkbox',
+    (tester) async {
+      var toggled = 0;
+      await tester.pumpWidget(
+        _app(
+          Column(
+            children: [
+              EventListRow(
+                event: _event(id: 'normal', title: 'Normal'),
+                color: _markerColor,
+                onToggleComplete: () {},
+              ),
+              EventListRow(
+                event: _event(id: 'unchecked', title: 'Unchecked'),
+                color: _markerColor,
+                selectionChecked: false,
+                onToggleSelection: () => toggled++,
+              ),
+              EventListRow(
+                event: _event(id: 'checked', title: 'Checked'),
+                color: _markerColor,
+                selectionChecked: true,
+                onToggleSelection: () => toggled++,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Only the plain row shows the completion circle; both selection rows
+      // show the square checkbox instead.
+      expect(find.byType(AppCheckCircle), findsOneWidget);
+      final checkboxes = find.byType(AppListCheckbox);
+      expect(checkboxes, findsNWidgets(2));
+      expect(
+        tester.widgetList<AppListCheckbox>(checkboxes).map((c) => c.checked),
+        [false, true],
+      );
+
+      await tester.tap(checkboxes.first);
+      expect(toggled, 1);
+    },
+  );
+
   testWidgets('trailing renders after the time', (tester) async {
     await tester.pumpWidget(
       _app(
@@ -297,5 +346,89 @@ void main() {
       tester.getRect(find.text('TAIL')).left,
       greaterThan(tester.getRect(find.text('09:00')).right),
     );
+  });
+
+  testWidgets('titleBuilder replaces the default title in the same slot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        Column(
+          children: [
+            EventListRow(
+              event: _event(id: 'default', title: 'Default title'),
+              color: _markerColor,
+            ),
+            EventListRow(
+              event: _event(
+                id: 'custom',
+                title: 'Default title',
+                isCompleted: true,
+              ),
+              color: _markerColor,
+              titleBuilder: (context, style) => Text(
+                'custom',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('custom'), findsOneWidget);
+    // Only the row without a builder still paints its default title.
+    expect(find.text('Default title'), findsOneWidget);
+
+    final custom = tester.widget<Text>(find.text('custom'));
+    expect(custom.style?.fontSize, 13);
+    expect(custom.style?.color, AppPalette.light.ink);
+    // The builder owns the strike-through; the row only supplies body + colour.
+    expect(custom.style?.decoration, isNull);
+
+    // The builder keeps the row's expanded one-line title slot instead of
+    // shrinking to the text, so long titles still ellipsize.
+    final defaultTitle = tester.getRect(find.text('Default title'));
+    final customTitle = tester.getRect(find.text('custom'));
+    expect(customTitle.left, defaultTitle.left);
+    expect(customTitle.width, defaultTitle.width);
+  });
+
+  testWidgets('note follows the title in small muted text', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        EventListRow(
+          event: _event(title: '交材料', note: '带上复印件'),
+          color: _markerColor,
+        ),
+      ),
+    );
+
+    final text = tester.widget<Text>(find.textContaining('带上复印件'));
+    expect(text.maxLines, 1);
+    final spans = (text.textSpan! as TextSpan).children!.cast<TextSpan>();
+    expect(spans.first.text, '交材料');
+    expect(spans.first.style?.fontSize, 13);
+    final noteSpan = spans.last;
+    expect(noteSpan.text, contains('带上复印件'));
+    expect(noteSpan.style?.fontSize, AppTextStyles.caption.fontSize);
+    expect(noteSpan.style?.color, AppPalette.light.subMuted);
+    // The note never inherits the completed strike-through.
+    expect(noteSpan.style?.decoration, isNull);
+  });
+
+  testWidgets('an empty note adds no trailing text', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        EventListRow(
+          event: _event(title: '交材料', note: '   '),
+          color: _markerColor,
+        ),
+      ),
+    );
+
+    expect(find.text('交材料'), findsOneWidget);
   });
 }

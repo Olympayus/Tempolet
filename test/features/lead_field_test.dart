@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
+import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_dropdown.dart';
 import 'package:tempolet/features/events/fields/lead_field.dart';
 
@@ -91,6 +92,23 @@ void main() {
     );
     expect(dropdown.value, 90);
     expect(find.text('1h 30m before'), findsOneWidget);
+  });
+
+  testWidgets('custom segments are 28-high chip fields with a 6px radius', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(5, (_) {}));
+    await _selectOption(tester, 'Custom…');
+
+    final day = find.byKey(const ValueKey('lead-custom-day'));
+    expect(tester.getSize(day).height, 28);
+
+    final decoration = tester.widget<TextField>(day).decoration!;
+    expect(decoration.fillColor, AppPalette.light.chip);
+    final enabled = decoration.enabledBorder! as OutlineInputBorder;
+    expect(enabled.borderRadius, BorderRadius.circular(AppRadii.chip));
+    expect(enabled.borderSide.color, AppPalette.light.lineStrong);
+    expect(enabled.borderSide.width, 1);
   });
 
   testWidgets('custom labels keep the before suffix when minutes are zero', (

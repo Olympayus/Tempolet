@@ -151,6 +151,31 @@ void main() {
       expect(scroll.controller!.offset, closeTo(kDefaultScrollOffset, 0.5));
     });
 
+    testWidgets('axis gutter uses the side surface', (tester) async {
+      await pumpDay(tester, DateTime(2026, 11, 11));
+
+      final gutter = tester.widget<Container>(
+        find.byKey(const ValueKey('hour-grid-gutter')),
+      );
+      expect(
+        (gutter.decoration as BoxDecoration).color,
+        AppPalette.light.side,
+      );
+    });
+
+    testWidgets('day overview uses the side surface', (tester) async {
+      _useWideWindow(tester);
+      await pumpDay(tester, DateTime(2026, 11, 11));
+
+      final overview = tester.widget<Container>(
+        find.byKey(const ValueKey('day-overview')),
+      );
+      expect(
+        (overview.decoration! as BoxDecoration).color,
+        AppPalette.light.side,
+      );
+    });
+
     testWidgets(
       'tapping an empty slot opens a reminder at the snapped minute',
       (tester) async {

@@ -20,6 +20,10 @@ const List<BoxShadow> kCardShadow = [
   BoxShadow(color: Color(0x0D000000), blurRadius: 6, offset: Offset(0, 2)),
 ];
 
+/// Fill of the focused segment in date/time/custom segmented fields
+/// (`rgba(0,0,0,.06)` on paper).
+const Color kSelectedSegmentFill = Color(0x0F000000);
+
 /// Semantic palette from `docs/design/01-tokens.md`.
 ///
 /// UI code reads tokens through this class (or `Theme.of`), never hex.
@@ -35,7 +39,8 @@ class AppPalette {
     required this.lineStrong,
     required this.chip,
     required this.block,
-    required this.rail,
+    required this.nav,
+    required this.side,
     required this.bg,
     required this.card,
     required this.accent,
@@ -43,7 +48,7 @@ class AppPalette {
     required this.danger,
     required this.dangerTint,
     required this.hover,
-    required this.todayColumn,
+    required this.surfaceSelected,
     required this.festival,
     required this.festivalTint,
   });
@@ -58,8 +63,9 @@ class AppPalette {
     line: Color(0xFFEDEDF0),
     lineStrong: Color(0xFFDCDCE1),
     chip: Color(0xFFF2F2F5),
-    block: Color(0xFFF7F7F9),
-    rail: Color(0xFFF7F7F9),
+    block: Color(0xFFF2F2F5),
+    nav: Color(0xFFECEDF0),
+    side: Color(0xFFF2F3F5),
     bg: Color(0xFFFFFFFF),
     card: Color(0xFFFFFFFF),
     accent: Color(0xFF007AFF),
@@ -67,7 +73,7 @@ class AppPalette {
     danger: Color(0xFFFF3B30),
     dangerTint: Color(0x0FFF3B30),
     hover: Color(0xFFF7F7F9),
-    todayColumn: Color(0xFFFCFCFD),
+    surfaceSelected: Color(0xFFF7F7FA),
     festival: Color(0xFFC22F2F),
     festivalTint: Color(0x1AC22F2F),
   );
@@ -82,16 +88,17 @@ class AppPalette {
     line: Color(0x12FFFFFF),
     lineStrong: Color(0x24FFFFFF),
     chip: Color(0x0FFFFFFF),
-    block: Color(0xFF23262E),
-    rail: Color(0xFF0C0D10),
-    bg: Color(0xFF101114),
-    card: Color(0xFF1B1E25),
+    block: Color(0xFF262A33),
+    nav: Color(0xFF0B0C0F),
+    side: Color(0xFF121419),
+    bg: Color(0xFF191C22),
+    card: Color(0xFF20232A),
     accent: Color(0xFF4DA3FF),
     accentTint: Color(0x294DA3FF),
     danger: Color(0xFFFF6B5E),
     dangerTint: Color(0x1AFF6B5E),
     hover: Color(0x0AFFFFFF),
-    todayColumn: Color(0x08FFFFFF),
+    surfaceSelected: Color(0x0CFFFFFF),
     festival: Color(0xFFFF8F8A),
     festivalTint: Color(0x1FFF8F8A),
   );
@@ -123,10 +130,13 @@ class AppPalette {
   /// Paper block behind plan rows.
   final Color block;
 
-  /// Icon rail background.
-  final Color rail;
+  /// Window titlebar and icon rail surface.
+  final Color nav;
 
-  /// Paper background.
+  /// Sidebar, header and axis gutter surface.
+  final Color side;
+
+  /// Main content background.
   final Color bg;
 
   /// Card background.
@@ -147,8 +157,8 @@ class AppPalette {
   /// Row hover background.
   final Color hover;
 
-  /// Today column background in week/day views.
-  final Color todayColumn;
+  /// Selected-day column wash in week view.
+  final Color surfaceSelected;
 
   /// Festival names and the "休" pill text.
   final Color festival;
@@ -167,7 +177,8 @@ class AppPalette {
     lineStrong: lineStrong,
     chip: chip,
     block: block,
-    rail: rail,
+    nav: nav,
+    side: side,
     bg: bg,
     card: card,
     accent: accent,
@@ -175,7 +186,7 @@ class AppPalette {
     danger: danger,
     dangerTint: dangerTint,
     hover: hover,
-    todayColumn: todayColumn,
+    surfaceSelected: surfaceSelected,
     festival: festival,
     festivalTint: festivalTint,
   );

@@ -12,6 +12,10 @@ const double _defaultPanelWidth = 220;
 const double _chevronSize = 14;
 const double _hairline = 1;
 
+/// Category colour dot shown before a labelled item.
+const double _dotSize = 6;
+const double _dotGap = 8;
+
 /// Panel metrics from `docs/design/10-ui-refinement.md` §2.
 const double _rowHeight = 36;
 const double _panelVerticalPadding = 6;
@@ -25,10 +29,13 @@ const SizedBox _triggerTextGap = SizedBox(width: 6);
 /// One choice in an [AppDropdown].
 @immutable
 class AppDropdownItem<T> {
-  const AppDropdownItem({required this.value, required this.label});
+  const AppDropdownItem({required this.value, required this.label, this.color});
 
   final T value;
   final String label;
+
+  /// Optional category colour, drawn as a 6px dot before [label].
+  final Color? color;
 }
 
 /// Self-drawn select control (`docs/design/10-ui-refinement.md` §2).
@@ -68,11 +75,11 @@ class _AppDropdownState<T> extends State<AppDropdown<T>> {
   bool _open = false;
   VoidCallback? _closePanel;
 
-  String get _selectedLabel {
+  AppDropdownItem<T>? get _selectedItem {
     for (final item in widget.items) {
-      if (item.value == widget.value) return item.label;
+      if (item.value == widget.value) return item;
     }
-    return '';
+    return null;
   }
 
   void _toggle() {
@@ -123,8 +130,9 @@ class _AppDropdownState<T> extends State<AppDropdown<T>> {
   @override
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
+    final selected = _selectedItem;
     final label = Text(
-      _selectedLabel,
+      selected?.label ?? '',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: AppTextStyles.body.copyWith(color: palette.ink),
@@ -155,6 +163,13 @@ class _AppDropdownState<T> extends State<AppDropdown<T>> {
                   child: Row(
                     mainAxisSize: fills ? MainAxisSize.max : MainAxisSize.min,
                     children: [
+                      if (selected?.color != null) ...[
+                        _dot(
+                          selected!.color!,
+                          key: const ValueKey('app-dropdown-trigger-dot'),
+                        ),
+                        const SizedBox(width: _dotGap),
+                      ],
                       if (fills) Expanded(child: label) else label,
                       _triggerTextGap,
                       Icon(
@@ -194,6 +209,7 @@ class _DropdownPanel<T> extends StatefulWidget {
 
 class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'AppDropdownPanel');
+  late final List<GlobalKey> _rowKeys;
   late int _activeIndex = _initialIndex();
   bool _showActiveFill = false;
 
@@ -205,6 +221,10 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
   @override
   void initState() {
     super.initState();
+    _rowKeys = List<GlobalKey>.generate(
+      widget.items.length,
+      (index) => GlobalKey(debugLabel: 'AppDropdownRow$index'),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNode.requestFocus();
     });
@@ -216,11 +236,22 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
     super.dispose();
   }
 
-  void _setActive(int index) {
+  /// Highlights [index]. Only keyboard navigation asks for [reveal]: pointer
+  /// hover follows the row under the cursor, and scrolling that row to the
+  /// centre would move the list out from under it (the new rows dispatched
+  /// after the scroll would then re-trigger hover).
+  void _setActive(int index, {bool reveal = false}) {
     if (_showActiveFill && _activeIndex == index) return;
     setState(() {
       _activeIndex = index;
       _showActiveFill = true;
+    });
+    if (!reveal) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final rowContext = _rowKeys[_activeIndex].currentContext;
+      if (rowContext == null) return;
+      Scrollable.ensureVisible(rowContext, alignment: .5);
     });
   }
 
@@ -234,12 +265,13 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowDown) {
-      _setActive((_activeIndex + 1) % widget.items.length);
+      _setActive((_activeIndex + 1) % widget.items.length, reveal: true);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp) {
       _setActive(
         (_activeIndex - 1 + widget.items.length) % widget.items.length,
+        reveal: true,
       );
       return KeyEventResult.handled;
     }
@@ -290,16 +322,19 @@ class _DropdownPanelState<T> extends State<_DropdownPanel<T>> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < widget.items.length; i++)
-                    _DropdownRow<T>(
-                      key: ValueKey(
-                        'app-dropdown-item-${widget.items[i].value}',
+                    KeyedSubtree(
+                      key: _rowKeys[i],
+                      child: _DropdownRow<T>(
+                        key: ValueKey(
+                          'app-dropdown-item-${widget.items[i].value}',
+                        ),
+                        item: widget.items[i],
+                        selected: widget.items[i].value == widget.value,
+                        active: _showActiveFill && i == _activeIndex,
+                        palette: palette,
+                        onTap: () => widget.onSelected(widget.items[i]),
+                        onHover: () => _setActive(i),
                       ),
-                      item: widget.items[i],
-                      selected: widget.items[i].value == widget.value,
-                      active: _showActiveFill && i == _activeIndex,
-                      palette: palette,
-                      onTap: () => widget.onSelected(widget.items[i]),
-                      onHover: () => _setActive(i),
                     ),
                 ],
               ),
@@ -360,21 +395,44 @@ class _DropdownRow<T> extends StatelessWidget {
             color: active ? hoverFill : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadii.chip),
           ),
-          child: Text(
-            item.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.body.copyWith(
-              color: palette.ink,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              fontVariations: [FontVariation('wght', selected ? 600.0 : 400.0)],
-            ),
+          child: Row(
+            children: [
+              if (item.color != null) ...[
+                _dot(
+                  item.color!,
+                  key: ValueKey('app-dropdown-dot-${item.value}'),
+                ),
+                const SizedBox(width: _dotGap),
+              ],
+              Expanded(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.body.copyWith(
+                    color: palette.ink,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    fontVariations: [
+                      FontVariation('wght', selected ? 600.0 : 400.0),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+/// 6px category-colour dot shown before a dropdown label.
+Widget _dot(Color color, {Key? key}) => Container(
+  key: key,
+  width: _dotSize,
+  height: _dotSize,
+  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+);
 
 AppPalette _paletteOf(BuildContext context) {
   final theme = Theme.of(context);

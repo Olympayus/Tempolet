@@ -1,10 +1,12 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_hairline.dart';
+import '../../core/ui/dashed_border_painter.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -43,6 +45,10 @@ class WeekView extends ConsumerStatefulWidget {
 class _WeekViewState extends ConsumerState<WeekView> {
   final _scroll = ScrollController(initialScrollOffset: kDefaultScrollOffset);
 
+  /// Previous header tap, used to recognise a double click without a timer.
+  DateTime? _lastHeaderDay;
+  DateTime? _lastHeaderTapAt;
+
   @override
   void dispose() {
     _scroll.dispose();
@@ -56,6 +62,25 @@ class _WeekViewState extends ConsumerState<WeekView> {
   void _openDay(DateTime day) {
     _selectDay(day);
     ref.read(calendarViewModeProvider.notifier).set(CalendarViewMode.day);
+  }
+
+  /// A header click selects immediately; a second click on the same day
+  /// within [kDoubleTapTimeout] also opens the day view.
+  void _handleHeaderTap(DateTime day) {
+    final now = DateTime.now();
+    final doubleTap =
+        _lastHeaderDay == day &&
+        _lastHeaderTapAt != null &&
+        now.difference(_lastHeaderTapAt!) < kDoubleTapTimeout;
+    _selectDay(day);
+    if (doubleTap) {
+      _lastHeaderDay = null;
+      _lastHeaderTapAt = null;
+      _openDay(day);
+    } else {
+      _lastHeaderDay = day;
+      _lastHeaderTapAt = now;
+    }
   }
 
   @override
@@ -79,7 +104,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
         ref.watch(eventsInRangeProvider((start: monday, end: end))).value ??
         const <Event>[];
     final today = dateOnly(ref.watch(todayProvider));
-    final todayIndex = days.indexWhere((day) => day == today);
+    final selectedIndex = days.indexWhere((day) => day == selectedDay);
     final holidays = ref.watch(holidaysProvider).value ?? const <Holiday>[];
     final holidayByDay = <DateTime, Holiday>{
       for (final holiday in holidays) dateOnly(holiday.date): holiday,
@@ -100,24 +125,27 @@ class _WeekViewState extends ConsumerState<WeekView> {
 
         return Column(
           children: [
-            Row(
-              children: [
-                const SizedBox(width: kAxisGutter),
-                for (final day in days)
-                  SizedBox(
-                    width: columnWidth,
-                    child: _DayHeaderCell(
-                      day: day,
-                      today: today,
-                      selected: day == selectedDay,
-                      holiday: holidayByDay[day],
-                      locale: locale,
-                      palette: palette,
-                      onSelect: () => _selectDay(day),
-                      onOpenDay: () => _openDay(day),
+            Container(
+              key: const ValueKey('week-header-band'),
+              decoration: BoxDecoration(color: palette.side),
+              child: Row(
+                children: [
+                  const SizedBox(width: kAxisGutter),
+                  for (final day in days)
+                    SizedBox(
+                      width: columnWidth,
+                      child: _DayHeaderCell(
+                        day: day,
+                        today: today,
+                        selected: day == selectedDay,
+                        holiday: holidayByDay[day],
+                        locale: locale,
+                        palette: palette,
+                        onTap: () => _handleHeaderTap(day),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             AppHairline(color: palette.line),
             Expanded(
@@ -128,14 +156,18 @@ class _WeekViewState extends ConsumerState<WeekView> {
                   height: kHoursInDay * kHourHeight,
                   child: Stack(
                     children: [
-                      if (todayIndex != -1)
+                      if (selectedIndex != -1)
                         Positioned(
-                          key: const ValueKey('week-today-column'),
-                          left: kAxisGutter + todayIndex * columnWidth,
+                          left: kAxisGutter + selectedIndex * columnWidth,
                           width: columnWidth,
                           top: 0,
                           bottom: 0,
-                          child: ColoredBox(color: palette.todayColumn),
+                          child: ColoredBox(
+                            key: ValueKey(
+                              'week-selected-column-${_isoDay(selectedDay)}',
+                            ),
+                            color: palette.surfaceSelected,
+                          ),
                         ),
                       for (var i = 1; i < 7; i++)
                         Positioned(
@@ -153,9 +185,12 @@ class _WeekViewState extends ConsumerState<WeekView> {
                         child: ColoredBox(color: palette.line),
                       ),
                       // Hour rules and axis ticks span all seven columns as
-                      // their own layer, above the today tint.
-                      const Positioned.fill(
-                        child: HourGrid(gutterWidth: kAxisGutter),
+                      // their own layer, above the selected column wash.
+                      Positioned.fill(
+                        child: HourGrid(
+                          gutterWidth: kAxisGutter,
+                          gutterColor: palette.side,
+                        ),
                       ),
                       for (var i = 0; i < 7; i++)
                         Positioned(
@@ -203,8 +238,7 @@ class _DayHeaderCell extends StatelessWidget {
     required this.holiday,
     required this.locale,
     required this.palette,
-    required this.onSelect,
-    required this.onOpenDay,
+    required this.onTap,
   });
 
   final DateTime day;
@@ -213,8 +247,7 @@ class _DayHeaderCell extends StatelessWidget {
   final Holiday? holiday;
   final Locale locale;
   final AppPalette palette;
-  final VoidCallback onSelect;
-  final VoidCallback onOpenDay;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -223,8 +256,7 @@ class _DayHeaderCell extends StatelessWidget {
     return GestureDetector(
       key: ValueKey('week-day-${_isoDay(day)}'),
       behavior: HitTestBehavior.opaque,
-      onTap: onSelect,
-      onDoubleTap: onOpenDay,
+      onTap: onTap,
       child: SizedBox(
         height: 52,
         child: Padding(
@@ -494,6 +526,7 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
               event: event,
               overdue: overdue,
               showCheckbox: true,
+              showNote: false,
               onTap: onTap,
               onComplete: _completion(event),
             ),
@@ -532,7 +565,7 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
             borderRadius: BorderRadius.circular(AppRadii.block),
           ),
           child: CustomPaint(
-            painter: _DashedBorderPainter(color: widget.palette.accent),
+            painter: DashedBorderPainter(color: widget.palette.accent),
           ),
         ),
       ),
@@ -696,41 +729,7 @@ class _TwoLineReminderCard extends ConsumerWidget {
 }
 
 /// 1px dashed border for the drag-created plan preview.
-class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Offset.zero & size,
-          const Radius.circular(AppRadii.block),
-        ),
-      );
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    const dash = 4.0;
-    const gap = 3.0;
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final end = (distance + dash).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance = end + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
+// Moved to core/ui/dashed_border_painter.dart.
 
 String _isoDay(DateTime day) =>
     '${day.year}-${day.month.toString().padLeft(2, '0')}-'

@@ -7,7 +7,7 @@ void main() {
     expect(AppPalette.light.accent, const Color(0xFF007AFF));
     expect(AppPalette.light.line, const Color(0xFFEDEDF0));
     expect(AppPalette.light.festival, const Color(0xFFC22F2F));
-    expect(AppPalette.dark.bg, const Color(0xFF101114));
+    expect(AppPalette.dark.bg, const Color(0xFF191C22));
     expect(AppPalette.dark.festival, const Color(0xFFFF8F8A));
   });
 
@@ -40,9 +40,27 @@ void main() {
     expect(AppTextStyles.title.letterSpacing, -0.2);
     expect(AppTextStyles.headline.letterSpacing, -0.1);
     expect(AppTextStyles.body.letterSpacing, 0);
-    expect(AppPalette.light.block, const Color(0xFFF7F7F9));
-    expect(AppPalette.dark.block, const Color(0xFF23262E));
+    expect(AppPalette.light.block, const Color(0xFFF2F2F5));
+    expect(AppPalette.dark.block, const Color(0xFF262A33));
     expect(AppPalette.light.subMuted, const Color(0xFFAEAEB2));
     expect(AppPalette.dark.subMuted, const Color(0xFF6F7680));
+  });
+
+  test('v0.1.4 surfaces', () {
+    expect(AppPalette.dark.nav, const Color(0xFF0B0C0F));
+    expect(AppPalette.dark.side, const Color(0xFF121419));
+    expect(AppPalette.dark.bg, const Color(0xFF191C22));
+    expect(AppPalette.dark.surfaceSelected, const Color(0x0CFFFFFF));
+    expect(AppPalette.light.nav, const Color(0xFFECEDF0));
+    expect(AppPalette.light.side, const Color(0xFFF2F3F5));
+    expect(AppPalette.light.bg, const Color(0xFFFFFFFF));
+    expect(AppPalette.light.surfaceSelected, const Color(0xFFF7F7FA));
+    expect(AppPalette.dark.card, const Color(0xFF20232A));
+    expect(AppPalette.dark.block, const Color(0xFF262A33));
+    expect(AppPalette.light.block, const Color(0xFFF2F2F5));
+    final tinted = AppPalette.dark.withAccent(const Color(0xFFFF0000));
+    expect(tinted.nav, AppPalette.dark.nav);
+    expect(tinted.side, AppPalette.dark.side);
+    expect(tinted.surfaceSelected, AppPalette.dark.surfaceSelected);
   });
 }

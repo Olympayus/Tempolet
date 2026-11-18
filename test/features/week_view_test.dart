@@ -65,6 +65,9 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(prefs),
         databaseProvider.overrideWithValue(db),
         notificationServiceProvider.overrideWithValue(notifications),
+        // Pin "today" so the selected/wash assertions do not depend on the
+        // machine clock.
+        todayProvider.overrideWithValue(DateTime(2026, 11, 11)),
       ],
     );
   });
@@ -160,17 +163,85 @@ void main() {
       );
     });
 
-    testWidgets('today column has a tint', (tester) async {
-      await pumpWeek(tester, dateOnly(DateTime.now()));
+    testWidgets(
+      'selected today still washes its column and today has no extra wash',
+      (tester) async {
+        // Today is pinned to 2026-11-11, so the default selected day is both
+        // today and selected.
+        await pumpWeek(tester, DateTime(2026, 11, 11));
 
-      expect(find.byKey(const ValueKey('week-today-column')), findsOneWidget);
-      final tint = tester.widget<ColoredBox>(
-        find.descendant(
-          of: find.byKey(const ValueKey('week-today-column')),
-          matching: find.byType(ColoredBox),
-        ),
+        final todayColumn = find.byKey(
+          const ValueKey('week-selected-column-2026-11-11'),
+        );
+        expect(todayColumn, findsOneWidget);
+        expect(
+          tester.widget<ColoredBox>(todayColumn).color,
+          AppPalette.light.surfaceSelected,
+        );
+        // No separate today-only column wash: exactly one selected overlay.
+        expect(find.byKey(const ValueKey('week-today-column')), findsNothing);
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is ColoredBox &&
+                widget.color == AppPalette.light.surfaceSelected,
+          ),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const ValueKey('week-day-2026-11-12')));
+        await tester.pump();
+
+        expect(
+          find.byKey(const ValueKey('week-selected-column-2026-11-12')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('week-selected-column-2026-11-11')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'header tap selects immediately and second tap within 300ms opens day view',
+      (tester) async {
+        container
+            .read(calendarViewModeProvider.notifier)
+            .set(CalendarViewMode.week);
+        await pumpWeek(tester, DateTime(2026, 11, 11));
+
+        // tap another day once -> selected immediately (one pump, no 300ms wait)
+        await tester.tap(find.byKey(const ValueKey('week-day-2026-11-12')));
+        await tester.pump();
+        expect(container.read(selectedDayProvider), DateTime(2026, 11, 12));
+        // tap again within threshold -> day view
+        await tester.tap(find.byKey(const ValueKey('week-day-2026-11-12')));
+        await tester.pump();
+        expect(container.read(calendarViewModeProvider), CalendarViewMode.day);
+      },
+    );
+
+    testWidgets('week header and axis gutter use the side surface', (
+      tester,
+    ) async {
+      await pumpWeek(tester, DateTime(2026, 11, 11));
+
+      final header = tester.widget<Container>(
+        find.byKey(const ValueKey('week-header-band')),
       );
-      expect(tint.color, AppPalette.light.todayColumn);
+      expect(
+        (header.decoration as BoxDecoration).color,
+        AppPalette.light.side,
+      );
+
+      final gutter = tester.widget<Container>(
+        find.byKey(const ValueKey('hour-grid-gutter')),
+      );
+      expect(
+        (gutter.decoration as BoxDecoration).color,
+        AppPalette.light.side,
+      );
     });
 
     testWidgets('renders seven keyed headers for the week of 2026-11-11', (

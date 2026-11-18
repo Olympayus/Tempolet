@@ -134,7 +134,7 @@ class _DayViewState extends ConsumerState<DayView> {
                 : trackWidth / laneTotal;
             return Stack(
               children: [
-                const Positioned.fill(child: HourGrid()),
+                Positioned.fill(child: HourGrid(gutterColor: palette.side)),
                 Positioned.fill(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -373,6 +373,7 @@ class _DayOverview extends ConsumerWidget {
       width: 216,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        color: palette.side,
         border: Border(left: BorderSide(color: palette.line)),
       ),
       child: Column(

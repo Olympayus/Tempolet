@@ -97,6 +97,7 @@
   "restore": "恢复",
   "select": "选择",
   "selectAll": "全选",
+  "deselectAll": "全部取消",
   "selectedCount": "{count, plural, other{已选 {count} 项}}",
   "completedEmptyTitle": "还没有已完成事项",
   "completedEmptyHint": "完成后的事项会出现在这里",

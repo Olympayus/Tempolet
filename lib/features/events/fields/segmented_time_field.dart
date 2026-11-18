@@ -6,9 +6,6 @@ import '../../../core/theme/app_tokens.dart';
 /// Segmented-field metrics from `docs/design/10-ui-refinement.md` §9.6.
 const double _segmentHeight = 28;
 
-/// Selected-segment fill: `rgba(0,0,0,.06)`.
-const Color _selectedSegmentFill = Color(0x0F000000);
-
 /// Hour / minute segmented input.
 ///
 /// [value] is minutes since midnight, or null when no time has been entered.
@@ -213,7 +210,7 @@ class _Segment extends StatelessWidget {
               hintText: '--',
               hintStyle: AppTextStyles.body.copyWith(color: palette.subWeak),
               filled: true,
-              fillColor: focused ? _selectedSegmentFill : palette.chip,
+              fillColor: focused ? kSelectedSegmentFill : palette.chip,
               contentPadding: const EdgeInsets.symmetric(vertical: 4),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadii.chip),

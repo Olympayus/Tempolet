@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/generated/app_localizations.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/ui/app_buttons.dart';
 import '../../../core/utils/dates.dart';
 import '../../calendar/calendar_state.dart';
 import '../../calendar/mini_month_calendar.dart';
@@ -11,9 +12,6 @@ import '../../calendar/month_model.dart';
 
 /// Segmented-field metrics from `docs/design/10-ui-refinement.md` §9.6.
 const double _segmentHeight = 28;
-
-/// Selected-segment fill: `rgba(0,0,0,.06)`.
-const Color _selectedSegmentFill = Color(0x0F000000);
 
 /// Year / month / day segmented input with a mini-calendar popover.
 ///
@@ -210,13 +208,10 @@ class _SegmentedDateFieldState extends State<SegmentedDateField> {
               child: Text(units[2], style: unitStyle),
             ),
             const SizedBox(width: 6),
-            IconButton(
+            AppIconButton(
               key: const ValueKey('date-calendar'),
               onPressed: _openCalendar,
               tooltip: l10n.dateLabel,
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 24, height: 24),
               icon: Icon(Icons.calendar_today_outlined, size: 15, color: p.sub),
             ),
           ],
@@ -273,7 +268,7 @@ class _Segment extends StatelessWidget {
               isDense: true,
               counterText: '',
               filled: true,
-              fillColor: focused ? _selectedSegmentFill : palette.chip,
+              fillColor: focused ? kSelectedSegmentFill : palette.chip,
               contentPadding: const EdgeInsets.symmetric(vertical: 4),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadii.chip),

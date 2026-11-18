@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,12 +109,21 @@ void main() {
     await _settle(tester);
   }
 
+  /// Rests the mouse on [day] long enough for the 350ms hover delay to fire.
+  Future<TestGesture> hoverPreview(WidgetTester tester, DateTime day) async {
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(_cell(day)));
+    await tester.pump(
+      kMonthPreviewHoverDelay + const Duration(milliseconds: 10),
+    );
+    await tester.pumpAndSettle();
+    return gesture;
+  }
+
   Future<void> openPreview(WidgetTester tester, DateTime day) async {
     await pumpMonth(tester);
-    await tester.tap(_cell(day));
-    // The single-click recognizer waits out the double-click window.
-    await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
+    await hoverPreview(tester, day);
   }
 
   testWidgets('clicking a day opens an anchored popover, not a dialog', (
@@ -121,9 +131,7 @@ void main() {
   ) async {
     await pumpMonth(tester);
     final barriersBefore = find.byType(ModalBarrier).evaluate().length;
-    await tester.tap(_cell(DateTime(2026, 11, 17)));
-    await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
+    await hoverPreview(tester, DateTime(2026, 11, 17));
 
     expect(find.byType(MonthPreviewPopover), findsOneWidget);
     expect(find.byType(Dialog), findsNothing);
@@ -308,5 +316,68 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('month-preview-close')));
     await _settle(tester);
     expect(find.byType(MonthPreviewPopover), findsNothing);
+  });
+
+  testWidgets('pointer can move into the preview without closing it', (
+    tester,
+  ) async {
+    await pumpMonth(tester);
+    final gesture = await hoverPreview(tester, DateTime(2026, 11, 11));
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+
+    // Exit the cell and enter the panel; the 200ms grace covers the 8px gap.
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-preview'))),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
+  });
+
+  testWidgets('travelling across the gap into the preview keeps its day', (
+    tester,
+  ) async {
+    await pumpMonth(tester);
+    final day = DateTime(2026, 11, 11);
+    final gesture = await hoverPreview(tester, day);
+    final panel = find.byKey(const ValueKey('month-preview'));
+    expect(panel, findsOneWidget);
+
+    // Real pointer travel passes over the 8px gap between the cell and the
+    // panel in small steps; the gap sits on the neighbouring cell, so the
+    // hover state machine sees another cell *before* the pointer reaches the
+    // panel. Teleporting straight to the panel centre skips that.
+    final start = tester.getCenter(_cell(day));
+    final end = tester.getCenter(panel);
+    const steps = 40;
+    for (var i = 1; i <= steps; i++) {
+      await gesture.moveTo(Offset.lerp(start, end, i / steps)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final preview = find.byType(MonthPreviewPopover);
+    expect(preview, findsOneWidget);
+    expect(tester.widget<MonthPreviewPopover>(preview).day, day);
+  });
+
+  testWidgets('completed circle in the hover-opening preview is clickable', (
+    tester,
+  ) async {
+    await pumpMonth(tester);
+    final gesture = await hoverPreview(tester, DateTime(2026, 11, 11));
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('month-preview'))),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+
+    await tester.tap(_checkCircle(alpha.id));
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 30)),
+    );
+
+    expect(find.byKey(const ValueKey('editor-save')), findsNothing);
+    final completed = await tester.runAsync(() => repo.getById(alpha.id));
+    expect(completed!.isCompleted, isTrue);
   });
 }

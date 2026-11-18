@@ -72,7 +72,7 @@ void main() {
     }
   });
 
-  testWidgets('rail background, bottom hairline and 12px app name at x=14', (
+  testWidgets('nav background, bottom hairline and 12px app name at x=14', (
     tester,
   ) async {
     await tester.pumpWidget(_app(_titlebar()));
@@ -81,7 +81,7 @@ void main() {
       find.byKey(const ValueKey('titlebar-surface')),
     );
     final decoration = surface.decoration! as BoxDecoration;
-    expect(decoration.color, AppPalette.light.rail);
+    expect(decoration.color, AppPalette.light.nav);
     expect(
       decoration.border,
       Border(bottom: BorderSide(color: AppPalette.light.line)),

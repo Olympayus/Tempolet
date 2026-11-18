@@ -19,6 +19,7 @@ import '../../data/repositories/event_repository.dart';
 import '../../notifications/notification_scheduler.dart';
 import '../calendar/calendar_state.dart';
 import '../calendar/category_marker.dart';
+import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import '../events/event_list_row.dart';
 import 'category_order.dart';
@@ -153,7 +154,15 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   }
 
   Future<void> _openNew(DateTime day, {String? categoryId}) {
-    return showEventEditor(context, date: day, categoryId: categoryId);
+    // On the plan filter every add entry point (empty state, date group,
+    // category group) creates a plan; the other filters keep the editor's
+    // reminder default.
+    return showEventEditor(
+      context,
+      date: day,
+      categoryId: categoryId,
+      initialKind: _filter == RemindersFilter.plan ? EventKind.plan : null,
+    );
   }
 
   /// Concatenates two event lists without duplicating ids. [preferred] wins,

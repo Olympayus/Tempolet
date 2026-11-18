@@ -13,11 +13,13 @@ import 'package:tempolet/core/router/app_router.dart';
 import 'package:tempolet/core/theme/app_tokens.dart';
 import 'package:tempolet/core/ui/app_buttons.dart';
 import 'package:tempolet/core/ui/app_check_circle.dart';
+import 'package:tempolet/core/ui/app_segmented.dart';
 import 'package:tempolet/core/ui/strike_through_text.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
+import 'package:tempolet/features/events/event_draft.dart';
 import 'package:tempolet/features/events/event_list_row.dart';
 import 'package:tempolet/features/reminders/category_order.dart';
 import 'package:tempolet/features/reminders/reminders_page.dart';
@@ -868,6 +870,49 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  AppSegmented<EventKind> editorKind(WidgetTester tester) =>
+      tester.widget<AppSegmented<EventKind>>(
+        find.byKey(const ValueKey('editor-kind')),
+      );
+
+  testWidgets('plan filter defaults the empty-state add to a plan', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.tap(find.text('计划'));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('reminders-empty-new')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('reminders-empty-new')));
+    await tester.pumpAndSettle();
+
+    expect(editorKind(tester).selected, EventKind.plan);
+  });
+
+  testWidgets('plan filter defaults the group add to a plan', (tester) async {
+    final work = await categories.create(name: 'Work');
+    await seed(
+      'Work plan',
+      kind: 'plan',
+      date: _today,
+      startMinute: 700,
+      endMinute: 760,
+      categoryId: work.id,
+    );
+
+    await tester.pumpWidget(_pageApp(container));
+    await _settle(tester);
+
+    await tester.tap(find.text('计划'));
+    await _settle(tester);
+    await tester.tap(find.byKey(ValueKey('reminders-group-add-${work.id}')));
+    await tester.pumpAndSettle();
+
+    expect(editorKind(tester).selected, EventKind.plan);
   });
 
   testWidgets('showDate rows use the dot separator in English', (tester) async {

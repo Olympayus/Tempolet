@@ -31,6 +31,7 @@ class ReminderCard extends ConsumerStatefulWidget {
     this.retainInPlace = false,
     this.progress,
     this.titleBuilder,
+    this.showNote = true,
   });
 
   final Event event;
@@ -54,6 +55,10 @@ class ReminderCard extends ConsumerStatefulWidget {
 
   /// Replaces the default title [Text]; receives the card's title style.
   final Widget Function(BuildContext context, TextStyle style)? titleBuilder;
+
+  /// Appends the event's note after the title in small muted text. Week-view
+  /// columns turn this off: the grid width cannot spare the room.
+  final bool showNote;
 
   @override
   ConsumerState<ReminderCard> createState() => _ReminderCardState();
@@ -151,6 +156,7 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
             decoration: TextDecoration.lineThrough,
           )
         : titleStyle;
+    final note = widget.showNote ? event.note.trim() : '';
 
     return AnimatedOpacity(
       opacity: _completing ? 0.35 : 1,
@@ -183,11 +189,24 @@ class _ReminderCardState extends ConsumerState<ReminderCard> {
               Expanded(
                 child: widget.titleBuilder != null
                     ? widget.titleBuilder!(context, titleStyle)
-                    : Text(
-                        event.title,
+                    : Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: event.title,
+                              style: defaultTitleStyle,
+                            ),
+                            if (note.isNotEmpty)
+                              TextSpan(
+                                text: ' · $note',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: palette.subMuted,
+                                ),
+                              ),
+                          ],
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: defaultTitleStyle,
                       ),
               ),
               const SizedBox(width: 8),

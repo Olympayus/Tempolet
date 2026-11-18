@@ -132,6 +132,7 @@ class EventListRow extends StatelessWidget {
     final defaultTitleStyle = event.isCompleted
         ? titleStyle.copyWith(decoration: TextDecoration.lineThrough)
         : titleStyle;
+    final note = event.note.trim();
 
     return SizedBox(
       height: AppSizes.row,
@@ -203,11 +204,24 @@ class EventListRow extends StatelessWidget {
                     Expanded(
                       child: titleBuilder != null
                           ? titleBuilder!(context, titleStyle)
-                          : Text(
-                              event.title,
+                          : Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: event.title,
+                                    style: defaultTitleStyle,
+                                  ),
+                                  if (note.isNotEmpty)
+                                    TextSpan(
+                                      text: ' · $note',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: palette.subMuted,
+                                      ),
+                                    ),
+                                ],
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: defaultTitleStyle,
                             ),
                     ),
                     if (metadata != null) ...[

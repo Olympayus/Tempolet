@@ -12,6 +12,7 @@ const _markerColor = Color(0xFFFF9500);
 Event _event({
   String id = 'e1',
   required String title,
+  String note = '',
   String kind = 'reminder',
   DateTime? date,
   int? startMinute = 540,
@@ -22,7 +23,7 @@ Event _event({
   return Event(
     id: id,
     title: title,
-    note: '',
+    note: note,
     kind: kind,
     date: date ?? DateTime(2026, 11, 16),
     startMinute: startMinute,
@@ -248,9 +249,11 @@ void main() {
     );
 
     final title = tester.widget<Text>(find.text('Done thing'));
-    expect(title.style?.decoration, TextDecoration.lineThrough);
-    expect(title.style?.fontSize, 13);
-    expect(title.style?.color, AppPalette.light.ink);
+    final titleSpan =
+        (title.textSpan! as TextSpan).children!.first as TextSpan;
+    expect(titleSpan.style?.decoration, TextDecoration.lineThrough);
+    expect(titleSpan.style?.fontSize, 13);
+    expect(titleSpan.style?.color, AppPalette.light.ink);
     expect(
       tester.widget<AppCheckCircle>(find.byType(AppCheckCircle)).checked,
       isTrue,
@@ -391,5 +394,41 @@ void main() {
     final customTitle = tester.getRect(find.text('custom'));
     expect(customTitle.left, defaultTitle.left);
     expect(customTitle.width, defaultTitle.width);
+  });
+
+  testWidgets('note follows the title in small muted text', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        EventListRow(
+          event: _event(title: '交材料', note: '带上复印件'),
+          color: _markerColor,
+        ),
+      ),
+    );
+
+    final text = tester.widget<Text>(find.textContaining('带上复印件'));
+    expect(text.maxLines, 1);
+    final spans = (text.textSpan! as TextSpan).children!.cast<TextSpan>();
+    expect(spans.first.text, '交材料');
+    expect(spans.first.style?.fontSize, 13);
+    final noteSpan = spans.last;
+    expect(noteSpan.text, contains('带上复印件'));
+    expect(noteSpan.style?.fontSize, AppTextStyles.caption.fontSize);
+    expect(noteSpan.style?.color, AppPalette.light.subMuted);
+    // The note never inherits the completed strike-through.
+    expect(noteSpan.style?.decoration, isNull);
+  });
+
+  testWidgets('an empty note adds no trailing text', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        EventListRow(
+          event: _event(title: '交材料', note: '   '),
+          color: _markerColor,
+        ),
+      ),
+    );
+
+    expect(find.text('交材料'), findsOneWidget);
   });
 }

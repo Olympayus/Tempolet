@@ -525,6 +525,7 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
               event: event,
               overdue: overdue,
               showCheckbox: true,
+              showNote: false,
               onTap: onTap,
               onComplete: _completion(event),
             ),

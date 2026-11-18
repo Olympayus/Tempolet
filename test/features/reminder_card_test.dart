@@ -8,12 +8,17 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/category_repository.dart';
 import 'package:tempolet/features/calendar/reminder_card.dart';
 
-Event _event({String id = 'e1', bool isCompleted = false}) {
+Event _event({
+  String id = 'e1',
+  String title = '寄快递',
+  String note = '',
+  bool isCompleted = false,
+}) {
   final now = DateTime(2026, 11, 16);
   return Event(
     id: id,
-    title: '寄快递',
-    note: '',
+    title: title,
+    note: note,
     kind: 'reminder',
     date: now,
     startMinute: 540,
@@ -164,5 +169,41 @@ void main() {
     expect(custom.style?.color, AppPalette.light.ink);
     // The builder draws the strike-through itself.
     expect(custom.style?.decoration, isNull);
+  });
+
+  testWidgets('note follows the title in small muted text', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        ReminderCard(
+          event: _event(note: '带上身份证'),
+          overdue: false,
+          showCheckbox: true,
+        ),
+      ),
+    );
+
+    final text = tester.widget<Text>(find.textContaining('带上身份证'));
+    final spans = (text.textSpan! as TextSpan).children!.cast<TextSpan>();
+    expect(spans.first.text, '寄快递');
+    final noteSpan = spans.last;
+    expect(noteSpan.text, contains('带上身份证'));
+    expect(noteSpan.style?.fontSize, AppTextStyles.caption.fontSize);
+    expect(noteSpan.style?.color, AppPalette.light.subMuted);
+  });
+
+  testWidgets('showNote: false keeps the card title only', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        ReminderCard(
+          event: _event(note: '带上身份证'),
+          overdue: false,
+          showCheckbox: true,
+          showNote: false,
+        ),
+      ),
+    );
+
+    expect(find.text('寄快递'), findsOneWidget);
+    expect(find.textContaining('带上身份证'), findsNothing);
   });
 }

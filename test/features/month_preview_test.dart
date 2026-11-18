@@ -333,6 +333,33 @@ void main() {
     expect(find.byKey(const ValueKey('month-preview')), findsOneWidget);
   });
 
+  testWidgets('travelling across the gap into the preview keeps its day', (
+    tester,
+  ) async {
+    await pumpMonth(tester);
+    final day = DateTime(2026, 11, 11);
+    final gesture = await hoverPreview(tester, day);
+    final panel = find.byKey(const ValueKey('month-preview'));
+    expect(panel, findsOneWidget);
+
+    // Real pointer travel passes over the 8px gap between the cell and the
+    // panel in small steps; the gap sits on the neighbouring cell, so the
+    // hover state machine sees another cell *before* the pointer reaches the
+    // panel. Teleporting straight to the panel centre skips that.
+    final start = tester.getCenter(_cell(day));
+    final end = tester.getCenter(panel);
+    const steps = 40;
+    for (var i = 1; i <= steps; i++) {
+      await gesture.moveTo(Offset.lerp(start, end, i / steps)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final preview = find.byType(MonthPreviewPopover);
+    expect(preview, findsOneWidget);
+    expect(tester.widget<MonthPreviewPopover>(preview).day, day);
+  });
+
   testWidgets('completed circle in the hover-opening preview is clickable', (
     tester,
   ) async {

@@ -41,6 +41,11 @@ class _MonthViewState extends ConsumerState<MonthView> {
   final Map<DateTime, GlobalKey> _cellKeys = <DateTime, GlobalKey>{};
 
   DateTime? _openPreviewDay;
+
+  /// Whether the open panel has rendered its first frame. Until then there is
+  /// no corridor between the cell and the panel to preserve, so a pointer
+  /// that already reached another cell leaves the entry orphaned.
+  bool _previewBuilt = false;
   Timer? _openTimer;
   Timer? _closeTimer;
   VoidCallback? _closePreview;
@@ -69,8 +74,19 @@ class _MonthViewState extends ConsumerState<MonthView> {
     _cancelClose();
     if (_hoveredDay != day) setState(() => _hoveredDay = day);
     if (_openPreviewDay == day) return;
-    // A preview cannot follow the pointer across cells.
-    _closeOpenPreview();
+    if (_openPreviewDay != null) {
+      // The 8px gap between a cell and its panel lies over the neighbouring
+      // cell, so a pointer travelling into the panel always enters another
+      // cell first. Honour the grace period and let the panel's own
+      // MouseRegion cancel the dismissal. A panel that never rendered has no
+      // corridor to protect, so a pointer already on another cell makes that
+      // entry an orphan and it is dismissed outright.
+      if (_previewBuilt) {
+        _scheduleClose();
+      } else {
+        _closeOpenPreview();
+      }
+    }
     _openTimer = Timer(kMonthPreviewHoverDelay, () => _openPreview(day));
   }
 
@@ -98,6 +114,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
   void _closeOpenPreview() {
     if (_openPreviewDay == null) return;
     _openPreviewDay = null;
+    _previewBuilt = false;
     final close = _closePreview;
     _closePreview = null;
     close?.call();
@@ -111,6 +128,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
     if (box is! RenderBox || !box.hasSize) return;
     final anchor = box.localToGlobal(Offset.zero) & box.size;
     _openPreviewDay = day;
+    _previewBuilt = false;
     final future = showAppPopover<void>(
       context: context,
       anchor: anchor,
@@ -124,6 +142,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
           scope?.close(null);
           return const SizedBox.shrink();
         }
+        _previewBuilt = true;
         // Capture the scope's close callback up front: it stays callable from
         // `dispose` even after the popover's own context is deactivated.
         if (scope != null) _closePreview = () => scope.close(null);
@@ -141,6 +160,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
       // it again. If the pointer already left, `_exitCell` cleared the
       // suppression and re-arming it here would swallow the next hover.
       _openPreviewDay = null;
+      _previewBuilt = false;
       _closePreview = null;
       if (_hoveredDay == day) _suppressedDay = day;
     });

@@ -27,7 +27,6 @@ class TimeChangeReceiver : BroadcastReceiver() {
             loader.startInitialization(appContext)
             loader.ensureInitializationComplete(appContext, null)
             val engine = FlutterEngine(appContext)
-            GeneratedPluginRegistrant.registerWith(engine)
             engine.dartExecutor.executeDartCallback(
                 DartExecutor.DartCallback(
                     appContext.assets,

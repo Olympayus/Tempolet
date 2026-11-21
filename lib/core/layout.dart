@@ -28,12 +28,17 @@ AppLayout? debugLayoutOverride;
 bool get _desktopHost =>
     !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
+/// Pure size rule for mobile hosts: shortest side >= 600dp is a tablet,
+/// everything else (including phone landscape) is a phone. Desktop is decided
+/// by the host OS in [resolveAppLayout], not here.
+AppLayout resolveAppLayoutForSize(Size size) =>
+    size.shortestSide >= kTabletBreakpoint ? AppLayout.tablet : AppLayout.phone;
+
 AppLayout resolveAppLayout(BuildContext context) {
   final override = debugLayoutOverride;
   if (override != null) return override;
   if (_desktopHost) return AppLayout.desktop;
-  final shortest = MediaQuery.sizeOf(context).shortestSide;
-  return shortest >= kTabletBreakpoint ? AppLayout.tablet : AppLayout.phone;
+  return resolveAppLayoutForSize(MediaQuery.sizeOf(context));
 }
 
 bool isTouchLayout(AppLayout layout) => layout != AppLayout.desktop;

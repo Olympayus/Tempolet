@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 // The 0.5.x bridge is still the app's window API for v0.1.x (see
 // desktop/window_service.dart); v0.1.3 only adds the maximize listener here.
@@ -9,6 +10,7 @@ import 'package:window_manager/legacy.dart';
 
 import '../core/platform.dart';
 import '../core/layout.dart';
+import '../core/system_orientation.dart';
 import '../core/ui/app_titlebar.dart';
 import '../desktop/titlebar_channel.dart';
 import 'features/shell/icon_rail.dart';
@@ -30,6 +32,7 @@ class _AppShellState extends State<AppShell> {
   _MaximizeListener? _maximizeListener;
   TitlebarHover _hover = TitlebarHover.none;
   bool _maximized = false;
+  AppLayout? _orientationLayout;
 
   bool get _hasDesktopChrome => isDesktopTarget(defaultTargetPlatform);
 
@@ -85,9 +88,23 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  /// Android-only orientation policy: phones stay portrait, tablets rotate
+  /// freely. Runs after the frame so it never blocks the build.
+  void _applyOrientation(AppLayout layout) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (_orientationLayout == layout) return;
+    _orientationLayout = layout;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        SystemChrome.setPreferredOrientations(preferredOrientationsFor(layout)),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final layout = resolveAppLayout(context);
+    _applyOrientation(layout);
 
     final rail = IconRail(
       selectedIndex: widget.navigationShell.currentIndex,

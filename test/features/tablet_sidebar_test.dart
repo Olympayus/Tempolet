@@ -167,6 +167,21 @@ void main() {
     expect(find.byKey(ValueKey('sidebar-row-${event.id}')), findsNothing);
   });
 
+  testWidgets('restoring elsewhere does not duplicate the retained row', (
+    tester,
+  ) async {
+    final event = await seed();
+    _useLayout(tester, AppLayout.tablet, const Size(1280, 800));
+    await tester.pumpWidget(_app(container, const CalendarPage()));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(ValueKey('sidebar-complete-${event.id}')));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.runAsync(() => repo.setCompleted(event.id, false));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('sidebar-row-${event.id}')), findsOneWidget);
+  });
+
   testWidgets('desktop sidebar rows do not swipe', (tester) async {
     final event = await seed();
     _useLayout(tester, AppLayout.desktop, const Size(1280, 800));

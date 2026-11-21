@@ -211,12 +211,15 @@ class _CalendarSidebarState extends ConsumerState<CalendarSidebar> {
 
     // Completed items leave the sidebar silently on desktop. On the tablet
     // they retain (D70) through a snapshot, merged back at their start-time
-    // slot and scoped to the selected day.
+    // slot and scoped to the selected day. A snapshot whose id is live again
+    // (restored from the completed page) must not duplicate the row.
     final dayKey = dateOnly(day);
+    final liveIds = {for (final event in events) event.id};
     final visible = <Event>[
       ...events.where((event) => !event.isCompleted),
       ..._recentlyCompleted.values.where(
-        (event) => dateOnly(event.date) == dayKey,
+        (event) =>
+            dateOnly(event.date) == dayKey && !liveIds.contains(event.id),
       ),
     ]..sort(_byStartThenId);
     final plans = visible.where((event) => event.kind == 'plan').toList();
@@ -524,6 +527,7 @@ class _SidebarRowState extends State<_SidebarRow> {
   bool _completing = false;
 
   Future<void> _complete() async {
+    if (_completing) return;
     if (widget.retained) {
       await widget.onUndo();
       return;

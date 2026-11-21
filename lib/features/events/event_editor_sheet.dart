@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout_metrics.dart';
 import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
@@ -126,6 +127,18 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   String? _categoryId;
   List<EventFormError> _errors = const [];
 
+  /// Initial form state for the unsaved-changes guard (`v0.1.5 design`
+  /// §8.8). Any difference makes closing ask first.
+  late final String _initialTitle;
+  late final String _initialNote;
+  late final EventKind _initialKind;
+  late final DateTime _initialDate;
+  late final int? _initialStart;
+  late final int? _initialEnd;
+  late final int? _initialLead;
+  late final String? _initialCategory;
+  bool _allowPop = false;
+
   bool get _isEditing => widget.existing != null;
 
   @override
@@ -145,6 +158,53 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
         ? existing.reminderOffsetMinutes
         : ref.read(defaultReminderOffsetProvider);
     _categoryId = existing?.categoryId ?? widget.categoryId;
+    _initialTitle = _title.text;
+    _initialNote = _note.text;
+    _initialKind = _kind;
+    _initialDate = _date;
+    _initialStart = _start;
+    _initialEnd = _end;
+    _initialLead = _lead;
+    _initialCategory = _categoryId;
+  }
+
+  bool get _isDirty =>
+      _title.text != _initialTitle ||
+      _note.text != _initialNote ||
+      _kind != _initialKind ||
+      _date != _initialDate ||
+      _start != _initialStart ||
+      _end != _initialEnd ||
+      _lead != _initialLead ||
+      _categoryId != _initialCategory;
+
+  Future<void> _requestClose() async {
+    if (!_isDirty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const ValueKey('editor-discard-confirm'),
+        content: Text(l10n.discardChangesTitle),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.keepEditing),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.discard),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      _allowPop = true;
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -230,7 +290,10 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     } else {
       sync.afterCreate(result);
     }
-    if (mounted) Navigator.of(context).pop(result);
+    if (mounted) {
+      _allowPop = true;
+      Navigator.of(context).pop(result);
+    }
   }
 
   Future<void> _delete() async {
@@ -261,7 +324,10 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
 
     await ref.read(eventRepositoryProvider).softDelete(existing.id);
     ref.read(eventNotifierSyncProvider).afterDelete(existing);
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) {
+      _allowPop = true;
+      Navigator.of(context).pop();
+    }
   }
 
   String _errorText(AppLocalizations l10n, EventFormError error) =>
@@ -303,7 +369,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   Widget _fieldRow(AppPalette p, String label, Widget child, {Key? rowKey}) {
     return SizedBox(
       key: rowKey,
-      height: AppSizes.field,
+      height: LayoutMetrics.of(context).field,
       child: Row(
         children: [
           SizedBox(width: _labelWidth, child: _label(p, label)),
@@ -325,7 +391,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
       children: [
         SizedBox(
           width: _labelWidth,
-          height: AppSizes.field,
+          height: LayoutMetrics.of(context).field,
           child: Align(
             alignment: Alignment.centerLeft,
             child: _label(p, label),
@@ -380,180 +446,176 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     final column = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-                  _header(l10n, p),
-                  AppHairline(color: p.line),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(
-                        _contentPadding,
-                        16,
-                        _contentPadding,
-                        _contentPadding,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AppSegmented<EventKind>(
-                            key: const ValueKey('editor-kind'),
-                            values: const [EventKind.reminder, EventKind.plan],
-                            labelFor: (kind) => Text(
-                              kind == EventKind.reminder
-                                  ? l10n.kindReminder
-                                  : l10n.kindPlan,
-                            ),
-                            selected: _kind,
-                            onChanged: _setKind,
-                          ),
-                          const SizedBox(height: _fieldGap),
-                          SizedBox(
-                            width: double.infinity,
-                            height: AppSizes.field,
-                            child: TextField(
-                              key: const ValueKey('editor-title'),
-                              controller: _title,
-                              autofocus: true,
-                              textInputAction: TextInputAction.next,
-                              style: AppTextStyles.body.copyWith(color: p.ink),
-                              decoration: _fieldDecoration(
-                                p,
-                                hint: l10n.eventTitle,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: _fieldGap),
-                          _fieldRow(
-                            p,
-                            l10n.dateLabel,
-                            SegmentedDateField(
-                              key: const ValueKey('editor-date'),
-                              value: _date,
-                              onChanged: (date) => setState(() => _date = date),
-                            ),
-                            rowKey: const ValueKey('editor-date-row'),
-                          ),
-                          const SizedBox(height: _fieldGap),
-                          if (_kind == EventKind.reminder)
-                            _fieldRow(
-                              p,
-                              l10n.timeLabel,
-                              _timeField(
-                                fieldKey: const ValueKey('editor-start'),
-                                stepperKey: const ValueKey('start-stepper'),
-                                value: _start,
-                                onChanged: _onStartChanged,
-                                keyPrefix: 'start',
-                              ),
-                              rowKey: const ValueKey('editor-start-row'),
-                            )
-                          else ...[
-                            _fieldRow(
-                              p,
-                              l10n.eventStart,
-                              _timeField(
-                                fieldKey: const ValueKey('editor-start'),
-                                stepperKey: const ValueKey('start-stepper'),
-                                value: _start,
-                                onChanged: _onStartChanged,
-                                keyPrefix: 'start',
-                              ),
-                              rowKey: const ValueKey('editor-start-row'),
-                            ),
-                            const SizedBox(height: _fieldGap),
-                            _fieldRow(
-                              p,
-                              l10n.eventEnd,
-                              _timeField(
-                                fieldKey: const ValueKey('editor-end'),
-                                stepperKey: const ValueKey('end-stepper'),
-                                value: _end,
-                                onChanged: (value) =>
-                                    setState(() => _end = value),
-                                keyPrefix: 'end',
-                                allowEndOfDay: true,
-                              ),
-                              rowKey: const ValueKey('editor-end-row'),
-                            ),
-                          ],
-                          const SizedBox(height: _fieldGap),
-                          _fieldWithHelper(
-                            p,
-                            l10n.leadLabel,
-                            LeadField(
-                              key: const ValueKey('editor-lead'),
-                              value: _lead,
-                              onChanged: (value) =>
-                                  setState(() => _lead = value),
-                            ),
-                            l10n.leadHelp,
-                          ),
-                          const SizedBox(height: _fieldGap),
-                          _fieldWithHelper(
-                            p,
-                            l10n.categoryLabel,
-                            _categoryDropdown(l10n, categories),
-                            l10n.categoryHelp,
-                          ),
-                          const SizedBox(height: _fieldGap),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 72,
-                            child: TextField(
-                              key: const ValueKey('editor-note'),
-                              controller: _note,
-                              maxLines: null,
-                              expands: true,
-                              textAlignVertical: TextAlignVertical.top,
-                              style: AppTextStyles.body.copyWith(color: p.ink),
-                              decoration: _fieldDecoration(
-                                p,
-                                hint: l10n.noteOptional,
-                              ),
-                            ),
-                          ),
-                          if (_errors.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                _errors
-                                    .map((e) => _errorText(l10n, e))
-                                    .join('\n'),
-                                style: AppTextStyles.secondary.copyWith(
-                                  color: p.danger,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+        _header(l10n, p),
+        AppHairline(color: p.line),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              _contentPadding,
+              16,
+              _contentPadding,
+              _contentPadding,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppSegmented<EventKind>(
+                  key: const ValueKey('editor-kind'),
+                  values: const [EventKind.reminder, EventKind.plan],
+                  labelFor: (kind) => Text(
+                    kind == EventKind.reminder
+                        ? l10n.kindReminder
+                        : l10n.kindPlan,
+                  ),
+                  selected: _kind,
+                  onChanged: _setKind,
+                ),
+                const SizedBox(height: _fieldGap),
+                SizedBox(
+                  width: double.infinity,
+                  height: LayoutMetrics.of(context).field,
+                  child: TextField(
+                    key: const ValueKey('editor-title'),
+                    controller: _title,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    style: AppTextStyles.body.copyWith(color: p.ink),
+                    decoration: _fieldDecoration(p, hint: l10n.eventTitle),
+                  ),
+                ),
+                const SizedBox(height: _fieldGap),
+                _fieldRow(
+                  p,
+                  l10n.dateLabel,
+                  SegmentedDateField(
+                    key: const ValueKey('editor-date'),
+                    value: _date,
+                    onChanged: (date) => setState(() => _date = date),
+                  ),
+                  rowKey: const ValueKey('editor-date-row'),
+                ),
+                const SizedBox(height: _fieldGap),
+                if (_kind == EventKind.reminder)
+                  _fieldRow(
+                    p,
+                    l10n.timeLabel,
+                    _timeField(
+                      fieldKey: const ValueKey('editor-start'),
+                      stepperKey: const ValueKey('start-stepper'),
+                      value: _start,
+                      onChanged: _onStartChanged,
+                      keyPrefix: 'start',
+                    ),
+                    rowKey: const ValueKey('editor-start-row'),
+                  )
+                else ...[
+                  _fieldRow(
+                    p,
+                    l10n.eventStart,
+                    _timeField(
+                      fieldKey: const ValueKey('editor-start'),
+                      stepperKey: const ValueKey('start-stepper'),
+                      value: _start,
+                      onChanged: _onStartChanged,
+                      keyPrefix: 'start',
+                    ),
+                    rowKey: const ValueKey('editor-start-row'),
+                  ),
+                  const SizedBox(height: _fieldGap),
+                  _fieldRow(
+                    p,
+                    l10n.eventEnd,
+                    _timeField(
+                      fieldKey: const ValueKey('editor-end'),
+                      stepperKey: const ValueKey('end-stepper'),
+                      value: _end,
+                      onChanged: (value) => setState(() => _end = value),
+                      keyPrefix: 'end',
+                      allowEndOfDay: true,
+                    ),
+                    rowKey: const ValueKey('editor-end-row'),
+                  ),
+                ],
+                const SizedBox(height: _fieldGap),
+                _fieldWithHelper(
+                  p,
+                  l10n.leadLabel,
+                  LeadField(
+                    key: const ValueKey('editor-lead'),
+                    value: _lead,
+                    onChanged: (value) => setState(() => _lead = value),
+                  ),
+                  l10n.leadHelp,
+                ),
+                const SizedBox(height: _fieldGap),
+                _fieldWithHelper(
+                  p,
+                  l10n.categoryLabel,
+                  _categoryDropdown(l10n, categories),
+                  l10n.categoryHelp,
+                ),
+                const SizedBox(height: _fieldGap),
+                SizedBox(
+                  width: double.infinity,
+                  height: 72,
+                  child: TextField(
+                    key: const ValueKey('editor-note'),
+                    controller: _note,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    style: AppTextStyles.body.copyWith(color: p.ink),
+                    decoration: _fieldDecoration(p, hint: l10n.noteOptional),
+                  ),
+                ),
+                if (_errors.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _errors.map((e) => _errorText(l10n, e)).join('\n'),
+                      style: AppTextStyles.secondary.copyWith(color: p.danger),
                     ),
                   ),
-                  _footer(l10n, p),
-      ],
-    );
-
-    if (widget.bottomSheet) return _sheetShell(context, p, column);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: SizedBox(
-          width: _sheetWidth,
-          child: Dialog(
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            insetPadding: EdgeInsets.zero,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: p.card,
-                borderRadius: BorderRadius.circular(AppRadii.dialog),
-                border: Border.all(color: p.lineStrong),
-                boxShadow: _sheetShadow,
-              ),
-              child: column,
+              ],
             ),
           ),
         ),
-      ),
+        _footer(l10n, p),
+      ],
+    );
+
+    final Widget result = widget.bottomSheet
+        ? _sheetShell(context, p, column)
+        : Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: SizedBox(
+                width: _sheetWidth,
+                child: Dialog(
+                  backgroundColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  insetPadding: EdgeInsets.zero,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: p.card,
+                      borderRadius: BorderRadius.circular(AppRadii.dialog),
+                      border: Border.all(color: p.lineStrong),
+                      boxShadow: _sheetShadow,
+                    ),
+                    child: column,
+                  ),
+                ),
+              ),
+            ),
+          );
+
+    return PopScope(
+      canPop: _allowPop || !_isDirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: result,
     );
   }
 
@@ -561,9 +623,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   /// keyboard inset and capped at 90% of the screen.
   Widget _sheetShell(BuildContext context, AppPalette p, Widget column) {
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Material(
         type: MaterialType.transparency,
         child: Align(
@@ -592,7 +652,6 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     );
   }
 
-
   Widget _header(AppLocalizations l10n, AppPalette p) {
     return SizedBox(
       height: _headerHeight,
@@ -608,7 +667,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
             ),
             AppIconButton(
               key: const ValueKey('editor-close'),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _requestClose,
               icon: const Icon(LucideIcons.x),
             ),
           ],
@@ -637,10 +696,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                 child: Text(l10n.delete),
               ),
             const Spacer(),
-            AppButton.secondary(
-              label: l10n.cancel,
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+            AppButton.secondary(label: l10n.cancel, onPressed: _requestClose),
             const SizedBox(width: 8),
             AppButton.primary(
               key: const ValueKey('editor-save'),
@@ -659,7 +715,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     return AppDropdown<String?>(
       key: const ValueKey('editor-category'),
       value: hasCurrent ? _categoryId : null,
-      triggerHeight: AppSizes.field,
+      triggerHeight: LayoutMetrics.of(context).field,
       semanticLabel: l10n.categoryLabel,
       items: [
         AppDropdownItem<String?>(value: null, label: l10n.uncategorized),

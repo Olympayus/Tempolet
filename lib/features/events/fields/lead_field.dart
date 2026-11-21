@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/l10n/generated/app_localizations.dart';
+import '../../../core/layout.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/ui/app_buttons.dart';
 import '../../../core/ui/app_dropdown.dart';
 
 /// Height of one custom numeric segment, matching `SegmentedDateField`.
@@ -112,6 +114,10 @@ class _LeadFieldState extends State<LeadField> {
 
   void _onPresetSelected(int? next) {
     if (next == _customSentinel) {
+      if (resolveAppLayout(context) == AppLayout.phone) {
+        _openCustomSheet();
+        return;
+      }
       if (_customOpen) return;
       setState(() {
         _customOpen = true;
@@ -159,6 +165,111 @@ class _LeadFieldState extends State<LeadField> {
         .withAccent(theme.colorScheme.primary);
   }
 
+  /// Phone custom lead panel (`v0.1.5 design` §8.8): the same day/hour/minute
+  /// segments in a bottom sheet instead of the inline expansion.
+  Future<void> _openCustomSheet() async {
+    final p = _palette(context);
+    final l10n = AppLocalizations.of(context);
+    _writeCustom(_value ?? 0);
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        key: const ValueKey('lead-picker-sheet'),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        decoration: BoxDecoration(
+          color: p.card,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadii.dialog),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: StatefulBuilder(
+            builder: (context, setSheetState) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    l10n.custom,
+                    style: AppTextStyles.headline.copyWith(color: p.ink),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: _customSegments(p, l10n, setSheetState),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: AppButton.primary(
+                      key: const ValueKey('lead-picker-confirm'),
+                      label: l10n.confirm,
+                      onPressed: () =>
+                          Navigator.of(sheetContext).pop(_value ?? 0),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _customOpen = false;
+      _value = result;
+    });
+    widget.onChanged(result);
+  }
+
+  List<Widget> _customSegments(
+    AppPalette p,
+    AppLocalizations l10n,
+    StateSetter refresh,
+  ) {
+    void changed() {
+      _onCustomChanged();
+      refresh(() {});
+    }
+
+    return [
+      _CustomSegment(
+        fieldKey: const ValueKey('lead-custom-day'),
+        controller: _day,
+        focusNode: _dayFocus,
+        palette: p,
+        onChanged: changed,
+      ),
+      _Unit(text: l10n.leadUnitDay, palette: p),
+      _CustomSegment(
+        fieldKey: const ValueKey('lead-custom-hour'),
+        controller: _hour,
+        focusNode: _hourFocus,
+        palette: p,
+        onChanged: changed,
+      ),
+      _Unit(text: l10n.leadUnitHour, palette: p),
+      _CustomSegment(
+        fieldKey: const ValueKey('lead-custom-minute'),
+        controller: _minute,
+        focusNode: _minuteFocus,
+        palette: p,
+        onChanged: changed,
+      ),
+      _Unit(text: l10n.leadUnitMinute, palette: p),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = _palette(context);
@@ -195,32 +306,7 @@ class _LeadFieldState extends State<LeadField> {
               alignment: Alignment.centerLeft,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  _CustomSegment(
-                    fieldKey: const ValueKey('lead-custom-day'),
-                    controller: _day,
-                    focusNode: _dayFocus,
-                    palette: p,
-                    onChanged: _onCustomChanged,
-                  ),
-                  _Unit(text: l10n.leadUnitDay, palette: p),
-                  _CustomSegment(
-                    fieldKey: const ValueKey('lead-custom-hour'),
-                    controller: _hour,
-                    focusNode: _hourFocus,
-                    palette: p,
-                    onChanged: _onCustomChanged,
-                  ),
-                  _Unit(text: l10n.leadUnitHour, palette: p),
-                  _CustomSegment(
-                    fieldKey: const ValueKey('lead-custom-minute'),
-                    controller: _minute,
-                    focusNode: _minuteFocus,
-                    palette: p,
-                    onChanged: _onCustomChanged,
-                  ),
-                  _Unit(text: l10n.leadUnitMinute, palette: p),
-                ],
+                children: _customSegments(p, l10n, setState),
               ),
             ),
           ),

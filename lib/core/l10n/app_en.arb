@@ -231,6 +231,10 @@
   "completedChip": "Completed",
   "showLeftPanel": "Show calendar panel",
   "hideLeftPanel": "Hide calendar panel",
+  "editCategory": "Edit category",
+  "discardChangesTitle": "Discard changes?",
+  "keepEditing": "Keep editing",
+  "discard": "Discard",
   "monthPreviewMore": "{count} more",
   "@monthPreviewMore": {
     "placeholders": {

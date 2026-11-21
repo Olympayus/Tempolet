@@ -205,6 +205,11 @@ void main() {
   testWidgets('week headers show only the 休/班 pill, never the name', (
     tester,
   ) async {
+    // Wide enough for the seven-column grid (>=900 content width).
+    tester.view.physicalSize = const Size(1100, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await insertHoliday(
       DateTime(2026, 11, 11),
       'Test Holiday',

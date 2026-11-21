@@ -507,6 +507,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hideLeftPanel => 'Hide calendar panel';
 
   @override
+  String get editCategory => 'Edit category';
+
+  @override
+  String get discardChangesTitle => 'Discard changes?';
+
+  @override
+  String get keepEditing => 'Keep editing';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
   String monthPreviewMore(int count) {
     return '$count more';
   }

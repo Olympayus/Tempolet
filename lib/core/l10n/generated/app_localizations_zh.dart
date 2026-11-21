@@ -496,6 +496,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hideLeftPanel => '隐藏日历面板';
 
   @override
+  String get editCategory => '编辑分类';
+
+  @override
+  String get discardChangesTitle => '放弃修改？';
+
+  @override
+  String get keepEditing => '继续编辑';
+
+  @override
+  String get discard => '放弃';
+
+  @override
   String monthPreviewMore(int count) {
     return '还有 $count 项';
   }

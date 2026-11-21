@@ -4,14 +4,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/app.dart';
+import 'package:tempolet/core/layout.dart';
 import 'package:tempolet/core/prefs.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/shell/icon_rail.dart';
 
-Future<void> pumpApp(WidgetTester tester) async {
+Future<void> pumpApp(
+  WidgetTester tester, {
+  AppLayout? layout,
+  Size? size,
+}) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
+
+  debugLayoutOverride = layout;
+  addTearDown(() => debugLayoutOverride = null);
+  if (size != null) {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
 
   await tester.pumpWidget(
     ProviderScope(
@@ -71,11 +85,38 @@ void main() {
 
     final calendar = find.byKey(const ValueKey('rail-calendar'));
     final reminders = find.byKey(const ValueKey('rail-reminders'));
+    final calendarHit = find.byKey(const ValueKey('rail-calendar-hit'));
+    expect(tester.getSize(calendarHit), const Size(27, 27));
     expect(tester.getSize(calendar), const Size(27, 27));
     expect(tester.getSize(reminders), const Size(27, 27));
     expect(tester.getTopLeft(calendar).dy, 16);
     expect(
       tester.getTopLeft(reminders).dy - tester.getBottomLeft(calendar).dy,
+      8,
+    );
+  });
+
+  testWidgets('tablet rail keeps 27 visual inside a 44 hit target', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      layout: AppLayout.tablet,
+      size: const Size(1280, 800),
+    );
+
+    expect(tester.getSize(find.byKey(const ValueKey('icon-rail'))).width, 56);
+    final calendarHit = find.byKey(const ValueKey('rail-calendar-hit'));
+    final remindersHit = find.byKey(const ValueKey('rail-reminders-hit'));
+    expect(tester.getSize(calendarHit), const Size(44, 44));
+    expect(tester.getSize(remindersHit), const Size(44, 44));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('rail-calendar'))),
+      const Size(27, 27),
+    );
+    expect(tester.getTopLeft(calendarHit).dy, 16);
+    expect(
+      tester.getTopLeft(remindersHit).dy - tester.getBottomLeft(calendarHit).dy,
       8,
     );
   });

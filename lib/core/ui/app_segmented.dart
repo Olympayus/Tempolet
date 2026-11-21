@@ -4,12 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../layout_metrics.dart';
 import '../theme/app_tokens.dart';
 
-/// Desktop compact segmented-control height (`05-components.md` §2).
-const double _segmentHeight = 28;
-
-/// Track inset that leaves a 22px inner item.
+/// Track inset that leaves a 22px inner item at the 28px desktop height.
 const EdgeInsets _segmentTrackPadding = EdgeInsets.all(3);
 
 /// Item side padding (`05-components.md` §2).
@@ -21,9 +19,10 @@ const double _hairline = 1;
 
 /// Desktop compact segmented control (`docs/design/05-components.md` §2).
 ///
-/// A chip-filled 28px track with equal-width items sized to the longest label
+/// A chip-filled track with equal-width items sized to the longest label
 /// (never stretched beyond its content); the selected item is a raised
-/// capsule with a 1px `lineStrong` border. Safe inside a plain
+/// capsule with a 1px `lineStrong` border. The visual height follows
+/// [LayoutMetrics.segment] unless [height] overrides it. Safe inside a plain
 /// [Row]: it measures its own intrinsic width and never needs a bounded width.
 /// Interaction is deliberately Material-free: [MouseRegion] + [GestureDetector].
 class AppSegmented<T> extends StatelessWidget {
@@ -33,20 +32,23 @@ class AppSegmented<T> extends StatelessWidget {
     required this.labelFor,
     required this.selected,
     required this.onChanged,
-    this.height = _segmentHeight,
+    this.height,
   });
 
   final List<T> values;
   final Widget Function(T value) labelFor;
   final T selected;
   final ValueChanged<T> onChanged;
-  final double height;
+
+  /// Visual track height; defaults to [LayoutMetrics.segment].
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
+    final segmentHeight = height ?? LayoutMetrics.of(context).segment;
     return SizedBox(
-      height: height,
+      height: segmentHeight,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: palette.chip,
@@ -55,7 +57,7 @@ class AppSegmented<T> extends StatelessWidget {
         child: Padding(
           padding: _segmentTrackPadding,
           child: _EqualWidthItems(
-            itemHeight: height - _segmentTrackPadding.vertical,
+            itemHeight: segmentHeight - _segmentTrackPadding.vertical,
             children: [
               for (final value in values)
                 _SegmentItem(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../layout.dart';
 import '../theme/app_tokens.dart';
+import 'touch_target.dart';
 
 const double _iconButtonSize = AppSizes.control;
 const double _iconSize = 18;
@@ -51,6 +53,27 @@ class _AppIconButtonState extends State<AppIconButton> {
     final palette = _paletteOf(context);
     final enabled = widget.onPressed != null;
     final tooltip = widget.tooltip;
+    final visual = Container(
+      width: _iconButtonSize,
+      height: _iconButtonSize,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _hovering && enabled ? palette.hover : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadii.button),
+      ),
+      child: IconTheme(
+        data: IconThemeData(
+          size: _iconSize,
+          color: enabled ? palette.ink : palette.subMuted,
+        ),
+        child: widget.icon,
+      ),
+    );
+    // Touch layouts grow the tappable area to 44×44; the 30×30 visual and the
+    // desktop footprint stay unchanged (`design spec` §8.7).
+    final target = isTouchLayout(resolveAppLayout(context))
+        ? TouchTarget(child: visual)
+        : visual;
     final button = Semantics(
       button: true,
       enabled: enabled,
@@ -69,24 +92,7 @@ class _AppIconButtonState extends State<AppIconButton> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: widget.onPressed,
-            child: Container(
-              width: _iconButtonSize,
-              height: _iconButtonSize,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _hovering && enabled
-                    ? palette.hover
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppRadii.button),
-              ),
-              child: IconTheme(
-                data: IconThemeData(
-                  size: _iconSize,
-                  color: enabled ? palette.ink : palette.subMuted,
-                ),
-                child: widget.icon,
-              ),
-            ),
+            child: target,
           ),
         ),
       ),

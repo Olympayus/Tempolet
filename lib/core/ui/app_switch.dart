@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../layout.dart';
 import '../theme/app_tokens.dart';
+import 'touch_target.dart';
 
 const double _switchWidth = 40;
 const double _switchHeight = 24;
@@ -23,59 +25,62 @@ class AppSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
-    return SizedBox(
+    final visual = SizedBox(
       width: _switchWidth,
       height: _switchHeight,
-      child: Semantics(
-        toggled: value,
-        child: FocusableActionDetector(
-          mouseCursor: SystemMouseCursors.click,
-          shortcuts: _activateShortcuts,
-          actions: {
-            ActivateIntent: CallbackAction<ActivateIntent>(
-              onInvoke: (_) {
-                onChanged(!value);
-                return null;
-              },
+      child: AnimatedContainer(
+        duration: _switchAnimation,
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.all(_switchInset),
+        decoration: BoxDecoration(
+          color: value ? palette.accent : palette.subWeak,
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+        ),
+        child: AnimatedAlign(
+          duration: _switchAnimation,
+          curve: Curves.easeOut,
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: _switchThumb,
+            height: _switchThumb,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: kCardShadow,
             ),
-            ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
-              onInvoke: (_) {
-                onChanged(!value);
-                return null;
-              },
-            ),
-          },
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onChanged(!value),
-              child: AnimatedContainer(
-                duration: _switchAnimation,
-                curve: Curves.easeOut,
-                padding: const EdgeInsets.all(_switchInset),
-                decoration: BoxDecoration(
-                  color: value ? palette.accent : palette.subWeak,
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                ),
-                child: AnimatedAlign(
-                  duration: _switchAnimation,
-                  curve: Curves.easeOut,
-                  alignment: value
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    width: _switchThumb,
-                    height: _switchThumb,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: kCardShadow,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          ),
+        ),
+      ),
+    );
+    // The 40×24 visual is unchanged; touch layouts tap across 44×44.
+    final target = isTouchLayout(resolveAppLayout(context))
+        ? TouchTarget(child: visual)
+        : visual;
+    return Semantics(
+      toggled: value,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        shortcuts: _activateShortcuts,
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              onChanged(!value);
+              return null;
+            },
+          ),
+          ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+            onInvoke: (_) {
+              onChanged(!value);
+              return null;
+            },
+          ),
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onChanged(!value),
+            child: target,
           ),
         ),
       ),

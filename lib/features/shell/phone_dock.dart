@@ -13,9 +13,16 @@ const double kPhoneDockInset = 16;
 /// Bottom gap between the dock and the safe area.
 const double kPhoneDockBottomGap = 12;
 
-/// Extra bottom padding pages need so their last row clears the floating dock.
-const double kPhoneDockClearance =
-    kPhoneDockHeight + kPhoneDockBottomGap + 12;
+/// Extra bottom padding pages need so their last row clears the floating dock:
+/// dock height + the dock's bottom gap + a 12px breathing gap + the safe area
+/// (`design spec` §8.2).
+double phoneDockClearance(double bottomPadding) =>
+    kPhoneDockHeight + kPhoneDockBottomGap + 12 + bottomPadding;
+
+/// Distance from the screen's bottom edge to the dock's bottom edge: the
+/// dock's own gap plus the Android safe-area inset.
+double phoneDockBottomOffset(double bottomPadding) =>
+    kPhoneDockBottomGap + bottomPadding;
 
 /// Selected item pill (`02-shell-mobile.md` §1: 36×31, tinted).
 const double _selectedWidth = 36;

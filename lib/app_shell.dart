@@ -134,18 +134,26 @@ class _AppShellState extends State<AppShell> {
         body: Stack(
           children: [
             Positioned.fill(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: subpage ? 0 : kPhoneDockClearance,
+              // Status bar / notch inset for the page; the gesture bar is
+              // handled by the explicit bottom padding below so the dock can
+              // share the same inset.
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: subpage
+                        ? bottomInset
+                        : phoneDockClearance(bottomInset),
+                  ),
+                  child: widget.navigationShell,
                 ),
-                child: widget.navigationShell,
               ),
             ),
             if (!subpage)
               Positioned(
                 left: kPhoneDockInset,
                 right: kPhoneDockInset,
-                bottom: bottomInset + kPhoneDockBottomGap,
+                bottom: phoneDockBottomOffset(bottomInset),
                 child: PhoneDock(
                   selectedIndex: widget.navigationShell.currentIndex,
                   onSelected: _onDestinationSelected,

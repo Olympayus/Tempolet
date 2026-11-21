@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_icons.dart';
 import '../../core/ui/app_segmented.dart';
+import '../../core/ui/touch_target.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -65,6 +67,31 @@ class CalendarHeader extends ConsumerWidget {
           days.shiftDays(delta);
       }
     }
+
+    final viewSwitch = AppSegmented<CalendarViewMode>(
+      key: const ValueKey('calendar-view-segmented'),
+      values: const [
+        CalendarViewMode.month,
+        CalendarViewMode.week,
+        CalendarViewMode.day,
+      ],
+      labelFor: (value) => Text(switch (value) {
+        CalendarViewMode.month => l10n.month,
+        CalendarViewMode.week => l10n.week,
+        CalendarViewMode.day => l10n.day,
+      }),
+      selected: mode,
+      onChanged: (value) =>
+          ref.read(calendarViewModeProvider.notifier).set(value),
+    );
+    // Touch layouts reserve a 44-high hit band around the 28–36px track
+    // (`design spec` §8.7); desktop keeps the compact 28px footprint.
+    final viewSwitchTarget = isTouchLayout(resolveAppLayout(context))
+        ? TouchTarget(
+            key: const ValueKey('calendar-view-segmented-hit'),
+            child: viewSwitch,
+          )
+        : viewSwitch;
 
     return Container(
       key: const ValueKey('calendar-header'),
@@ -125,30 +152,12 @@ class CalendarHeader extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          AppSegmented<CalendarViewMode>(
-            key: const ValueKey('calendar-view-segmented'),
-            values: const [
-              CalendarViewMode.month,
-              CalendarViewMode.week,
-              CalendarViewMode.day,
-            ],
-            labelFor: (value) => Text(switch (value) {
-              CalendarViewMode.month => l10n.month,
-              CalendarViewMode.week => l10n.week,
-              CalendarViewMode.day => l10n.day,
-            }),
-            selected: mode,
-            onChanged: (value) =>
-                ref.read(calendarViewModeProvider.notifier).set(value),
-          ),
+          viewSwitchTarget,
           const SizedBox(width: 8),
           AppButton.primary(
             key: const ValueKey('calendar-new'),
             label: l10n.newItem,
-            leadingIcon: const AppIcon.plus(
-              size: 16,
-              color: Colors.white,
-            ),
+            leadingIcon: const AppIcon.plus(size: 16, color: Colors.white),
             onPressed: () => showEventEditor(context, date: selected),
           ),
           if (mode != CalendarViewMode.day) ...[

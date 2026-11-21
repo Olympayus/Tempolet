@@ -22,6 +22,7 @@ import 'calendar_state.dart';
 import 'category_marker.dart';
 import 'day_view.dart';
 import 'holiday_badge.dart';
+import 'week_date_strip.dart';
 import 'month_model.dart';
 
 /// Phone calendar (`docs/design/02-shell-mobile.md` §2): month and week only.
@@ -657,92 +658,9 @@ class _PhoneWeekBody extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _PhoneDateStrip(),
+        const WeekDateStrip(),
         const Expanded(child: DayView()),
       ],
-    );
-  }
-}
-
-class _PhoneDateStrip extends ConsumerWidget {
-  const _PhoneDateStrip();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final palette =
-        (theme.brightness == Brightness.light
-                ? AppPalette.light
-                : AppPalette.dark)
-            .withAccent(theme.colorScheme.primary);
-    final locale = Localizations.localeOf(context);
-    final selected = ref.watch(selectedDayProvider);
-    final today = dateOnly(ref.watch(todayProvider));
-    final start = DateTime(selected.year, selected.month, selected.day - 3);
-    final days = [
-      for (var i = 0; i < 7; i++)
-        DateTime(start.year, start.month, start.day + i),
-    ];
-
-    Widget cell(DateTime day) {
-      final isToday = day == today;
-      final isSelected = day == selected;
-      return Expanded(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => ref.read(selectedDayProvider.notifier).select(day),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                AppFormats.weekday(locale, day),
-                style: AppTextStyles.caption.copyWith(color: palette.sub),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                width: 30,
-                height: 30,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isSelected ? palette.accent : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: !isSelected && isToday
-                      ? Border.all(color: palette.accent, width: 1.5)
-                      : null,
-                ),
-                child: Text(
-                  '${day.day}',
-                  style: AppTextStyles.body.copyWith(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? Colors.white : palette.ink,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity < -150) {
-          ref.read(selectedDayProvider.notifier).shiftDays(7);
-        } else if (velocity > 150) {
-          ref.read(selectedDayProvider.notifier).shiftDays(-7);
-        }
-      },
-      child: Container(
-        key: const ValueKey('phone-date-strip'),
-        height: 64,
-        decoration: BoxDecoration(
-          color: palette.side,
-          border: Border(bottom: BorderSide(color: palette.line)),
-        ),
-        child: Row(children: [for (final day in days) cell(day)]),
-      ),
     );
   }
 }

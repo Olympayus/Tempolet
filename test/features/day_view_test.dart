@@ -25,6 +25,20 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Touch plan moves are armed by a long press (`v0.1.5 design` §8.4).
+Future<void> _longPressDrag(
+  WidgetTester tester,
+  Finder finder,
+  Offset offset,
+) async {
+  final gesture = await tester.startGesture(tester.getCenter(finder));
+  await tester.pump(const Duration(milliseconds: 600));
+  await gesture.moveBy(offset);
+  await tester.pump();
+  await gesture.up();
+  await tester.pumpAndSettle();
+}
+
 /// Reads the time held by the editor's start/end segmented field. Hour-grid
 /// tick labels behind the dialog must not satisfy these assertions.
 String _stepperText(WidgetTester tester, String key) {
@@ -157,10 +171,7 @@ void main() {
       final gutter = tester.widget<Container>(
         find.byKey(const ValueKey('hour-grid-gutter')),
       );
-      expect(
-        (gutter.decoration as BoxDecoration).color,
-        AppPalette.light.side,
-      );
+      expect((gutter.decoration as BoxDecoration).color, AppPalette.light.side);
     });
 
     testWidgets('day overview uses the side surface', (tester) async {
@@ -233,7 +244,8 @@ void main() {
       );
       await pumpDay(tester, DateTime(2026, 11, 11));
 
-      await tester.drag(
+      await _longPressDrag(
+        tester,
         find.byKey(ValueKey('plan-${plan.id}')),
         const Offset(0, 1000),
       );
@@ -258,7 +270,8 @@ void main() {
         );
         await pumpDay(tester, day);
 
-        await tester.drag(
+        await _longPressDrag(
+          tester,
           find.byKey(ValueKey('plan-${plan.id}')),
           const Offset(0, 68),
         );

@@ -24,6 +24,20 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Touch plan moves/resizes are armed by a long press (`v0.1.5 design` §8.4).
+Future<void> _longPressDragAt(
+  WidgetTester tester,
+  Offset start,
+  Offset offset,
+) async {
+  final gesture = await tester.startGesture(start);
+  await tester.pump(const Duration(milliseconds: 600));
+  await gesture.moveBy(offset);
+  await tester.pump();
+  await gesture.up();
+  await tester.pumpAndSettle();
+}
+
 Widget _app(ProviderContainer container, Widget child) {
   return UncontrolledProviderScope(
     container: container,
@@ -230,18 +244,12 @@ void main() {
       final header = tester.widget<Container>(
         find.byKey(const ValueKey('week-header-band')),
       );
-      expect(
-        (header.decoration as BoxDecoration).color,
-        AppPalette.light.side,
-      );
+      expect((header.decoration as BoxDecoration).color, AppPalette.light.side);
 
       final gutter = tester.widget<Container>(
         find.byKey(const ValueKey('hour-grid-gutter')),
       );
-      expect(
-        (gutter.decoration as BoxDecoration).color,
-        AppPalette.light.side,
-      );
+      expect((gutter.decoration as BoxDecoration).color, AppPalette.light.side);
     });
 
     testWidgets('renders seven keyed headers for the week of 2026-11-11', (
@@ -285,14 +293,9 @@ void main() {
         day: DateTime(2026, 11, 11),
       );
 
-      // A 900px window with a 300px sidebar leaves ~79px columns, below the
-      // 150px two-line breakpoint.
-      await pumpWeek(
-        tester,
-        DateTime(2026, 11, 11),
-        width: 900,
-        sidebarWidth: 300,
-      );
+      // A 1000px window leaves ~136px columns, below the 150px two-line
+      // breakpoint; the <900 content-width fallback does not apply.
+      await pumpWeek(tester, DateTime(2026, 11, 11), width: 1000);
 
       expect(find.byKey(const ValueKey('week-card-two-line')), findsOneWidget);
       // The compact card drops the completion circle.
@@ -401,8 +404,9 @@ void main() {
       );
       await pumpWeek(tester, DateTime(2026, 11, 11));
 
-      await tester.drag(
-        find.byKey(ValueKey('week-plan-${plan.id}')),
+      await _longPressDragAt(
+        tester,
+        tester.getCenter(find.byKey(ValueKey('week-plan-${plan.id}'))),
         const Offset(0, 68),
       );
       await _settle(tester);
@@ -426,8 +430,9 @@ void main() {
         );
         await pumpWeek(tester, day);
 
-        await tester.drag(
-          find.byKey(ValueKey('week-plan-${plan.id}')),
+        await _longPressDragAt(
+          tester,
+          tester.getCenter(find.byKey(ValueKey('week-plan-${plan.id}'))),
           const Offset(0, 68),
         );
         await _settle(tester);
@@ -475,11 +480,11 @@ void main() {
       await pumpWeek(tester, DateTime(2026, 11, 11));
 
       final rect = tester.getRect(find.byKey(ValueKey('week-plan-${plan.id}')));
-      final gesture = await tester.startGesture(
+      await _longPressDragAt(
+        tester,
         Offset(rect.center.dx, rect.bottom - 2),
+        const Offset(0, 68),
       );
-      await gesture.moveBy(const Offset(0, 68));
-      await gesture.up();
       await _settle(tester);
 
       final rows = await tester.runAsync(() => repo.getById(plan.id));
@@ -530,6 +535,11 @@ void main() {
     testWidgets('follows the week selected by the shared header arrows', (
       tester,
     ) async {
+      // Wide enough that the seven-column grid is used (>=900 content width).
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       container
           .read(calendarViewModeProvider.notifier)
           .set(CalendarViewMode.week);

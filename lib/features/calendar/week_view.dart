@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/layout_metrics.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_hairline.dart';
 import '../../core/ui/dashed_border_painter.dart';
+import '../../core/ui/gesture_edges.dart';
+import '../../core/ui/touch_target.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -19,12 +22,14 @@ import '../events/event_draft.dart';
 import '../events/event_editor_sheet.dart';
 import 'calendar_state.dart';
 import 'category_marker.dart';
+import 'day_view.dart';
 import 'holiday_badge.dart';
 import 'lane_layout.dart';
 import 'now_line.dart';
 import 'plan_block.dart';
 import 'reminder_card.dart';
 import 'time_grid.dart';
+import 'week_date_strip.dart';
 
 /// Column width below which week reminder cards switch to their compact
 /// two-line anatomy (`docs/design/10-ui-refinement.md` §3.1).
@@ -49,6 +54,9 @@ class _WeekViewState extends ConsumerState<WeekView> {
   /// Previous header tap, used to recognise a double click without a timer.
   DateTime? _lastHeaderDay;
   DateTime? _lastHeaderTapAt;
+
+  /// Horizontal drag origin for edge-gesture avoidance.
+  double _dragStartX = 0;
 
   @override
   void dispose() {
@@ -121,104 +129,132 @@ class _WeekViewState extends ConsumerState<WeekView> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Narrow week (tablet portrait / narrow split): the seven-column grid
+        // is unreadable, so fall back to the phone's date strip + day timeline
+        // (`v0.1.5 design` §8.4). DayView owns ±1-day paging here.
+        if (constraints.maxWidth < 900) {
+          return const Column(
+            children: [
+              WeekDateStrip(),
+              Expanded(child: DayView()),
+            ],
+          );
+        }
         final columnWidth = (constraints.maxWidth - kAxisGutter) / 7;
         final narrowColumns = columnWidth < kWeekTwoLineCardBreakpoint;
 
-        return Column(
-          children: [
-            Container(
-              key: const ValueKey('week-header-band'),
-              decoration: BoxDecoration(color: palette.side),
-              child: Row(
-                children: [
-                  const SizedBox(width: kAxisGutter),
-                  for (final day in days)
-                    SizedBox(
-                      width: columnWidth,
-                      child: _DayHeaderCell(
-                        day: day,
-                        today: today,
-                        selected: day == selectedDay,
-                        holiday: holidayByDay[day],
-                        locale: locale,
-                        palette: palette,
-                        onTap: () => _handleHeaderTap(day),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            AppHairline(color: palette.line),
-            Expanded(
-              child: SingleChildScrollView(
-                key: const ValueKey('week-scroll'),
-                controller: _scroll,
-                child: SizedBox(
-                  height: kHoursInDay * kHourHeight,
-                  child: Stack(
-                    children: [
-                      if (selectedIndex != -1)
-                        Positioned(
-                          left: kAxisGutter + selectedIndex * columnWidth,
-                          width: columnWidth,
-                          top: 0,
-                          bottom: 0,
-                          child: ColoredBox(
-                            key: ValueKey(
-                              'week-selected-column-${_isoDay(selectedDay)}',
-                            ),
-                            color: palette.surfaceSelected,
-                          ),
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: (details) {
+            _dragStartX = details.globalPosition.dx;
+          },
+          onHorizontalDragEnd: (details) {
+            final width = MediaQuery.sizeOf(context).width;
+            if (isEdgeSwipe(_dragStartX, width)) return;
+            final velocity = details.primaryVelocity ?? 0;
+            final dx = details.globalPosition.dx - _dragStartX;
+            if (velocity < -150 || dx < -60) {
+              ref.read(selectedDayProvider.notifier).shiftDays(7);
+            } else if (velocity > 150 || dx > 60) {
+              ref.read(selectedDayProvider.notifier).shiftDays(-7);
+            }
+          },
+          child: Column(
+            children: [
+              Container(
+                key: const ValueKey('week-header-band'),
+                decoration: BoxDecoration(color: palette.side),
+                child: Row(
+                  children: [
+                    const SizedBox(width: kAxisGutter),
+                    for (final day in days)
+                      SizedBox(
+                        width: columnWidth,
+                        child: _DayHeaderCell(
+                          day: day,
+                          today: today,
+                          selected: day == selectedDay,
+                          holiday: holidayByDay[day],
+                          locale: locale,
+                          palette: palette,
+                          onTap: () => _handleHeaderTap(day),
                         ),
-                      for (var i = 1; i < 7; i++)
+                      ),
+                  ],
+                ),
+              ),
+              AppHairline(color: palette.line),
+              Expanded(
+                child: SingleChildScrollView(
+                  key: const ValueKey('week-scroll'),
+                  controller: _scroll,
+                  child: SizedBox(
+                    height: kHoursInDay * kHourHeight,
+                    child: Stack(
+                      children: [
+                        if (selectedIndex != -1)
+                          Positioned(
+                            left: kAxisGutter + selectedIndex * columnWidth,
+                            width: columnWidth,
+                            top: 0,
+                            bottom: 0,
+                            child: ColoredBox(
+                              key: ValueKey(
+                                'week-selected-column-${_isoDay(selectedDay)}',
+                              ),
+                              color: palette.surfaceSelected,
+                            ),
+                          ),
+                        for (var i = 1; i < 7; i++)
+                          Positioned(
+                            left: kAxisGutter + i * columnWidth - 0.5,
+                            width: 1,
+                            top: 0,
+                            bottom: 0,
+                            child: ColoredBox(color: palette.line),
+                          ),
                         Positioned(
-                          left: kAxisGutter + i * columnWidth - 0.5,
+                          right: 0,
                           width: 1,
                           top: 0,
                           bottom: 0,
                           child: ColoredBox(color: palette.line),
                         ),
-                      Positioned(
-                        right: 0,
-                        width: 1,
-                        top: 0,
-                        bottom: 0,
-                        child: ColoredBox(color: palette.line),
-                      ),
-                      // Hour rules and axis ticks span all seven columns as
-                      // their own layer, above the selected column wash.
-                      Positioned.fill(
-                        child: HourGrid(
-                          gutterWidth: kAxisGutter,
-                          gutterColor: palette.side,
-                        ),
-                      ),
-                      for (var i = 0; i < 7; i++)
-                        Positioned(
-                          left: kAxisGutter + i * columnWidth,
-                          width: columnWidth,
-                          top: 0,
-                          bottom: 0,
-                          child: _WeekDayColumn(
-                            day: days[i],
-                            events: byDay[days[i]] ?? const [],
-                            today: today,
-                            columnWidth: columnWidth,
-                            narrow: narrowColumns,
-                            palette: palette,
+                        // Hour rules and axis ticks span all seven columns as
+                        // their own layer, above the selected column wash.
+                        Positioned.fill(
+                          child: HourGrid(
+                            gutterWidth: kAxisGutter,
+                            gutterColor: palette.side,
                           ),
                         ),
-                      // Owns its own clock and position; always visible.
-                      NowLine(
-                        key: const ValueKey('week-now-line'),
-                        now: ref.watch(pinnedNowProvider),
-                      ),
-                    ],
+                        for (var i = 0; i < 7; i++)
+                          Positioned(
+                            left: kAxisGutter + i * columnWidth,
+                            width: columnWidth,
+                            top: 0,
+                            bottom: 0,
+                            child: _WeekDayColumn(
+                              day: days[i],
+                              events: byDay[days[i]] ?? const [],
+                              today: today,
+                              columnWidth: columnWidth,
+                              narrow: narrowColumns,
+                              palette: palette,
+                            ),
+                          ),
+                        // Owns its own clock and position; always visible.
+                        NowLine(
+                          key: const ValueKey('week-now-line'),
+                          now: ref.watch(pinnedNowProvider),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -368,7 +404,6 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
   int? _originEnd;
   int? _previewStart;
   int? _previewEnd;
-  double _dragAccumulated = 0;
 
   int _minuteAt(double localY) => yToMinute(localY).clamp(0, 1440);
 
@@ -511,32 +546,32 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
     );
     final left = lane * unit + 1;
     final width = (unit - 2).clamp(1.0, widget.columnWidth);
+    final hitHeight = height < kMinHitTarget ? kMinHitTarget : height;
 
     return Positioned(
       left: left,
       width: width,
-      top: top,
-      height: height,
+      top: top - (hitHeight - height) / 2,
+      height: hitHeight,
       child: GestureDetector(
         key: ValueKey('week-plan-${event.id}'),
         behavior: HitTestBehavior.opaque,
-        // Start at the touch point, not after the drag slop: the 8px edge
-        // zones must match the pixels under the finger and the slop distance
-        // belongs to the move.
-        dragStartBehavior: DragStartBehavior.down,
         onTap: () => showEventEditor(context, existing: event),
-        // Vertical drag rather than pan: inside the scrolling grid the
-        // scrollable's vertical recognizer wins any pan arena, so a child
-        // vertical recognizer is what keeps block moves on the block.
-        onVerticalDragStart: (details) =>
+        // Touch: a long press arms the move/resize before the scrollable
+        // claims the gesture; the block only moves vertically afterwards.
+        onLongPressStart: (details) =>
             _startPlanDrag(event, start, end, details.localPosition.dy, height),
-        onVerticalDragUpdate: _updatePlanDrag,
-        onVerticalDragEnd: (_) => _commitPlanDrag(event, start, end),
-        child: PlanBlock(
-          key: ValueKey('plan-${event.id}'),
-          event: event,
-          overdue: eventStatus(event, widget.today) == EventStatus.overdue,
-          compact: true,
+        onLongPressMoveUpdate: (details) =>
+            _updatePlanDragFromOrigin(details.offsetFromOrigin.dy),
+        onLongPressEnd: (_) => _commitPlanDrag(event, start, end),
+        child: TouchTarget(
+          key: ValueKey('plan-hit-${event.id}'),
+          child: PlanBlock(
+            key: ValueKey('plan-${event.id}'),
+            event: event,
+            overdue: eventStatus(event, widget.today) == EventStatus.overdue,
+            compact: true,
+          ),
         ),
       ),
     );
@@ -626,34 +661,27 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
       _originEnd = end;
       _previewStart = start;
       _previewEnd = end;
-      _dragAccumulated = 0;
     });
   }
 
-  void _updatePlanDrag(DragUpdateDetails details) {
+  void _updatePlanDragFromOrigin(double dyFromOrigin) {
     if (_dragEventId == null) return;
-    _dragAccumulated += details.delta.dy * 60 / kHourHeight;
-    if (_dragAccumulated.abs() < _minimumDragMinutes) return;
-    final delta = _dragAccumulated.round();
+    final delta = (dyFromOrigin * 60 / kHourHeight).round();
     final start = _originStart!;
     final end = _originEnd!;
     setState(() {
       switch (_dragMode) {
         case _PlanDragMode.move:
           final duration = end - start;
-          final moved = snapMinutes((_previewStart ?? start) + delta)
-              .clamp(0, 1440 - duration);
+          final moved = snapMinutes(start + delta).clamp(0, 1440 - duration);
           _previewStart = moved;
           _previewEnd = moved + duration;
         case _PlanDragMode.resizeStart:
-          _previewStart = snapMinutes((_previewStart ?? start) + delta)
-              .clamp(0, end - 5);
+          _previewStart = snapMinutes(start + delta).clamp(0, end - 5);
         case _PlanDragMode.resizeEnd:
-          _previewEnd = snapMinutes((_previewEnd ?? end) + delta)
-              .clamp(start + 5, 1440);
+          _previewEnd = snapMinutes(end + delta).clamp(start + 5, 1440);
       }
     });
-    _dragAccumulated -= delta;
   }
 
   Future<void> _commitPlanDrag(
@@ -669,7 +697,6 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
       _originEnd = null;
       _previewStart = null;
       _previewEnd = null;
-      _dragAccumulated = 0;
     });
     if (start == null || end == null) return;
     if (start == originalStart && end == originalEnd) return;

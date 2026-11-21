@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/app_info.dart';
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/layout.dart';
+import '../../core/platform/android_capabilities.dart';
 import '../../core/l10n/locale_controller.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_controller.dart';
@@ -38,6 +39,8 @@ class SettingsPage extends ConsumerWidget {
     final offset = ref.watch(defaultReminderOffsetProvider);
     final sound = ref.watch(notificationSoundEnabledProvider);
     final overdueSummary = ref.watch(overdueSummaryEnabledProvider);
+    final permission = ref.watch(notificationPermissionProvider).value;
+    final exactAlarm = ref.watch(exactAlarmAvailableProvider).value;
     final minimizeToTray = ref.watch(minimizeToTrayEnabledProvider);
     final launchAtStartup = ref.watch(launchAtStartupEnabledProvider);
 
@@ -190,6 +193,37 @@ class SettingsPage extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    if (!desktop &&
+                        permission != null &&
+                        permission != NotificationPermissionState.granted)
+                      _AndroidCapabilityRow(
+                        key: const ValueKey(
+                          'settings-row-notification-permission',
+                        ),
+                        palette: palette,
+                        title: l10n.notificationPermission,
+                        text:
+                            permission ==
+                                NotificationPermissionState.permanentlyDenied
+                            ? l10n.notificationClosedBySystem
+                            : l10n.notificationOff,
+                        action: l10n.openSystemSettings,
+                        danger: true,
+                        onTap: () => ref
+                            .read(androidCapabilitiesProvider)
+                            .openNotificationSettings(),
+                      ),
+                    if (!desktop && exactAlarm == false)
+                      _AndroidCapabilityRow(
+                        key: const ValueKey('settings-row-exact-alarm'),
+                        palette: palette,
+                        title: l10n.exactAlarmTitle,
+                        text: l10n.exactAlarmHint,
+                        action: l10n.openSystemSettings,
+                        onTap: () => ref
+                            .read(androidCapabilitiesProvider)
+                            .openExactAlarmSettings(),
+                      ),
                     _SettingsRow(
                       key: const ValueKey('settings-row-sound'),
                       palette: palette,
@@ -224,53 +258,53 @@ class SettingsPage extends ConsumerWidget {
                   ],
                 ),
                 if (desktop) ...[
-                const SizedBox(height: 28),
-                _SettingsGroup(
-                  containerKey: const ValueKey('settings-group-desktop'),
-                  palette: palette,
-                  label: l10n.settingsDesktop,
-                  rows: [
-                    _SettingsRow(
-                      key: const ValueKey('settings-row-tray'),
-                      palette: palette,
-                      title: l10n.closeToTray,
-                      hint: l10n.closeToTrayHint,
-                      onTap: () => ref
-                          .read(minimizeToTrayEnabledProvider.notifier)
-                          .set(!minimizeToTray),
-                      control: AppSwitch(
-                        key: const ValueKey('switch-tray'),
-                        value: minimizeToTray,
-                        onChanged: (value) => ref
+                  const SizedBox(height: 28),
+                  _SettingsGroup(
+                    containerKey: const ValueKey('settings-group-desktop'),
+                    palette: palette,
+                    label: l10n.settingsDesktop,
+                    rows: [
+                      _SettingsRow(
+                        key: const ValueKey('settings-row-tray'),
+                        palette: palette,
+                        title: l10n.closeToTray,
+                        hint: l10n.closeToTrayHint,
+                        onTap: () => ref
                             .read(minimizeToTrayEnabledProvider.notifier)
-                            .set(value),
+                            .set(!minimizeToTray),
+                        control: AppSwitch(
+                          key: const ValueKey('switch-tray'),
+                          value: minimizeToTray,
+                          onChanged: (value) => ref
+                              .read(minimizeToTrayEnabledProvider.notifier)
+                              .set(value),
+                        ),
                       ),
-                    ),
-                    _SettingsRow(
-                      key: const ValueKey('settings-row-startup'),
-                      palette: palette,
-                      title: l10n.launchAtStartup,
-                      hint: l10n.launchAtStartupHint,
-                      onTap: () {
-                        final value = !launchAtStartup;
-                        ref
-                            .read(launchAtStartupEnabledProvider.notifier)
-                            .set(value);
-                        syncLaunchAtStartup(value);
-                      },
-                      control: AppSwitch(
-                        key: const ValueKey('switch-startup'),
-                        value: launchAtStartup,
-                        onChanged: (value) {
+                      _SettingsRow(
+                        key: const ValueKey('settings-row-startup'),
+                        palette: palette,
+                        title: l10n.launchAtStartup,
+                        hint: l10n.launchAtStartupHint,
+                        onTap: () {
+                          final value = !launchAtStartup;
                           ref
                               .read(launchAtStartupEnabledProvider.notifier)
                               .set(value);
                           syncLaunchAtStartup(value);
                         },
+                        control: AppSwitch(
+                          key: const ValueKey('switch-startup'),
+                          value: launchAtStartup,
+                          onChanged: (value) {
+                            ref
+                                .read(launchAtStartupEnabledProvider.notifier)
+                                .set(value);
+                            syncLaunchAtStartup(value);
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ],
                 const SizedBox(height: 28),
                 _SettingsGroup(
@@ -471,11 +505,7 @@ class _SettingsRowState extends State<_SettingsRow> {
       child: stacked
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                textColumn,
-                const SizedBox(height: 8),
-                widget.control,
-              ],
+              children: [textColumn, const SizedBox(height: 8), widget.control],
             )
           : Row(
               children: [
@@ -497,6 +527,61 @@ class _SettingsRowState extends State<_SettingsRow> {
               child: content,
             )
           : content,
+    );
+  }
+}
+
+/// Android capability row: title plus a 13px explanatory line (danger for a
+/// denied notification permission) and a right-aligned system-settings link.
+class _AndroidCapabilityRow extends StatelessWidget {
+  const _AndroidCapabilityRow({
+    super.key,
+    required this.palette,
+    required this.title,
+    required this.text,
+    required this.action,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final AppPalette palette;
+  final String title;
+  final String text;
+  final String action;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.body.copyWith(color: palette.ink),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(
+                    color: danger ? palette.danger : palette.sub,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _TextLink(label: action, color: palette.accent, onTap: onTap),
+        ],
+      ),
     );
   }
 }

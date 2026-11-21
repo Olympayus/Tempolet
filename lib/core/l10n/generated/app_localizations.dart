@@ -962,6 +962,54 @@ abstract class AppLocalizations {
   /// **'Hide calendar panel'**
   String get hideLeftPanel;
 
+  /// No description provided for @notificationPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification permission'**
+  String get notificationPermission;
+
+  /// No description provided for @notificationOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are off'**
+  String get notificationOff;
+
+  /// No description provided for @notificationClosedBySystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications were turned off by the system'**
+  String get notificationClosedBySystem;
+
+  /// No description provided for @openSystemSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open system settings'**
+  String get openSystemSettings;
+
+  /// No description provided for @exactAlarmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact reminders'**
+  String get exactAlarmTitle;
+
+  /// No description provided for @exactAlarmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The system limits exact alarms; reminders may be delayed'**
+  String get exactAlarmHint;
+
+  /// No description provided for @advanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get advanced;
+
+  /// No description provided for @advancedHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide advanced'**
+  String get advancedHide;
+
   /// No description provided for @editCategory.
   ///
   /// In en, this message translates to:

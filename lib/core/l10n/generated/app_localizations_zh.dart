@@ -496,6 +496,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hideLeftPanel => '隐藏日历面板';
 
   @override
+  String get notificationPermission => '通知权限';
+
+  @override
+  String get notificationOff => '通知权限未开启';
+
+  @override
+  String get notificationClosedBySystem => '通知已被系统关闭';
+
+  @override
+  String get openSystemSettings => '打开系统设置';
+
+  @override
+  String get exactAlarmTitle => '精确提醒';
+
+  @override
+  String get exactAlarmHint => '系统限制了精确闹钟，提醒可能延迟';
+
+  @override
+  String get advanced => '高级';
+
+  @override
+  String get advancedHide => '收起高级';
+
+  @override
   String get editCategory => '编辑分类';
 
   @override

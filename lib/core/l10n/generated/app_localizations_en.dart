@@ -507,6 +507,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hideLeftPanel => 'Hide calendar panel';
 
   @override
+  String get notificationPermission => 'Notification permission';
+
+  @override
+  String get notificationOff => 'Notifications are off';
+
+  @override
+  String get notificationClosedBySystem =>
+      'Notifications were turned off by the system';
+
+  @override
+  String get openSystemSettings => 'Open system settings';
+
+  @override
+  String get exactAlarmTitle => 'Exact reminders';
+
+  @override
+  String get exactAlarmHint =>
+      'The system limits exact alarms; reminders may be delayed';
+
+  @override
+  String get advanced => 'Advanced';
+
+  @override
+  String get advancedHide => 'Hide advanced';
+
+  @override
   String get editCategory => 'Edit category';
 
   @override

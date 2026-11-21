@@ -36,6 +36,9 @@ class _FakeCapabilities implements AndroidCapabilities {
   Future<void> openExactAlarmSettings() async {
     openExactCalls++;
   }
+
+  @override
+  Future<void> markNotificationPermissionRequested() async {}
 }
 
 void main() {

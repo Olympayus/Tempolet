@@ -12,6 +12,10 @@ abstract class AndroidCapabilities {
   Future<bool> canScheduleExactAlarms();
   Future<void> openNotificationSettings();
   Future<void> openExactAlarmSettings();
+
+  /// Records that the app asked for POST_NOTIFICATIONS, so a later "no
+  /// rationale" result can be read as permanently denied.
+  Future<void> markNotificationPermissionRequested();
 }
 
 /// Platform-channel implementation. On hosts without the channel (tests,
@@ -73,6 +77,17 @@ class MethodChannelAndroidCapabilities implements AndroidCapabilities {
       // Host tests have no Android settings to open.
     } on PlatformException {
       // Leave the row as a plain explanation when the jump is unavailable.
+    }
+  }
+
+  @override
+  Future<void> markNotificationPermissionRequested() async {
+    try {
+      await _channel.invokeMethod<void>('markNotificationPermissionRequested');
+    } on MissingPluginException {
+      // Host tests do not track Android permission prompts.
+    } on PlatformException {
+      // Non-fatal: the row simply keeps reporting `denied`.
     }
   }
 }

@@ -27,17 +27,29 @@ class MainActivity : FlutterActivity() {
                         val enabled = manager.areNotificationsEnabled()
                         if (enabled) {
                             result.success("granted")
-                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            !shouldShowRequestPermissionRationale(
-                                Manifest.permission.POST_NOTIFICATIONS
-                            )
-                        ) {
-                            // Android 13+: no rationale after a request means the
-                            // user picked "don't allow" permanently.
-                            result.success("permanentlyDenied")
                         } else {
-                            result.success("denied")
+                            val requested = getSharedPreferences(
+                                "tempolet",
+                                Context.MODE_PRIVATE
+                            ).getBoolean("notification_permission_requested", false)
+                            val permanentlyDenied =
+                                requested &&
+                                    Build.VERSION.SDK_INT >=
+                                    Build.VERSION_CODES.TIRAMISU &&
+                                    !shouldShowRequestPermissionRationale(
+                                        Manifest.permission.POST_NOTIFICATIONS
+                                    )
+                            result.success(
+                                if (permanentlyDenied) "permanentlyDenied" else "denied"
+                            )
                         }
+                    }
+                    "markNotificationPermissionRequested" -> {
+                        getSharedPreferences("tempolet", Context.MODE_PRIVATE)
+                            .edit()
+                            .putBoolean("notification_permission_requested", true)
+                            .apply()
+                        result.success(null)
                     }
                     "canScheduleExactAlarms" -> {
                         val alarmManager =

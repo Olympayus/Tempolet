@@ -24,11 +24,37 @@ import 'notification_prefs.dart';
 ///
 /// One 760-wide column: an appearance, notifications, desktop and about card,
 /// each with 64-high two-part rows and right-aligned self-drawn controls.
-class SettingsPage extends ConsumerWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  /// Android capability rows must refresh after the user returns from the
+  /// system settings (notifications may have been granted meanwhile).
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(
+      onResume: () {
+        ref.invalidate(notificationPermissionProvider);
+        ref.invalidate(exactAlarmAvailableProvider);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final palette = _paletteOf(context);
     final layout = resolveAppLayout(context);

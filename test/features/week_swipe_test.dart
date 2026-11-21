@@ -125,7 +125,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(selectedDayProvider), DateTime(2026, 11, 27));
 
-    await tester.dragFrom(const Offset(4, 400), const Offset(-300, 0));
+    // The system back gesture enters from the edge, so a rightward drag
+    // starting at x=4 must not page.
+    await tester.dragFrom(const Offset(4, 400), const Offset(300, 0));
     await tester.pumpAndSettle();
     expect(container.read(selectedDayProvider), DateTime(2026, 11, 27));
   });

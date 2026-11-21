@@ -87,6 +87,7 @@ class _DayViewState extends ConsumerState<DayView> {
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
+      dragStartBehavior: DragStartBehavior.down,
       onHorizontalDragStart: (details) {
         _dragStartX = details.globalPosition.dx;
       },

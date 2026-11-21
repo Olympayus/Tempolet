@@ -145,6 +145,7 @@ class _WeekViewState extends ConsumerState<WeekView> {
 
         return GestureDetector(
           behavior: HitTestBehavior.translucent,
+          dragStartBehavior: DragStartBehavior.down,
           onHorizontalDragStart: (details) {
             _dragStartX = details.globalPosition.dx;
           },
@@ -559,18 +560,30 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
         onTap: () => showEventEditor(context, existing: event),
         // Touch: a long press arms the move/resize before the scrollable
         // claims the gesture; the block only moves vertically afterwards.
-        onLongPressStart: (details) =>
-            _startPlanDrag(event, start, end, details.localPosition.dy, height),
+        onLongPressStart: (details) {
+          HapticFeedback.selectionClick();
+          _startPlanDrag(
+            event,
+            start,
+            end,
+            details.localPosition.dy - (hitHeight - height) / 2,
+            height,
+          );
+        },
         onLongPressMoveUpdate: (details) =>
             _updatePlanDragFromOrigin(details.offsetFromOrigin.dy),
         onLongPressEnd: (_) => _commitPlanDrag(event, start, end),
         child: TouchTarget(
           key: ValueKey('plan-hit-${event.id}'),
-          child: PlanBlock(
-            key: ValueKey('plan-${event.id}'),
-            event: event,
-            overdue: eventStatus(event, widget.today) == EventStatus.overdue,
-            compact: true,
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: PlanBlock(
+              key: ValueKey('plan-${event.id}'),
+              event: event,
+              overdue: eventStatus(event, widget.today) == EventStatus.overdue,
+              compact: true,
+            ),
           ),
         ),
       ),
@@ -584,22 +597,25 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
       left: 1,
       right: 1,
       top: minuteToY(event.startMinute!) - 6,
-      child: widget.narrow
-          ? _TwoLineReminderCard(
-              key: ValueKey('reminder-${event.id}'),
-              event: event,
-              palette: widget.palette,
-              onTap: onTap,
-            )
-          : ReminderCard(
-              key: ValueKey('reminder-${event.id}'),
-              event: event,
-              overdue: overdue,
-              showCheckbox: true,
-              showNote: false,
-              onTap: onTap,
-              onComplete: _completion(event),
-            ),
+      child: TouchTarget(
+        key: ValueKey('reminder-hit-${event.id}'),
+        child: widget.narrow
+            ? _TwoLineReminderCard(
+                key: ValueKey('reminder-${event.id}'),
+                event: event,
+                palette: widget.palette,
+                onTap: onTap,
+              )
+            : ReminderCard(
+                key: ValueKey('reminder-${event.id}'),
+                event: event,
+                overdue: overdue,
+                showCheckbox: true,
+                showNote: false,
+                onTap: onTap,
+                onComplete: _completion(event),
+              ),
+      ),
     );
   }
 

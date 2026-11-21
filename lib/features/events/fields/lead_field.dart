@@ -189,7 +189,7 @@ class _LeadFieldState extends State<LeadField> {
         child: SafeArea(
           top: false,
           child: StatefulBuilder(
-            builder: (context, setSheetState) => Padding(
+            builder: (context, setSheetState) => SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

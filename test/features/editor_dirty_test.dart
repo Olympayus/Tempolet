@@ -105,6 +105,20 @@ void main() {
     expect(find.byType(EventEditorDialog), findsNothing);
   });
 
+  testWidgets('system back on a changed editor asks first', (tester) async {
+    final event = await seed();
+    await _pumpEditor(tester, existing: event);
+
+    await tester.enterText(find.byKey(const ValueKey('editor-title')), '改过的标题');
+    // System back goes through `maybePop`, which honours PopScope.
+    Navigator.of(tester.element(find.byType(EventEditorDialog))).maybePop();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('editor-discard-confirm')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('phone fields are 40 high, tablet 42', (tester) async {
     final event = await seed();
 

@@ -137,7 +137,6 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   late final int? _initialEnd;
   late final int? _initialLead;
   late final String? _initialCategory;
-  bool _allowPop = false;
 
   bool get _isEditing => widget.existing != null;
 
@@ -201,10 +200,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
         ],
       ),
     );
-    if (discard == true && mounted) {
-      _allowPop = true;
-      Navigator.of(context).pop();
-    }
+    if (discard == true && mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -290,10 +286,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     } else {
       sync.afterCreate(result);
     }
-    if (mounted) {
-      _allowPop = true;
-      Navigator.of(context).pop(result);
-    }
+    if (mounted) Navigator.of(context).pop(result);
   }
 
   Future<void> _delete() async {
@@ -324,10 +317,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
 
     await ref.read(eventRepositoryProvider).softDelete(existing.id);
     ref.read(eventNotifierSyncProvider).afterDelete(existing);
-    if (mounted) {
-      _allowPop = true;
-      Navigator.of(context).pop();
-    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   String _errorText(AppLocalizations l10n, EventFormError error) =>
@@ -611,7 +601,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
           );
 
     return PopScope(
-      canPop: _allowPop || !_isDirty,
+      // Always intercept system back / barrier pops: `_requestClose` checks
+      // the live dirty state and pops itself when it is safe.
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _requestClose();
       },

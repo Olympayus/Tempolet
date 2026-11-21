@@ -135,13 +135,20 @@ class _SegmentedDateFieldState extends State<SegmentedDateField> {
         backgroundColor: Colors.transparent,
         builder: (sheetContext) => Container(
           key: const ValueKey('date-picker-sheet'),
+          width: double.infinity,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
           decoration: BoxDecoration(
             color: _palette(sheetContext).card,
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(AppRadii.dialog),
             ),
           ),
-          child: SafeArea(top: false, child: calendar),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(child: calendar),
+          ),
         ),
       );
     } else {

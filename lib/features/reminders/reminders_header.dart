@@ -16,11 +16,19 @@ class RemindersHeader extends StatelessWidget {
     required this.onManageCategories,
     required this.onViewCompleted,
     required this.onCreate,
+    this.leftColumnOpen,
+    this.onToggleLeftColumn,
   });
 
   final VoidCallback? onManageCategories;
   final VoidCallback onViewCompleted;
   final VoidCallback onCreate;
+
+  /// Tablet only: whether the left calendar/timeline column is showing.
+  final bool? leftColumnOpen;
+
+  /// Tablet only: toggles the left column.
+  final VoidCallback? onToggleLeftColumn;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +56,23 @@ class RemindersHeader extends StatelessWidget {
                 style: AppTextStyles.display.copyWith(color: palette.ink),
               ),
             ),
+            if (onToggleLeftColumn != null) ...[
+              AppIconButton(
+                key: const ValueKey('reminders-left-toggle'),
+                tooltip: leftColumnOpen ?? true
+                    ? l10n.hideLeftPanel
+                    : l10n.showLeftPanel,
+                onPressed: onToggleLeftColumn,
+                icon: Icon(
+                  leftColumnOpen ?? true
+                      ? LucideIcons.panelLeftClose
+                      : LucideIcons.panelLeftOpen,
+                  size: 18,
+                  color: palette.sub,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             AppIconButton(
               key: const ValueKey('reminders-manage-categories'),
               tooltip: l10n.manageCategories,
@@ -71,10 +96,7 @@ class RemindersHeader extends StatelessWidget {
             AppButton.primary(
               key: const ValueKey('reminders-new'),
               label: l10n.newItem,
-              leadingIcon: const AppIcon.plus(
-                size: 16,
-                color: Colors.white,
-              ),
+              leadingIcon: const AppIcon.plus(size: 16, color: Colors.white),
               onPressed: onCreate,
             ),
           ],

@@ -142,6 +142,8 @@
   "restOfMonth": "本月剩余",
   "futureMonths": "未来 6 个月",
   "completedChip": "查看已完成",
+  "showLeftPanel": "显示日历面板",
+  "hideLeftPanel": "隐藏日历面板",
   "sidebarEmptyTitle": "无安排",
   "sidebarEmptyHint": "添加提醒或计划，开始这一天。",
   "plansGroupTitle": "计划",

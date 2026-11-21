@@ -86,6 +86,9 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   /// At most one touch row reveals its edit/delete actions.
   final SwipeActionsController _swipe = SwipeActionsController();
 
+  /// Tablet left-column override; null follows orientation and width.
+  bool? _leftColumnOpenOverride;
+
   /// Set while the router is on another branch (`/reminders/completed`,
   /// `/reminders/categories`, the calendar, settings). The indexed stack keeps
   /// this page mounted, so `mounted` cannot tell whether the user is still
@@ -575,7 +578,13 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       backgroundColor: palette.bg,
       body: Builder(
         builder: (context) {
-          final phone = resolveAppLayout(context) == AppLayout.phone;
+          final layout = resolveAppLayout(context);
+          final phone = layout == AppLayout.phone;
+          final size = MediaQuery.sizeOf(context);
+          final portrait = size.height >= size.width;
+          final tablet = layout == AppLayout.tablet;
+          final leftColumnOpen =
+              _leftColumnOpenOverride ?? (!portrait && size.width >= 700);
           final inset = phone ? 16.0 : _contentInset;
           final column = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -591,6 +600,12 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                   onManageCategories: () => context.go('/reminders/categories'),
                   onViewCompleted: () => context.go('/reminders/completed'),
                   onCreate: () => _openNew(today),
+                  leftColumnOpen: tablet ? leftColumnOpen : null,
+                  onToggleLeftColumn: tablet
+                      ? () => setState(
+                          () => _leftColumnOpenOverride = !leftColumnOpen,
+                        )
+                      : null,
                 ),
               Padding(
                 padding: EdgeInsets.fromLTRB(inset, 4, inset, 0),
@@ -683,16 +698,17 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              RemindersLeftColumn(
-                onSelectDay: _locateDate,
-                recentlyCompleted: _recentlyCompleted,
-                animatingIds: _animatedIds,
-                onComplete: _complete,
-                onUndo: _undo,
-                defaultKind: _filter == RemindersFilter.plan
-                    ? EventKind.plan
-                    : EventKind.reminder,
-              ),
+              if (!tablet || leftColumnOpen)
+                RemindersLeftColumn(
+                  onSelectDay: _locateDate,
+                  recentlyCompleted: _recentlyCompleted,
+                  animatingIds: _animatedIds,
+                  onComplete: _complete,
+                  onUndo: _undo,
+                  defaultKind: _filter == RemindersFilter.plan
+                      ? EventKind.plan
+                      : EventKind.reminder,
+                ),
               Expanded(child: column),
             ],
           );

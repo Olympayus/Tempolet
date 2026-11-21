@@ -158,10 +158,14 @@ class _SwipeActionsRowState extends State<SwipeActionsRow> {
           final actionsWidth = kSwipeActionWidth * widget.actions.length;
           return Stack(
             children: [
+              child!,
               if (reveal)
-                Positioned.fill(
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: -actionsWidth * (1 - progress),
+                  width: actionsWidth,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       for (final action in widget.actions)
@@ -196,15 +200,13 @@ class _SwipeActionsRowState extends State<SwipeActionsRow> {
                     ],
                   ),
                 ),
-              Transform.translate(
-                offset: Offset(-actionsWidth * progress, 0),
-                child: child,
-              ),
+              // The leading completion circle stays tappable while the row is
+              // open; the rest of the content closes the row on tap.
               if (reveal)
                 Positioned(
                   top: 0,
                   bottom: 0,
-                  left: 0,
+                  left: 48,
                   right: actionsWidth * progress,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,

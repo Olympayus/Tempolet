@@ -43,11 +43,14 @@ class CalendarPage extends ConsumerWidget {
       key: const ValueKey('calendar-page'),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // An explicit choice always wins; the width only supplies the
-          // default until the user first toggles the sidebar.
+          // An explicit choice always wins; the table defaults to collapsed
+          // in portrait or on narrower windows until the user first toggles.
           final preference = ref.watch(sidebarPreferenceProvider);
+          final portrait =
+              MediaQuery.orientationOf(context) == Orientation.portrait;
           final sidebarOpen =
-              preference ?? (constraints.maxWidth >= kSidebarBreakpoint);
+              preference ??
+              (!portrait && constraints.maxWidth >= kSidebarBreakpoint);
           // Day view owns its own 216px stats rail and hides the toggle
           // (`docs/design/02-shell-desktop.md` §4, decision D38).
           final showSidebar = sidebarOpen && mode != CalendarViewMode.day;

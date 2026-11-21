@@ -229,6 +229,8 @@
   "restOfMonth": "Rest of month",
   "futureMonths": "Next 6 months",
   "completedChip": "Completed",
+  "showLeftPanel": "Show calendar panel",
+  "hideLeftPanel": "Hide calendar panel",
   "sidebarEmptyTitle": "No schedule",
   "sidebarEmptyHint": "Add a reminder or plan to start the day.",
   "plansGroupTitle": "Plans",

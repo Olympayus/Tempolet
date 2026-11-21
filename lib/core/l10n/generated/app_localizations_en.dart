@@ -501,6 +501,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get completedChip => 'Completed';
 
   @override
+  String get showLeftPanel => 'Show calendar panel';
+
+  @override
+  String get hideLeftPanel => 'Hide calendar panel';
+
+  @override
   String get sidebarEmptyTitle => 'No schedule';
 
   @override
@@ -520,34 +526,4 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get moreActions => 'More';
-
-  @override
-  String get notificationChannelName => 'Reminders';
-
-  @override
-  String get notificationChannelSilentName => 'Reminders (silent)';
-
-  @override
-  String get notificationChannelDescription =>
-      'On-time alerts for plans and reminders';
-
-  @override
-  String get notificationsPermissionOff =>
-      'Notifications are blocked, so reminders won\'t appear';
-
-  @override
-  String get openSystemSettings => 'Enable';
-
-  @override
-  String get exactAlarmTitle => 'Exact alarms';
-
-  @override
-  String get exactAlarmOff => 'Exact alarms are off; reminders may arrive late';
-
-  @override
-  String get exactAlarmAllow => 'Allow';
-
-  @override
-  String get categoryDeleteConfirm =>
-      'Delete this category? Its items move to Uncategorized.';
 }

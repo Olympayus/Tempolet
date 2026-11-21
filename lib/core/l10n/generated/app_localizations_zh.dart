@@ -490,6 +490,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get completedChip => '查看已完成';
 
   @override
+  String get showLeftPanel => '显示日历面板';
+
+  @override
+  String get hideLeftPanel => '隐藏日历面板';
+
+  @override
   String get sidebarEmptyTitle => '无安排';
 
   @override
@@ -509,31 +515,4 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get moreActions => '更多';
-
-  @override
-  String get notificationChannelName => '提醒';
-
-  @override
-  String get notificationChannelSilentName => '提醒（静音）';
-
-  @override
-  String get notificationChannelDescription => '计划与提醒的到点通知';
-
-  @override
-  String get notificationsPermissionOff => '系统通知权限未开启，提醒不会弹出';
-
-  @override
-  String get openSystemSettings => '去开启';
-
-  @override
-  String get exactAlarmTitle => '精确闹钟';
-
-  @override
-  String get exactAlarmOff => '未开启精确闹钟，提醒时间可能延后';
-
-  @override
-  String get exactAlarmAllow => '去允许';
-
-  @override
-  String get categoryDeleteConfirm => '删除这个分类？其中的事项会回到「未分类」。';
 }

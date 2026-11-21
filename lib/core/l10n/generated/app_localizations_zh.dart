@@ -496,6 +496,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hideLeftPanel => '隐藏日历面板';
 
   @override
+  String get notificationEventMissing => '事项已不存在';
+
+  @override
   String get notificationChannelSound => '提醒（有声）';
 
   @override

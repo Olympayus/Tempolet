@@ -10,6 +10,9 @@ class FakeNotificationService implements NotificationService {
   /// Task 12 assertions: the permission prompt must run once, and exact-mode
   /// scheduling may be observed through the real service fake.
   int requestPermissionCalls = 0;
+
+  /// Cold-start payload returned by [takeLaunchPayload].
+  String? launchPayload;
   int exactModeCalls = 0;
   bool grantPermission = true;
 
@@ -24,6 +27,9 @@ class FakeNotificationService implements NotificationService {
   Future<void> initialize({
     required void Function(String payload) onTap,
   }) async {}
+
+  @override
+  Future<String?> takeLaunchPayload() async => launchPayload;
 
   @override
   Future<bool> requestPermissions() async {

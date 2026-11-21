@@ -10,19 +10,18 @@ import 'package:window_manager/legacy.dart' show windowManager;
 import 'app.dart';
 import 'core/l10n/generated/app_localizations.dart';
 import 'core/l10n/locale_controller.dart';
+import 'core/layout.dart';
 import 'core/platform.dart';
 import 'core/prefs.dart';
-import 'core/router/app_router.dart';
-import 'core/utils/dates.dart';
 import 'data/holidays/holiday_seed_service.dart';
-import 'data/repositories/event_repository.dart';
 import 'data/repositories/holiday_repository.dart';
 import 'desktop/tray_service.dart';
 import 'desktop/window_service.dart';
-import 'features/calendar/calendar_state.dart';
 import 'features/settings/desktop_prefs.dart';
+import 'features/settings/notification_prefs.dart';
 import 'notifications/flutter_local_notifications_service.dart';
 import 'notifications/notification_payload.dart';
+import 'notifications/notification_router.dart';
 import 'notifications/notification_scheduler.dart';
 
 void main() => runTempolet();
@@ -34,6 +33,8 @@ Future<void> runTempolet() async {
   late final ProviderContainer container;
   final service = FlutterLocalNotificationsService(
     locale: () => _activeLocale(container),
+    exactAlarmsAllowed: () => exactAlarmsAllowedCache,
+    soundEnabled: () => container.read(notificationSoundEnabledProvider),
   );
   await service.initialize(
     onTap: (payload) => _handleNotificationPayload(container, payload),
@@ -45,6 +46,7 @@ Future<void> runTempolet() async {
       notificationServiceProvider.overrideWithValue(service),
     ],
   );
+  await refreshExactAlarms(container);
 
   // Import the bundled holiday data once per version. A failure here must not
   // keep the calendar from opening.
@@ -93,7 +95,27 @@ Future<void> runTempolet() async {
 
   final scheduler = container.read(notificationSchedulerProvider);
   unawaited(scheduler.reconcile());
+  if (takeReschedulePending(container)) {
+    unawaited(scheduler.reconcile());
+  }
   _scheduleDailySummary(container);
+
+  final launchPayload = await service.takeLaunchPayload();
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    if (launchPayload != null && launchPayload.isNotEmpty) {
+      await _handleNotificationPayload(container, launchPayload);
+    }
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    final size = view == null
+        ? const Size(1280, 800)
+        : view.physicalSize / view.devicePixelRatio;
+    await consumePendingNotificationAction(
+      container,
+      layout: resolveAppLayoutForSize(size),
+      onNotice: (message) =>
+          container.read(notificationNoticeProvider.notifier).set(message),
+    );
+  });
 }
 
 /// The locale actually shown by the app: the stored preference, otherwise the
@@ -111,36 +133,18 @@ Locale _activeLocale(ProviderContainer container) {
 Future<void> _handleNotificationPayload(
   ProviderContainer container,
   String payload,
-) async {
-  final repo = container.read(eventRepositoryProvider);
-  final scheduler = container.read(notificationSchedulerProvider);
-
-  final doneId = doneEventId(payload);
-  if (doneId != null) {
-    await repo.setCompleted(doneId, true);
-    final event = await repo.getById(doneId);
-    if (event != null) await scheduler.cancelEvent(event);
-    return;
-  }
-
-  final snoozeId = snoozeEventId(payload);
-  if (snoozeId != null) {
-    await scheduler.snooze(snoozeId);
-    return;
-  }
-
-  final eventId = eventIdFromPayload(payload);
-  if (eventId != null) {
-    final event = await repo.getById(eventId);
-    if (event != null) {
-      container.read(selectedDayProvider.notifier).select(dateOnly(event.date));
-      container
-          .read(calendarViewModeProvider.notifier)
-          .set(CalendarViewMode.day);
-    }
-  }
-  // Unknown or summary payloads just bring the app to the calendar.
-  container.read(routerProvider).go('/calendar');
+) {
+  final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+  final size = view == null
+      ? const Size(1280, 800)
+      : view.physicalSize / view.devicePixelRatio;
+  return routeNotificationPayload(
+    container,
+    payload,
+    layout: resolveAppLayoutForSize(size),
+    onNotice: (message) =>
+        container.read(notificationNoticeProvider.notifier).set(message),
+  );
 }
 
 void _scheduleDailySummary(ProviderContainer container) {
@@ -157,4 +161,27 @@ void _scheduleDailySummary(ProviderContainer container) {
       _scheduleDailySummary(container);
     }
   });
+}
+
+/// Headless entry point run by `TimeChangeReceiver` after a system time or
+/// timezone change: build a minimal container and silently re-plan.
+@pragma('vm:entry-point')
+Future<void> notificationRescheduleEntrypoint() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final service = FlutterLocalNotificationsService();
+  final container = ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      notificationServiceProvider.overrideWithValue(service),
+    ],
+  );
+  try {
+    await service.initialize(onTap: (_) {});
+    await rescheduleOnTimeChange(container.read(notificationSchedulerProvider));
+  } catch (_) {
+    await prefs.setBool(notificationReschedulePendingKey, true);
+  } finally {
+    container.dispose();
+  }
 }

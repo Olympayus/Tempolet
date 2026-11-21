@@ -144,6 +144,7 @@
   "completedChip": "查看已完成",
   "showLeftPanel": "显示日历面板",
   "hideLeftPanel": "隐藏日历面板",
+  "notificationEventMissing": "事项已不存在",
   "notificationChannelSound": "提醒（有声）",
   "notificationChannelSilent": "提醒（无声）",
   "notificationChannelDescription": "Tempolet 的提醒与计划",

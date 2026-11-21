@@ -507,6 +507,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hideLeftPanel => 'Hide calendar panel';
 
   @override
+  String get notificationEventMissing => 'This item no longer exists';
+
+  @override
   String get notificationChannelSound => 'Reminders (sound)';
 
   @override

@@ -20,6 +20,9 @@ class ReminderNotification {
 /// `flutter_local_notifications_service.dart`.
 abstract class NotificationService {
   Future<void> initialize({required void Function(String payload) onTap});
+
+  /// The payload that cold-started the app from a notification, if any.
+  Future<String?> takeLaunchPayload();
   Future<bool> requestPermissions();
   Future<void> schedule(ReminderNotification notification);
   Future<void> showNow(ReminderNotification notification);

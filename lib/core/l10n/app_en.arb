@@ -231,6 +231,7 @@
   "completedChip": "Completed",
   "showLeftPanel": "Show calendar panel",
   "hideLeftPanel": "Hide calendar panel",
+  "notificationEventMissing": "This item no longer exists",
   "notificationChannelSound": "Reminders (sound)",
   "notificationChannelSilent": "Reminders (silent)",
   "notificationChannelDescription": "Tempolet reminders and plans",

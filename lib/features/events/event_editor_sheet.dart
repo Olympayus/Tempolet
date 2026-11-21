@@ -15,6 +15,7 @@ import '../../core/utils/dates.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../notifications/notification_router.dart';
 import '../../notifications/notification_scheduler.dart';
 import '../settings/notification_prefs.dart';
 import 'event_draft.dart';
@@ -285,6 +286,14 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
       sync.afterUpdate(result);
     } else {
       sync.afterCreate(result);
+    }
+    // Ask for the Android notification permission the first time a saved
+    // event carries a reminder. The prompt never blocks the save.
+    if (mounted) {
+      await requestNotificationPermissionIfNeeded(
+        ProviderScope.containerOf(context, listen: false),
+        result,
+      );
     }
     if (mounted) Navigator.of(context).pop(result);
   }

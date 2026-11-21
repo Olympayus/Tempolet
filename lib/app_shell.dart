@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 // The 0.5.x bridge is still the app's window API for v0.1.x (see
 // desktop/window_service.dart); v0.1.3 only adds the maximize listener here.
@@ -10,24 +11,28 @@ import 'package:window_manager/legacy.dart';
 
 import '../core/platform.dart';
 import '../core/layout.dart';
+import '../core/platform/android_capabilities.dart';
 import '../core/system_orientation.dart';
 import '../core/ui/app_titlebar.dart';
 import '../desktop/titlebar_channel.dart';
 import 'features/shell/icon_rail.dart';
 import 'features/shell/phone_dock.dart';
+import '../notifications/notification_router.dart';
+import '../notifications/notification_scheduler.dart';
 
 /// App chrome: the self-drawn 32px title bar (desktop), the 56px icon rail
 /// plus the routed content area.
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell>
+    with WidgetsBindingObserver {
   TitlebarChannel? _titlebar;
   _MaximizeListener? _maximizeListener;
   TitlebarHover _hover = TitlebarHover.none;
@@ -39,6 +44,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (!_hasDesktopChrome) return;
 
     final titlebar = TitlebarChannel()..initialize();
@@ -53,12 +59,32 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _titlebar?.hover.removeListener(_onHoverChanged);
     _titlebar?.dispose();
     if (_maximizeListener != null) {
       windowManager.removeListener(_maximizeListener!);
     }
     super.dispose();
+  }
+
+  /// Returning to the foreground re-plans reminders and re-checks the exact
+  /// alarm permission, which the system may have revoked (`v0.1.5` §8.10).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    unawaited(ref.read(notificationSchedulerProvider).reconcile());
+    ref.invalidate(exactAlarmAvailableProvider);
+    final container = ProviderScope.containerOf(context);
+    unawaited(refreshExactAlarms(container));
+    unawaited(
+      consumePendingNotificationAction(
+        container,
+        layout: resolveAppLayout(context),
+        onNotice: (message) =>
+            ref.read(notificationNoticeProvider.notifier).set(message),
+      ),
+    );
   }
 
   void _onHoverChanged() {
@@ -103,6 +129,12 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(notificationNoticeProvider, (previous, next) {
+      if (next == null) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.showSnackBar(SnackBar(content: Text(next)));
+      ref.read(notificationNoticeProvider.notifier).set(null);
+    });
     final layout = resolveAppLayout(context);
     _applyOrientation(layout);
 

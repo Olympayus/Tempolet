@@ -962,6 +962,12 @@ abstract class AppLocalizations {
   /// **'Hide calendar panel'**
   String get hideLeftPanel;
 
+  /// No description provided for @notificationEventMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This item no longer exists'**
+  String get notificationEventMissing;
+
   /// No description provided for @notificationChannelSound.
   ///
   /// In en, this message translates to:

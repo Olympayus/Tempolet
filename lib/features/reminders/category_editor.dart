@@ -5,6 +5,7 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
+import '../../core/ui/touch_target.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import 'category_order.dart';
@@ -42,6 +43,8 @@ Future<void> showCategoryEditor(BuildContext context, {Category? category}) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => Padding(
         padding: EdgeInsets.only(
@@ -57,6 +60,7 @@ Future<void> showCategoryEditor(BuildContext context, {Category? category}) {
   }
   return showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (_) => CategoryEditor(
       key: const ValueKey('category-editor'),
       category: category,
@@ -84,6 +88,7 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
   int? _color;
   String? _error;
   bool _saving = false;
+  bool _allowPop = false;
 
   @override
   void initState() {
@@ -92,7 +97,12 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
     _initialColor = widget.category?.color;
     final existing =
         ref.read(allCategoriesProvider).value ?? const <Category>[];
-    _color = widget.category?.color ?? nextCategoryColor(existing).toARGB32();
+    // An existing category keeps its (possibly null) colour so a pure rename
+    // is not dirty and never silently recolours it. New categories start on
+    // the next unused palette colour.
+    _color = widget.category != null
+        ? widget.category!.color
+        : nextCategoryColor(existing).toARGB32();
     _name.addListener(_onChanged);
   }
 
@@ -151,7 +161,10 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
           await repo.setColor(existing.id, _color);
         }
       }
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        _allowPop = true;
+        Navigator.of(context).pop();
+      }
     } on CategoryNameConflict {
       if (mounted) {
         setState(() {
@@ -206,7 +219,10 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
         ],
       ),
     );
-    if (discard == true && mounted) Navigator.of(context).pop();
+    if (discard == true && mounted) {
+      _allowPop = true;
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -274,15 +290,17 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
                   behavior: HitTestBehavior.opaque,
                   onTap: () =>
                       setState(() => _color = kCategoryColorChoices[i]),
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Color(kCategoryColorChoices[i]),
-                      shape: BoxShape.circle,
-                      border: _color == kCategoryColorChoices[i]
-                          ? Border.all(color: palette.ink, width: 2)
-                          : null,
+                  child: TouchTarget(
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Color(kCategoryColorChoices[i]),
+                        shape: BoxShape.circle,
+                        border: _color == kCategoryColorChoices[i]
+                            ? Border.all(color: palette.ink, width: 2)
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -323,13 +341,19 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
       child: body,
     );
 
-    if (widget.sheet) {
-      return SafeArea(top: false, child: content);
-    }
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: content,
+    final Widget result = widget.sheet
+        ? SafeArea(top: false, child: content)
+        : Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: content,
+          );
+    return PopScope(
+      canPop: _allowPop || !_dirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: result,
     );
   }
 }

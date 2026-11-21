@@ -121,6 +121,28 @@ void main() {
     expect(find.byKey(const ValueKey('category-editor-sheet')), findsOneWidget);
   });
 
+  testWidgets('a colour-less category is not dirty until edited', (
+    tester,
+  ) async {
+    final work = await seed('学习');
+    _useLayout(tester, AppLayout.tablet, const Size(1280, 800));
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(ValueKey('category-row-${work.id}')));
+    await tester.pumpAndSettle();
+    AppButton save() => tester.widget<AppButton>(
+      find.byKey(const ValueKey('category-editor-save')),
+    );
+    expect(save().onPressed, isNull);
+
+    await tester.tap(
+      find.byKey(const ValueKey('category-editor-color-0')),
+    );
+    await tester.pump();
+    expect(save().onPressed, isNotNull);
+  });
+
   testWidgets('phone creates from the bottom input row', (tester) async {
     _useLayout(tester, AppLayout.phone, const Size(375, 812));
     await tester.pumpWidget(_app(container));

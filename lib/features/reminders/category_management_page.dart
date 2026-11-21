@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -259,37 +258,46 @@ class _CategoryManagementPageState
             ),
           ),
           Expanded(
-            child: ListView(
-              key: const ValueKey('category-list'),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(
               children: [
-                for (final category in ordered)
-                  _CategoryRow(
-                    key: ValueKey(
-                      'category-row-${category?.id ?? uncategorizedOrderId}',
-                    ),
-                    id: category?.id ?? uncategorizedOrderId,
-                    name: category?.name ?? l10n.uncategorized,
-                    color: category?.color,
-                    count: category == null
-                        ? uncategorizedCount
-                        : counts[category.id] ?? 0,
-                    system: category == null,
-                    onEdit: category == null
-                        ? null
-                        : () => showCategoryEditor(context, category: category),
-                    onDelete: category == null
-                        ? null
-                        : () => unawaited(_delete(category)),
-                    onDrop: (sourceId) => _reorder(
-                      sourceId,
-                      category?.id ?? uncategorizedOrderId,
-                    ),
+                Expanded(
+                  child: ListView(
+                    key: const ValueKey('category-list'),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    children: [
+                      for (final category in ordered)
+                        _CategoryRow(
+                          key: ValueKey(
+                            'category-row-${category?.id ?? uncategorizedOrderId}',
+                          ),
+                          id: category?.id ?? uncategorizedOrderId,
+                          name: category?.name ?? l10n.uncategorized,
+                          color: category?.color,
+                          count: category == null
+                              ? uncategorizedCount
+                              : counts[category.id] ?? 0,
+                          system: category == null,
+                          onEdit: category == null
+                              ? null
+                              : () => showCategoryEditor(
+                                  context,
+                                  category: category,
+                                ),
+                          onDelete: category == null
+                              ? null
+                              : () => unawaited(_delete(category)),
+                          onDrop: (sourceId) => _reorder(
+                            sourceId,
+                            category?.id ?? uncategorizedOrderId,
+                          ),
+                        ),
+                    ],
                   ),
+                ),
                 if (resolveAppLayout(context) == AppLayout.phone)
                   Padding(
                     key: const ValueKey('category-create-row'),
-                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -299,6 +307,11 @@ class _CategoryManagementPageState
                           focusNode: _newNameFocus,
                           maxLines: 1,
                           textInputAction: TextInputAction.done,
+                          onChanged: (_) {
+                            if (_newNameError != null) {
+                              setState(() => _newNameError = null);
+                            }
+                          },
                           onSubmitted: (_) => _createFromRow(),
                           style: AppTextStyles.body.copyWith(
                             color: palette.ink,
@@ -377,6 +390,7 @@ class _CategoryRow extends StatefulWidget {
 class _CategoryRowState extends State<_CategoryRow> {
   bool _hovering = false;
   bool _mouseDragging = false;
+  bool _dragActive = false;
 
   void _setHovering(bool hovering) {
     if (_hovering == hovering) return;
@@ -468,17 +482,20 @@ class _CategoryRowState extends State<_CategoryRow> {
           child: row,
         );
         return MouseRegion(
-          onEnter: (_) => _setHovering(true),
-          onExit: (_) => _setHovering(false),
-          child: Listener(
-            onPointerDown: (event) {
-              final mouse = event.kind == PointerDeviceKind.mouse;
-              if (mouse != _mouseDragging) {
-                setState(() => _mouseDragging = mouse);
-              }
-            },
-            child: _draggable(decorated, palette, color),
-          ),
+          // Pick the drag model before the press: a mouse hovers first (so
+          // the first drag starts immediately), touch never hovers and keeps
+          // the long-press drag.
+          onEnter: (_) {
+            _setHovering(true);
+            if (!_mouseDragging) setState(() => _mouseDragging = true);
+          },
+          onExit: (_) {
+            _setHovering(false);
+            if (_mouseDragging && !_dragActive) {
+              setState(() => _mouseDragging = false);
+            }
+          },
+          child: _draggable(decorated, palette, color),
         );
       },
     );
@@ -524,6 +541,8 @@ class _CategoryRowState extends State<_CategoryRow> {
         data: widget.id,
         feedback: feedback,
         childWhenDragging: placeholder,
+        onDragStarted: () => _dragActive = true,
+        onDragEnd: (_) => _dragActive = false,
         child: child,
       );
     }
@@ -534,6 +553,8 @@ class _CategoryRowState extends State<_CategoryRow> {
       hapticFeedbackOnStart: true,
       feedback: feedback,
       childWhenDragging: placeholder,
+      onDragStarted: () => _dragActive = true,
+      onDragEnd: (_) => _dragActive = false,
       child: child,
     );
   }

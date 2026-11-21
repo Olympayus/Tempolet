@@ -12,6 +12,7 @@ import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
 import 'package:tempolet/features/calendar/day_view.dart';
 import 'package:tempolet/features/calendar/week_view.dart';
+import 'package:tempolet/features/events/event_editor_sheet.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -170,6 +171,24 @@ void main() {
 
     final rows = await tester.runAsync(() => repo.getById(plan.id));
     expect(rows!.startMinute, 660);
+  });
+
+  testWidgets('week reminder hit band is tappable below the card', (
+    tester,
+  ) async {
+    final reminder = await seed(
+      title: 'Band',
+      day: DateTime(2026, 11, 20),
+      startMinute: 540,
+    );
+    await pumpWeek(tester, DateTime(2026, 11, 20), size: const Size(1000, 800));
+    final box = tester.getRect(
+      find.byKey(ValueKey('reminder-hit-${reminder.id}')),
+    );
+    expect(box.height, greaterThanOrEqualTo(44));
+    await tester.tapAt(Offset(box.center.dx, box.bottom - 2));
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditorDialog), findsOneWidget);
   });
 
   testWidgets('short plan block keeps a 44-high hit target', (tester) async {

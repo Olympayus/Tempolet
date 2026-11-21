@@ -353,15 +353,26 @@ class _DayViewState extends ConsumerState<DayView> {
         left: kAxisGutter,
         right: 10,
         top: minuteToY(start) - 6,
-        child: TouchTarget(
+        child: GestureDetector(
           key: ValueKey('reminder-hit-${event.id}'),
-          child: ReminderCard(
-            key: ValueKey('reminder-${event.id}'),
-            event: event,
-            overdue: eventStatus(event, today) == EventStatus.overdue,
-            showCheckbox: true,
-            onTap: () => showEventEditor(context, existing: event),
-            onComplete: _completion(event),
+          behavior: HitTestBehavior.opaque,
+          onTap: () => showEventEditor(context, existing: event),
+          // Grow the hit band downward so the card keeps its anchor.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: kMinHitTarget),
+            child: Align(
+              alignment: Alignment.topCenter,
+              widthFactor: 1,
+              heightFactor: 1,
+              child: ReminderCard(
+                key: ValueKey('reminder-${event.id}'),
+                event: event,
+                overdue: eventStatus(event, today) == EventStatus.overdue,
+                showCheckbox: true,
+                onTap: () => showEventEditor(context, existing: event),
+                onComplete: _completion(event),
+              ),
+            ),
           ),
         ),
       ),

@@ -597,24 +597,35 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
       left: 1,
       right: 1,
       top: minuteToY(event.startMinute!) - 6,
-      child: TouchTarget(
+      child: GestureDetector(
         key: ValueKey('reminder-hit-${event.id}'),
-        child: widget.narrow
-            ? _TwoLineReminderCard(
-                key: ValueKey('reminder-${event.id}'),
-                event: event,
-                palette: widget.palette,
-                onTap: onTap,
-              )
-            : ReminderCard(
-                key: ValueKey('reminder-${event.id}'),
-                event: event,
-                overdue: overdue,
-                showCheckbox: true,
-                showNote: false,
-                onTap: onTap,
-                onComplete: _completion(event),
-              ),
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        // Grow the hit band downward so the card keeps its timeline anchor.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: kMinHitTarget),
+          child: Align(
+            alignment: Alignment.topCenter,
+            widthFactor: 1,
+            heightFactor: 1,
+            child: widget.narrow
+                ? _TwoLineReminderCard(
+                    key: ValueKey('reminder-${event.id}'),
+                    event: event,
+                    palette: widget.palette,
+                    onTap: onTap,
+                  )
+                : ReminderCard(
+                    key: ValueKey('reminder-${event.id}'),
+                    event: event,
+                    overdue: overdue,
+                    showCheckbox: true,
+                    showNote: false,
+                    onTap: onTap,
+                    onComplete: _completion(event),
+                  ),
+          ),
+        ),
       ),
     );
   }

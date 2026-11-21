@@ -8,6 +8,7 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/swipe_actions_row.dart';
+import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
@@ -116,6 +117,17 @@ class _CalendarSidebarState extends ConsumerState<CalendarSidebar> {
     );
   }
 
+  /// The repository's day order: start minute (all-day last), then id.
+  int _byStartThenId(Event a, Event b) {
+    final am = a.startMinute;
+    final bm = b.startMinute;
+    if (am == null && bm == null) return a.id.compareTo(b.id);
+    if (am == null) return 1;
+    if (bm == null) return -1;
+    final byStart = am.compareTo(bm);
+    return byStart != 0 ? byStart : a.id.compareTo(b.id);
+  }
+
   Future<void> _confirmDelete(Event event, AppLocalizations l10n) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -159,6 +171,7 @@ class _CalendarSidebarState extends ConsumerState<CalendarSidebar> {
       event: event,
       color: categoryMarkerColor(event.categoryId, categories),
       retained: retained,
+      retainOnComplete: _retain,
       onComplete: () => _complete(event),
       onUndo: () => _undo(event),
     );
@@ -197,18 +210,15 @@ class _CalendarSidebarState extends ConsumerState<CalendarSidebar> {
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
 
     // Completed items leave the sidebar silently on desktop. On the tablet
-    // they retain (D70) through a snapshot until the page is left.
+    // they retain (D70) through a snapshot, merged back at their start-time
+    // slot and scoped to the selected day.
+    final dayKey = dateOnly(day);
     final visible = <Event>[
-      for (final event in events)
-        if (!event.isCompleted)
-          event
-        else if (_recentlyCompleted.containsKey(event.id))
-          _recentlyCompleted[event.id]!,
-      for (final retained in _recentlyCompleted.values)
-        if (!events.any((event) => event.id == retained.id)) retained,
-    ];
-    // The provider already orders by start time (all-day last); filtering
-    // preserves that order inside each group.
+      ...events.where((event) => !event.isCompleted),
+      ..._recentlyCompleted.values.where(
+        (event) => dateOnly(event.date) == dayKey,
+      ),
+    ]..sort(_byStartThenId);
     final plans = visible.where((event) => event.kind == 'plan').toList();
     final reminders = visible.where((event) => event.kind != 'plan').toList();
 
@@ -484,6 +494,7 @@ class _SidebarRow extends StatefulWidget {
     required this.event,
     required this.color,
     required this.retained,
+    required this.retainOnComplete,
     required this.onComplete,
     required this.onUndo,
   });
@@ -494,6 +505,10 @@ class _SidebarRow extends StatefulWidget {
   /// Retained (D70) rows stay visible with a strike and undo instead of
   /// fading away.
   final bool retained;
+
+  /// Whether this surface retains completions at all (tablet). Captured from
+  /// the layout so the row knows before its widget config rebuilds.
+  final bool retainOnComplete;
 
   /// The sidebar owns the write so it can capture its repository before the
   /// fade; the row only runs the 120ms fade and then awaits this.
@@ -509,18 +524,19 @@ class _SidebarRowState extends State<_SidebarRow> {
   bool _completing = false;
 
   Future<void> _complete() async {
-    if (_completing) return;
     if (widget.retained) {
       await widget.onUndo();
+      return;
+    }
+    // The retained row keeps its position, so it does not fade; the parent
+    // swaps in the struck snapshot on the next frame.
+    if (widget.retainOnComplete) {
+      await widget.onComplete();
       return;
     }
     setState(() => _completing = true);
     await Future<void>.delayed(const Duration(milliseconds: 120));
     await widget.onComplete();
-    // The tablet keeps the row, so the fade must not stick.
-    if (mounted && widget.retained) {
-      setState(() => _completing = false);
-    }
   }
 
   @override

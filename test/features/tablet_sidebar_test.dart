@@ -112,6 +112,59 @@ void main() {
     await tester.tap(find.byKey(ValueKey('sidebar-complete-${event.id}')));
     await tester.pump(const Duration(milliseconds: 250));
     expect(find.byKey(ValueKey('sidebar-row-${event.id}')), findsOneWidget);
+    final completed = await tester.runAsync(() => repo.getById(event.id));
+    expect(completed!.isCompleted, isTrue);
+
+    // The retained row's circle is the undo affordance.
+    await tester.tap(find.byKey(ValueKey('sidebar-complete-${event.id}')));
+    await tester.pumpAndSettle();
+    final undone = await tester.runAsync(() => repo.getById(event.id));
+    expect(undone!.isCompleted, isFalse);
+  });
+
+  testWidgets('tablet sidebar keeps a completion in its time slot', (
+    tester,
+  ) async {
+    final first = await seed();
+    final second = await repo.create(
+      title: 'Later row',
+      kind: 'reminder',
+      date: _today,
+      startMinute: 600,
+      reminderOffsetMinutes: 0,
+    );
+    _useLayout(tester, AppLayout.tablet, const Size(1280, 800));
+    await tester.pumpWidget(_app(container, const CalendarPage()));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(ValueKey('sidebar-complete-${first.id}')));
+    await tester.pump(const Duration(milliseconds: 250));
+    final firstY = tester
+        .getTopLeft(find.byKey(ValueKey('sidebar-row-${first.id}')))
+        .dy;
+    final secondY = tester
+        .getTopLeft(find.byKey(ValueKey('sidebar-row-${second.id}')))
+        .dy;
+    expect(firstY, lessThan(secondY));
+  });
+
+  testWidgets('tablet sidebar retains only on its selected day', (
+    tester,
+  ) async {
+    final event = await seed();
+    _useLayout(tester, AppLayout.tablet, const Size(1280, 800));
+    await tester.pumpWidget(_app(container, const CalendarPage()));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(ValueKey('sidebar-complete-${event.id}')));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byKey(ValueKey('sidebar-row-${event.id}')), findsOneWidget);
+
+    container
+        .read(selectedDayProvider.notifier)
+        .select(_today.add(const Duration(days: 1)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('sidebar-row-${event.id}')), findsNothing);
   });
 
   testWidgets('desktop sidebar rows do not swipe', (tester) async {

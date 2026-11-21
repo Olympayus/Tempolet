@@ -28,17 +28,8 @@ void notificationActionCallback(NotificationResponse response) {
   final action = response.actionId ?? response.payload;
   if (action == null || action.isEmpty) return;
   SharedPreferences.getInstance().then(
-    (prefs) => prefs.setString('pending_notification_action', action),
+    (prefs) => prefs.setString(pendingNotificationActionKey, action),
   );
-}
-
-/// Headless entry point invoked by `TimeChangeReceiver` after a system time
-/// or timezone change; it marks the scheduler dirty for the next launch.
-/// Task 12 replaces this with the full reconcile call.
-@pragma('vm:entry-point')
-Future<void> notificationRescheduleEntrypoint() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool('notification_reschedule_pending', true);
 }
 
 /// Real notification backend (design spec §3.2). Windows is the v0.1.0
@@ -105,7 +96,9 @@ class FlutterLocalNotificationsService implements NotificationService {
     await _plugin.initialize(
       settings: settings,
       onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload;
+        // Action presses carry the action id (`done:`/`snooze:`) while the
+        // notification payload is the event; prefer the action.
+        final payload = response.actionId ?? response.payload;
         _log('tap payload=$payload');
         if (payload != null && payload.isNotEmpty) {
           _onTap?.call(payload);
@@ -138,6 +131,18 @@ class FlutterLocalNotificationsService implements NotificationService {
       );
     }
     _log('initialized (tz=${tz.local.name})');
+  }
+
+  @override
+  Future<String?> takeLaunchPayload() async {
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details == null || !details.didNotificationLaunchApp) return null;
+      return details.notificationResponse?.payload;
+    } catch (error) {
+      _log('takeLaunchPayload failed: $error');
+      return null;
+    }
   }
 
   @override

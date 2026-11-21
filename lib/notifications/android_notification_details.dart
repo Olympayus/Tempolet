@@ -36,6 +36,7 @@ NotificationDetails androidNotificationDetailsFor({
       importance: Importance.high,
       priority: Priority.high,
       category: AndroidNotificationCategory.reminder,
+      playSound: sound,
       visibility: NotificationVisibility.public,
       actions: [
         if (eventId != null) ...[

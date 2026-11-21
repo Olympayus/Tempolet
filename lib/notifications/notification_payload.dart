@@ -20,6 +20,11 @@ String? snoozeEventId(String payload) => _suffixAfter(payload, 'snooze:');
 
 const overdueSummaryPayload = 'summary:overdue';
 
+/// Prefs keys shared with the Android background isolate/receiver.
+const String pendingNotificationActionKey = 'pending_notification_action';
+const String notificationReschedulePendingKey =
+    'notification_reschedule_pending';
+
 String donePayload(String eventId) => 'done:$eventId';
 
 String snoozePayload(String eventId) => 'snooze:$eventId';

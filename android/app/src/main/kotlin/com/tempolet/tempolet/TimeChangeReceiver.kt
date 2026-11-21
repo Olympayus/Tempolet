@@ -27,6 +27,7 @@ class TimeChangeReceiver : BroadcastReceiver() {
             loader.startInitialization(appContext)
             loader.ensureInitializationComplete(appContext, null)
             val engine = FlutterEngine(appContext)
+            GeneratedPluginRegistrant.registerWith(engine)
             engine.dartExecutor.executeDartCallback(
                 DartExecutor.DartCallback(
                     appContext.assets,
@@ -35,9 +36,11 @@ class TimeChangeReceiver : BroadcastReceiver() {
                 )
             )
         } catch (error: Exception) {
-            context.getSharedPreferences("tempolet", Context.MODE_PRIVATE)
+            // Flutter shared_preferences stores keys with a `flutter.` prefix
+            // in its own file, so the next launch can consume this flag.
+            context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
                 .edit()
-                .putBoolean("notification_reschedule_failed", true)
+                .putBoolean("flutter.notification_reschedule_pending", true)
                 .apply()
         }
     }

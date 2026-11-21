@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../data/database/database.dart';
@@ -163,7 +164,11 @@ class _CategoryManagementPageState
           SizedBox(
             height: AppSizes.header,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: EdgeInsets.symmetric(
+                horizontal: resolveAppLayout(context) == AppLayout.phone
+                    ? 16
+                    : 24,
+              ),
               child: Row(
                 children: [
                   IconButton(
@@ -191,7 +196,13 @@ class _CategoryManagementPageState
                       key: const ValueKey('category-title'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.display.copyWith(color: palette.ink),
+                      style: AppTextStyles.display.copyWith(
+                        fontSize:
+                            resolveAppLayout(context) == AppLayout.phone
+                            ? 34
+                            : 28,
+                        color: palette.ink,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -619,6 +630,11 @@ class _CategoryRowState extends State<_CategoryRow> {
   }
 
   Widget _handle(AppPalette palette) {
+    // Phones keep the drag affordance invisible: the row itself is the grab
+    // area (D41: no drag handle on mobile).
+    if (resolveAppLayout(context) == AppLayout.phone) {
+      return const SizedBox(width: 8, height: AppSizes.row);
+    }
     return SizedBox(
       width: 24,
       height: AppSizes.row,

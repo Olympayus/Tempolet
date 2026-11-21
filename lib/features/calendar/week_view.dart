@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/gestures.dart'
     show DragStartBehavior, kDoubleTapTimeout;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_tokens.dart';
@@ -450,6 +451,40 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
                 kind: EventKind.plan,
                 start: selection.start,
                 end: selection.end,
+              );
+            },
+            // Touch: a still finger cannot scroll, so a long press claims the
+            // gesture before the scrollable does. Moving afterwards selects a
+            // range without fighting vertical scrolling.
+            onLongPressStart: (details) {
+              HapticFeedback.mediumImpact();
+              final minute = _minuteAt(details.localPosition.dy);
+              setState(() {
+                _dragStartMinute = minute;
+                _dragCurrentMinute = minute;
+              });
+            },
+            onLongPressMoveUpdate: (details) {
+              setState(() {
+                _dragCurrentMinute = _minuteAt(details.localPosition.dy);
+              });
+            },
+            onLongPressEnd: (_) {
+              final start = _dragStartMinute;
+              final current = _dragCurrentMinute;
+              setState(() {
+                _dragStartMinute = null;
+                _dragCurrentMinute = null;
+              });
+              if (start == null || current == null) return;
+              final selection = selectionFromDrag(start, current);
+              final end = selection.end - selection.start < 5
+                  ? (selection.start + 30).clamp(0, 1440)
+                  : selection.end;
+              _openCreate(
+                kind: EventKind.plan,
+                start: selection.start,
+                end: end,
               );
             },
           ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_dropdown.dart';
@@ -47,16 +48,42 @@ Future<Event?> showEventEditor(
   EventKind? initialKind,
   String? categoryId,
 }) {
-  return showDialog<Event>(
+  // Touch phones open the editor as a bottom sheet; tablets and desktops keep
+  // the centered 480px dialog (`v0.1.5 design` §8.8).
+  final phone = resolveAppLayout(context) == AppLayout.phone;
+  EventEditorDialog build(BuildContext context) => EventEditorDialog(
+    existing: existing,
+    date: date,
+    startMinute: startMinute,
+    endMinute: endMinute,
+    initialKind: initialKind,
+    categoryId: categoryId,
+    bottomSheet: phone,
+  );
+
+  if (!phone) {
+    return showDialog<Event>(context: context, builder: build);
+  }
+  return showGeneralDialog<Event>(
     context: context,
-    builder: (context) => EventEditorDialog(
-      existing: existing,
-      date: date,
-      startMinute: startMinute,
-      endMinute: endMinute,
-      initialKind: initialKind,
-      categoryId: categoryId,
-    ),
+    barrierDismissible: true,
+    barrierLabel: 'editor',
+    barrierColor: Colors.black54,
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (context, animation, secondaryAnimation) => build(context),
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 1),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      );
+    },
   );
 }
 
@@ -69,6 +96,7 @@ class EventEditorDialog extends ConsumerStatefulWidget {
     this.endMinute,
     this.initialKind,
     this.categoryId,
+    this.bottomSheet = false,
   });
 
   final Event? existing;
@@ -79,6 +107,9 @@ class EventEditorDialog extends ConsumerStatefulWidget {
 
   /// Category preselected when creating from a category group.
   final String? categoryId;
+
+  /// Phone presentation: full-width sheet anchored to the bottom edge.
+  final bool bottomSheet;
 
   @override
   ConsumerState<EventEditorDialog> createState() => _EventEditorDialogState();
@@ -346,26 +377,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: SizedBox(
-          width: _sheetWidth,
-          child: Dialog(
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            insetPadding: EdgeInsets.zero,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: p.card,
-                borderRadius: BorderRadius.circular(AppRadii.dialog),
-                border: Border.all(color: p.lineStrong),
-                boxShadow: _sheetShadow,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
                   _header(l10n, p),
                   AppHairline(color: p.line),
                   Flexible(
@@ -513,7 +527,63 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                     ),
                   ),
                   _footer(l10n, p),
-                ],
+      ],
+    );
+
+    if (widget.bottomSheet) return _sheetShell(context, p, column);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: SizedBox(
+          width: _sheetWidth,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            insetPadding: EdgeInsets.zero,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: p.card,
+                borderRadius: BorderRadius.circular(AppRadii.dialog),
+                border: Border.all(color: p.lineStrong),
+                boxShadow: _sheetShadow,
+              ),
+              child: column,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Phone shell: full-width sheet with an 18px top radius, lifted by the
+  /// keyboard inset and capped at 90% of the screen.
+  Widget _sheetShell(BuildContext context, AppPalette p, Widget column) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: p.card,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(18),
+              ),
+              border: Border(top: BorderSide(color: p.lineStrong)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+                ),
+                child: column,
               ),
             ),
           ),
@@ -521,6 +591,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
       ),
     );
   }
+
 
   Widget _header(AppLocalizations l10n, AppPalette p) {
     return SizedBox(

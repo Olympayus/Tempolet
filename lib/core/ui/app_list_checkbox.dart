@@ -35,6 +35,10 @@ class AppListCheckbox extends StatefulWidget {
 }
 
 class _AppListCheckboxState extends State<AppListCheckbox> {
+  void _handleTap() {
+    widget.onTap?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
@@ -84,13 +88,13 @@ class _AppListCheckboxState extends State<AppListCheckbox> {
           actions: {
             ActivateIntent: CallbackAction<ActivateIntent>(
               onInvoke: (_) {
-                widget.onTap?.call();
+                _handleTap();
                 return null;
               },
             ),
             ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
               onInvoke: (_) {
-                widget.onTap?.call();
+                _handleTap();
                 return null;
               },
             ),
@@ -101,7 +105,7 @@ class _AppListCheckboxState extends State<AppListCheckbox> {
                 : SystemMouseCursors.basic,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: widget.onTap,
+              onTap: enabled ? _handleTap : null,
               child: Center(child: glyph),
             ),
           ),

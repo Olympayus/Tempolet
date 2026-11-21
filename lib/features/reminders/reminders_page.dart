@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
+import '../../core/ui/app_popover.dart';
 import '../../core/ui/app_segmented.dart';
 import '../../core/ui/strike_through_text.dart';
 import '../../core/utils/dates.dart';
@@ -492,114 +494,126 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     return Scaffold(
       key: const ValueKey('reminders-page'),
       backgroundColor: palette.bg,
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          RemindersLeftColumn(
-            onSelectDay: _locateDate,
-            recentlyCompleted: _recentlyCompleted,
-            animatingIds: _animatedIds,
-            onComplete: _complete,
-            onUndo: _undo,
-            defaultKind: _filter == RemindersFilter.plan
-                ? EventKind.plan
-                : EventKind.reminder,
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+      body: Builder(
+        builder: (context) {
+          final phone = resolveAppLayout(context) == AppLayout.phone;
+          final inset = phone ? 16.0 : _contentInset;
+          final column = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (phone)
+                _PhoneRemindersHeader(
+                  onManageCategories: () =>
+                      context.go('/reminders/categories'),
+                  onViewCompleted: () => context.go('/reminders/completed'),
+                  onCreate: () => _openNew(today),
+                )
+              else
                 RemindersHeader(
-                  onManageCategories: () => context.go('/reminders/categories'),
+                  onManageCategories: () =>
+                      context.go('/reminders/categories'),
                   onViewCompleted: () => context.go('/reminders/completed'),
                   onCreate: () => _openNew(today),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    _contentInset,
-                    4,
-                    _contentInset,
-                    0,
-                  ),
-                  child: Row(
-                    children: [
-                      _Stat(
-                        key: const ValueKey('reminders-stat-overdue'),
-                        label: l10n.remindersOverdue,
-                        count: overdueDisplay.length,
-                        danger: true,
-                      ),
-                      const SizedBox(width: 16),
-                      _Stat(
-                        key: const ValueKey('reminders-stat-today'),
-                        label: l10n.remindersToday,
-                        count: todayDisplay.length,
-                      ),
-                      const SizedBox(width: 16),
-                      _Stat(
-                        key: const ValueKey('reminders-stat-week'),
-                        label: l10n.remindersThisWeek,
-                        count: weekDisplay.length,
-                      ),
-                    ],
-                  ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(inset, 4, inset, 0),
+                child: Row(
+                  children: [
+                    _Stat(
+                      key: const ValueKey('reminders-stat-overdue'),
+                      label: l10n.remindersOverdue,
+                      count: overdueDisplay.length,
+                      danger: true,
+                    ),
+                    const SizedBox(width: 16),
+                    _Stat(
+                      key: const ValueKey('reminders-stat-today'),
+                      label: l10n.remindersToday,
+                      count: todayDisplay.length,
+                    ),
+                    const SizedBox(width: 16),
+                    _Stat(
+                      key: const ValueKey('reminders-stat-week'),
+                      label: l10n.remindersThisWeek,
+                      count: weekDisplay.length,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: _contentInset,
-                  ),
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: AppSegmented<RemindersFilter>(
-                            key: const ValueKey('reminders-filter'),
-                            values: const [
-                              RemindersFilter.all,
-                              RemindersFilter.reminder,
-                              RemindersFilter.plan,
-                            ],
-                            labelFor: (filter) => Text(switch (filter) {
-                              RemindersFilter.all => l10n.filterAll,
-                              RemindersFilter.reminder => l10n.kindReminder,
-                              RemindersFilter.plan => l10n.kindPlan,
-                            }),
-                            selected: _filter,
-                            onChanged: (filter) =>
-                                setState(() => _filter = filter),
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: inset),
+                child: Row(
+                        children: [
+                          Flexible(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: AppSegmented<RemindersFilter>(
+                                key: const ValueKey('reminders-filter'),
+                                values: const [
+                                  RemindersFilter.all,
+                                  RemindersFilter.reminder,
+                                  RemindersFilter.plan,
+                                ],
+                                labelFor: (filter) => Text(switch (filter) {
+                                  RemindersFilter.all => l10n.filterAll,
+                                  RemindersFilter.reminder =>
+                                    l10n.kindReminder,
+                                  RemindersFilter.plan => l10n.kindPlan,
+                                }),
+                                selected: _filter,
+                                onChanged: (filter) =>
+                                    setState(() => _filter = filter),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Flexible(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: AppSegmented<RemindersMode>(
-                            key: const ValueKey('reminders-mode'),
-                            values: const [
-                              RemindersMode.category,
-                              RemindersMode.date,
-                            ],
-                            labelFor: (mode) => Text(switch (mode) {
-                              RemindersMode.category => l10n.categoryLabel,
-                              RemindersMode.date => l10n.dateLabel,
-                            }),
-                            selected: _mode,
-                            onChanged: (mode) => setState(() => _mode = mode),
+                          const SizedBox(width: 16),
+                          Flexible(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: AppSegmented<RemindersMode>(
+                                key: const ValueKey('reminders-mode'),
+                                values: const [
+                                  RemindersMode.category,
+                                  RemindersMode.date,
+                                ],
+                                labelFor: (mode) => Text(switch (mode) {
+                                  RemindersMode.category => l10n.categoryLabel,
+                                  RemindersMode.date => l10n.dateLabel,
+                                }),
+                                selected: _mode,
+                                onChanged: (mode) =>
+                                    setState(() => _mode = mode),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Expanded(child: content),
-              ],
-            ),
-          ),
-        ],
+              ),
+              const SizedBox(height: 6),
+              Expanded(child: content),
+            ],
+          );
+
+          if (phone) return column;
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              RemindersLeftColumn(
+                onSelectDay: _locateDate,
+                recentlyCompleted: _recentlyCompleted,
+                animatingIds: _animatedIds,
+                onComplete: _complete,
+                onUndo: _undo,
+                defaultKind: _filter == RemindersFilter.plan
+                    ? EventKind.plan
+                    : EventKind.reminder,
+              ),
+              Expanded(child: column),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1225,6 +1239,167 @@ class _Stat extends StatelessWidget {
         ],
       ),
       maxLines: 1,
+    );
+  }
+}
+
+/// Phone reminders header (`10-ui-refinement.md` §9.10): a 34/700 page title
+/// with the overflow menu on the right. The menu holds the two secondary
+/// destinations; new items enter through a group's ＋, the empty state and the
+/// timeline, so the header stays quiet.
+class _PhoneRemindersHeader extends StatelessWidget {
+  const _PhoneRemindersHeader({
+    required this.onManageCategories,
+    required this.onViewCompleted,
+    required this.onCreate,
+  });
+
+  final VoidCallback? onManageCategories;
+  final VoidCallback onViewCompleted;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
+    final l10n = AppLocalizations.of(context);
+
+    return SizedBox(
+      key: const ValueKey('reminders-header'),
+      height: 64,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.remindersTitle,
+                key: const ValueKey('reminders-title'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.display.copyWith(
+                  fontSize: 34,
+                  height: 41 / 34,
+                  color: palette.ink,
+                ),
+              ),
+            ),
+            _PhoneOverflowMenu(
+              onManageCategories: onManageCategories,
+              onViewCompleted: onViewCompleted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhoneOverflowMenu extends StatefulWidget {
+  const _PhoneOverflowMenu({
+    required this.onManageCategories,
+    required this.onViewCompleted,
+  });
+
+  final VoidCallback? onManageCategories;
+  final VoidCallback onViewCompleted;
+
+  @override
+  State<_PhoneOverflowMenu> createState() => _PhoneOverflowMenuState();
+}
+
+class _PhoneOverflowMenuState extends State<_PhoneOverflowMenu> {
+  final _anchorKey = GlobalKey();
+
+  Future<void> _open(BuildContext context) async {
+    final box = _anchorKey.currentContext?.findRenderObject();
+    if (box is! RenderBox) return;
+    final anchor = box.localToGlobal(Offset.zero) & box.size;
+    final l10n = AppLocalizations.of(context);
+    await showAppPopover<void>(
+      context: context,
+      anchor: anchor,
+      tapRegionGroupId: _anchorKey,
+      builder: (popoverContext) => _MenuPanel(
+        items: [
+          (l10n.viewCompletedShort, widget.onViewCompleted),
+          (l10n.manageCategories, widget.onManageCategories),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
+    return TapRegion(
+      groupId: _anchorKey,
+      child: KeyedSubtree(
+        key: const ValueKey('reminders-more'),
+        child: AppIconButton(
+          key: _anchorKey,
+          tooltip: AppLocalizations.of(context).moreActions,
+          onPressed: () => _open(context),
+          icon: Icon(LucideIcons.ellipsis, size: 20, color: palette.sub),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuPanel extends StatelessWidget {
+  const _MenuPanel({required this.items});
+
+  final List<(String, VoidCallback?)> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
+    return Container(
+      width: 200,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: palette.line),
+        boxShadow: kCardShadow,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final (label, action) in items)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                AppPopoverScope.closeWith(context);
+                action?.call();
+              },
+              child: Container(
+                height: 36,
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  label,
+                  style: AppTextStyles.body.copyWith(color: palette.ink),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

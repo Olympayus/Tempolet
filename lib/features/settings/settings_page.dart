@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/app_info.dart';
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/l10n/locale_controller.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_controller.dart';
@@ -29,6 +30,9 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final palette = _paletteOf(context);
+    final layout = resolveAppLayout(context);
+    final desktop = layout == AppLayout.desktop;
+    final phone = layout == AppLayout.phone;
     final theme = ref.watch(themeControllerProvider);
     final locale = ref.watch(localeControllerProvider);
     final offset = ref.watch(defaultReminderOffsetProvider);
@@ -53,7 +57,7 @@ class SettingsPage extends ConsumerWidget {
       key: const ValueKey('settings-page'),
       backgroundColor: palette.bg,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+        padding: EdgeInsets.fromLTRB(phone ? 16 : 32, 24, phone ? 16 : 32, 32),
         child: Align(
           alignment: Alignment.topLeft,
           child: ConstrainedBox(
@@ -64,7 +68,10 @@ class SettingsPage extends ConsumerWidget {
               children: [
                 Text(
                   l10n.navSettings,
-                  style: AppTextStyles.display.copyWith(color: palette.ink),
+                  style: AppTextStyles.display.copyWith(
+                    fontSize: phone ? 34 : 28,
+                    color: palette.ink,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 _SettingsGroup(
@@ -161,11 +168,12 @@ class SettingsPage extends ConsumerWidget {
                   palette: palette,
                   label: l10n.settingsNotifications,
                   rows: [
-                    _SettingsNoteRow(
-                      key: const ValueKey('settings-row-windows-note'),
-                      palette: palette,
-                      text: l10n.notificationsWindowsNote,
-                    ),
+                    if (desktop)
+                      _SettingsNoteRow(
+                        key: const ValueKey('settings-row-windows-note'),
+                        palette: palette,
+                        text: l10n.notificationsWindowsNote,
+                      ),
                     _SettingsRow(
                       key: const ValueKey('settings-row-lead'),
                       palette: palette,
@@ -215,6 +223,7 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (desktop) ...[
                 const SizedBox(height: 28),
                 _SettingsGroup(
                   containerKey: const ValueKey('settings-group-desktop'),
@@ -262,6 +271,7 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ],
                 ),
+                ],
                 const SizedBox(height: 28),
                 _SettingsGroup(
                   containerKey: const ValueKey('settings-group-about'),
@@ -277,17 +287,18 @@ class SettingsPage extends ConsumerWidget {
                         style: AppTextStyles.body.copyWith(color: palette.sub),
                       ),
                     ),
-                    _SettingsRow(
-                      key: const ValueKey('settings-row-data'),
-                      palette: palette,
-                      title: l10n.dataLocation,
-                      control: _TextLink(
-                        key: const ValueKey('open-data-folder'),
-                        label: l10n.openFolder,
-                        color: palette.accent,
-                        onTap: openDataFolder,
+                    if (desktop)
+                      _SettingsRow(
+                        key: const ValueKey('settings-row-data'),
+                        palette: palette,
+                        title: l10n.dataLocation,
+                        control: _TextLink(
+                          key: const ValueKey('open-data-folder'),
+                          label: l10n.openFolder,
+                          color: palette.accent,
+                          onTap: openDataFolder,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -421,6 +432,31 @@ class _SettingsRowState extends State<_SettingsRow> {
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final interactive = widget.onTap != null;
+    // Touch phone rows put segmented controls on their own line, stretched
+    // (`10-ui-refinement.md` §9.10).
+    final stacked =
+        resolveAppLayout(context) == AppLayout.phone &&
+        widget.control is AppSegmented;
+
+    final textColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.title,
+          style: AppTextStyles.rowTitle.copyWith(color: palette.ink),
+        ),
+        if (widget.hint != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            widget.hint!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.hint.copyWith(color: palette.sub),
+          ),
+        ],
+      ],
+    );
 
     final content = Container(
       constraints: const BoxConstraints(minHeight: AppSizes.rowTall),
@@ -432,33 +468,22 @@ class _SettingsRowState extends State<_SettingsRow> {
         color: interactive && _hovered ? palette.hover : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadii.block),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: stacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  widget.title,
-                  style: AppTextStyles.rowTitle.copyWith(color: palette.ink),
-                ),
-                if (widget.hint != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    widget.hint!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.hint.copyWith(color: palette.sub),
-                  ),
-                ],
+                textColumn,
+                const SizedBox(height: 8),
+                widget.control,
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: textColumn),
+                const SizedBox(width: 24),
+                widget.control,
               ],
             ),
-          ),
-          const SizedBox(width: 24),
-          widget.control,
-        ],
-      ),
     );
 
     return MouseRegion(

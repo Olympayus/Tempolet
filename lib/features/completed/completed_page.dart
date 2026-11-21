@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/utils/dates.dart';
@@ -175,6 +176,8 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
             .withAccent(theme.colorScheme.primary);
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context);
+    final layout = resolveAppLayout(context);
+    final phone = layout == AppLayout.phone;
     final events = ref.watch(completedEventsProvider).value ?? const <Event>[];
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
@@ -239,13 +242,20 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
         padding: const EdgeInsets.symmetric(horizontal: _rowOuterInset),
         child: EventListRow(
           event: event,
+          height: phone ? 52 : AppSizes.row,
           color: categoryMarkerColor(event.categoryId, categories),
           titleColor: palette.sub,
-          metadata: Text(
-            ownSchedule,
-            style: AppTextStyles.caption.copyWith(color: palette.sub),
-          ),
-          timeLabel: completionLabel,
+          metadata: phone
+              ? null
+              : Text(
+                  ownSchedule,
+                  style: AppTextStyles.caption.copyWith(color: palette.sub),
+                ),
+          timeLabel: phone
+              ? (at == null
+                    ? ''
+                    : formatMinuteOfDay(at.hour * 60 + at.minute))
+              : completionLabel,
           selectionChecked: _selecting ? selected.contains(event.id) : null,
           onToggleSelection: _selecting
               ? () => _toggleSelected(event.id)
@@ -298,7 +308,9 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
                 SizedBox(
                   height: AppSizes.header,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: phone ? 16 : 24,
+                    ),
                     child: Row(
                       children: [
                         IconButton(
@@ -328,6 +340,7 @@ class _CompletedPageState extends ConsumerState<CompletedPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.display.copyWith(
+                              fontSize: phone ? 34 : 28,
                               color: palette.ink,
                             ),
                           ),

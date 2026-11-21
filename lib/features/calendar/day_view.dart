@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -137,6 +138,7 @@ class _DayViewState extends ConsumerState<DayView> {
                 Positioned.fill(child: HourGrid(gutterColor: palette.side)),
                 Positioned.fill(
                   child: GestureDetector(
+                    key: const ValueKey('day-create-surface'),
                     behavior: HitTestBehavior.opaque,
                     // Begin the range at the press point, not after the drag
                     // slop, so a 34px drag from 09:00 really means 09:00–10:00.
@@ -179,6 +181,42 @@ class _DayViewState extends ConsumerState<DayView> {
                         kind: EventKind.plan,
                         start: selection.start,
                         end: selection.end,
+                      );
+                    },
+                    // Touch: long-press claims the gesture from the scroll,
+                    // then vertical movement selects the plan range.
+                    onLongPressStart: (details) {
+                      HapticFeedback.mediumImpact();
+                      setState(() {
+                        _dragStartMinute = _minuteAt(
+                          details.localPosition.dy,
+                        );
+                        _dragCurrentMinute = _dragStartMinute;
+                      });
+                    },
+                    onLongPressMoveUpdate: (details) {
+                      setState(() {
+                        _dragCurrentMinute = _minuteAt(
+                          details.localPosition.dy,
+                        );
+                      });
+                    },
+                    onLongPressEnd: (_) {
+                      final start = _dragStartMinute;
+                      final current = _dragCurrentMinute;
+                      setState(() {
+                        _dragStartMinute = null;
+                        _dragCurrentMinute = null;
+                      });
+                      if (start == null || current == null) return;
+                      final selection = selectionFromDrag(start, current);
+                      final end = selection.end - selection.start < 5
+                          ? (selection.start + 30).clamp(0, 1440)
+                          : selection.end;
+                      _openCreate(
+                        kind: EventKind.plan,
+                        start: selection.start,
+                        end: end,
                       );
                     },
                   ),

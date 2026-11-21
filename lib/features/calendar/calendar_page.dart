@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/layout.dart';
 import 'calendar_header.dart';
 import 'calendar_state.dart';
 import 'day_view.dart';
 import 'month_view.dart';
+import 'phone_calendar.dart';
 import 'sidebar.dart';
 import 'week_view.dart';
 
@@ -20,6 +22,14 @@ class CalendarPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Phone shell: its own month/week structure (`02-shell-mobile.md` §2).
+    if (resolveAppLayout(context) == AppLayout.phone) {
+      return const Scaffold(
+        key: ValueKey('calendar-page'),
+        body: PhoneCalendarPage(),
+      );
+    }
+
     final mode = ref.watch(calendarViewModeProvider);
     final reduceMotion = MediaQuery.of(context).disableAnimations;
 

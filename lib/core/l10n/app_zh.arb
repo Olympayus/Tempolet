@@ -147,5 +147,6 @@
   "plansGroupTitle": "计划",
   "remindersGroupTitle": "提醒",
   "dayOverviewTitle": "当日概览",
-  "tomorrowPreviewTitle": "次日预览"
+  "tomorrowPreviewTitle": "次日预览",
+  "moreActions": "更多"
 }

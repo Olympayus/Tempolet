@@ -234,5 +234,6 @@
   "plansGroupTitle": "Plans",
   "remindersGroupTitle": "Reminders",
   "dayOverviewTitle": "Day overview",
-  "tomorrowPreviewTitle": "Tomorrow preview"
+  "tomorrowPreviewTitle": "Tomorrow preview",
+  "moreActions": "More"
 }

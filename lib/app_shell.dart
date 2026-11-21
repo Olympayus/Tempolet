@@ -8,9 +8,11 @@ import 'package:go_router/go_router.dart';
 import 'package:window_manager/legacy.dart';
 
 import '../core/platform.dart';
+import '../core/layout.dart';
 import '../core/ui/app_titlebar.dart';
 import '../desktop/titlebar_channel.dart';
 import 'features/shell/icon_rail.dart';
+import 'features/shell/phone_dock.dart';
 
 /// App chrome: the self-drawn 32px title bar (desktop), the 56px icon rail
 /// plus the routed content area.
@@ -85,15 +87,57 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final layout = resolveAppLayout(context);
+
+    final rail = IconRail(
+      selectedIndex: widget.navigationShell.currentIndex,
+      onSelected: _onDestinationSelected,
+    );
     final content = Row(
       children: [
-        IconRail(
-          selectedIndex: widget.navigationShell.currentIndex,
-          onSelected: _onDestinationSelected,
-        ),
+        rail,
         Expanded(child: widget.navigationShell),
       ],
     );
+
+    // Tablet shell: the desktop rail without the title bar, inset by the
+    // Android status bar and gesture area (`v0.1.5 design` §8.2).
+    if (layout == AppLayout.tablet) {
+      return Scaffold(body: SafeArea(child: content));
+    }
+
+    // Phone shell: single column, floating dock overlaying the content.
+    // Sub-pages (completed, categories) hide the dock and use a back header.
+    if (layout == AppLayout.phone) {
+      final path = GoRouterState.of(context).uri.path;
+      final subpage =
+          path.endsWith('/completed') || path.endsWith('/categories');
+      final bottomInset = MediaQuery.paddingOf(context).bottom;
+      return Scaffold(
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: subpage ? 0 : kPhoneDockClearance,
+                ),
+                child: widget.navigationShell,
+              ),
+            ),
+            if (!subpage)
+              Positioned(
+                left: kPhoneDockInset,
+                right: kPhoneDockInset,
+                bottom: bottomInset + kPhoneDockBottomGap,
+                child: PhoneDock(
+                  selectedIndex: widget.navigationShell.currentIndex,
+                  onSelected: _onDestinationSelected,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
 
     if (!_hasDesktopChrome) {
       return Scaffold(body: content);

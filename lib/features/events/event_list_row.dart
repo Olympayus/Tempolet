@@ -48,6 +48,7 @@ class EventListRow extends StatelessWidget {
     this.onToggleComplete,
     this.onToggleSelection,
     this.trailing,
+    this.height = AppSizes.row,
   });
 
   final Event event;
@@ -103,6 +104,9 @@ class EventListRow extends StatelessWidget {
   /// Optional widget rendered after the time (e.g. completed-row actions).
   final Widget? trailing;
 
+  /// Row height. Touch layouts pass the 52px touch row; desktop keeps 46.
+  final double height;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -135,7 +139,7 @@ class EventListRow extends StatelessWidget {
     final note = event.note.trim();
 
     return SizedBox(
-      height: AppSizes.row,
+      height: height,
       child: Stack(
         children: [
           if (isPlan)

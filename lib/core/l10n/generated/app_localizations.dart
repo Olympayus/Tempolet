@@ -985,6 +985,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tomorrow preview'**
   String get tomorrowPreviewTitle;
+
+  /// No description provided for @moreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get moreActions;
+
+  /// No description provided for @notificationChannelName.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders'**
+  String get notificationChannelName;
+
+  /// No description provided for @notificationChannelSilentName.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders (silent)'**
+  String get notificationChannelSilentName;
+
+  /// No description provided for @notificationChannelDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'On-time alerts for plans and reminders'**
+  String get notificationChannelDescription;
+
+  /// No description provided for @notificationsPermissionOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are blocked, so reminders won\'t appear'**
+  String get notificationsPermissionOff;
+
+  /// No description provided for @openSystemSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable'**
+  String get openSystemSettings;
+
+  /// No description provided for @exactAlarmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact alarms'**
+  String get exactAlarmTitle;
+
+  /// No description provided for @exactAlarmOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact alarms are off; reminders may arrive late'**
+  String get exactAlarmOff;
+
+  /// No description provided for @exactAlarmAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow'**
+  String get exactAlarmAllow;
+
+  /// No description provided for @categoryDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this category? Its items move to Uncategorized.'**
+  String get categoryDeleteConfirm;
 }
 
 class _AppLocalizationsDelegate

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -198,23 +197,44 @@ class _MonthViewState extends ConsumerState<MonthView> {
     };
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
-      child: Column(
-        children: [
-          ColoredBox(
-            key: const ValueKey('month-weekday-band'),
-            color: palette.side,
-            child: SizedBox(
-              height: 24,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: palette.lineStrong)),
+        ),
+        child: Column(
+          children: [
+            // The weekday row is the month table's own header: it keeps the
+            // structural `side` surface (same language as the week header and
+            // the sidebar), docks flush onto the grid, and shares its column
+            // rules, so the distinction reads as "header of this table"
+            // instead of a floating band.
+            Container(
+              key: const ValueKey('month-weekday-band'),
+              height: 28,
+              decoration: BoxDecoration(
+                color: palette.side,
+                border: Border(bottom: BorderSide(color: palette.lineStrong)),
+              ),
               child: Row(
                 children: [
                   for (var i = 0; i < 7; i++)
                     Expanded(
-                      child: Center(
-                        child: Text(
-                          AppFormats.weekday(locale, DateTime(2024, 1, 1 + i)),
-                          style: AppTextStyles.caption.copyWith(
-                            color: palette.sub,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(color: palette.lineStrong),
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            AppFormats.weekday(
+                              locale,
+                              DateTime(2024, 1, 1 + i),
+                            ),
+                            style: AppTextStyles.caption.copyWith(
+                              color: palette.sub,
+                            ),
                           ),
                         ),
                       ),
@@ -222,16 +242,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: palette.lineStrong),
-                  left: BorderSide(color: palette.lineStrong),
-                ),
-              ),
+            Expanded(
               child: Column(
                 children: [
                   for (final week in weeks)
@@ -266,8 +277,8 @@ class _MonthViewState extends ConsumerState<MonthView> {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -276,53 +287,6 @@ class _MonthViewState extends ConsumerState<MonthView> {
 String _dateKey(DateTime day) =>
     '${day.year}-${day.month.toString().padLeft(2, '0')}-'
     '${day.day.toString().padLeft(2, '0')}';
-
-/// Fixed cell furniture; the events area has to share what is left
-/// (`docs/design/03-calendar.md` §1.1).
-const double _cellDayRowHeight = 32;
-const double _cellEventRowHeight = 18;
-
-/// Two full event rows are the design maximum; the overflow row is a compact
-/// 11px caption so it always has room of its own.
-const int _cellMaxEventRows = 2;
-const double _cellOverflowRowHeight = 11;
-
-/// How much of the events list a cell can actually show at its current
-/// height. At the 960×600 minimum a 6-week month leaves only 29px below the
-/// 32px day row (600 − 32 title bar − 64 page header − 14 view padding − 28
-/// weekday row = 462; /6 rows = 77; − 16 cell padding − 32 day row = 29), so
-/// one 18px event row plus an 11px ellipsis is the full budget. When even
-/// that does not fit, only the ellipsis renders.
-class _CellEventPlan {
-  const _CellEventPlan({
-    required this.visibleRows,
-    this.showOverflow = false,
-  });
-
-  final int visibleRows;
-  final bool showOverflow;
-}
-
-_CellEventPlan _planCellEvents(int total, double available) {
-  if (total == 0 || available <= 0) return const _CellEventPlan(visibleRows: 0);
-
-  final allRowsFit =
-      total <= _cellMaxEventRows && total * _cellEventRowHeight <= available;
-  if (allRowsFit) return _CellEventPlan(visibleRows: total);
-
-  if (available < _cellOverflowRowHeight) {
-    return const _CellEventPlan(visibleRows: 0);
-  }
-  // Reserve the ellipsis first, then fit whole rows into what remains.
-  final fitting = math.max(
-    0,
-    (available - _cellOverflowRowHeight) ~/ _cellEventRowHeight,
-  );
-  return _CellEventPlan(
-    visibleRows: math.min(math.min(_cellMaxEventRows, total), fitting),
-    showOverflow: true,
-  );
-}
 
 BoxDecoration _cellBorder(AppPalette palette, {Color? color}) => BoxDecoration(
   color: color,
@@ -390,97 +354,32 @@ class _DayCell extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: _cellDayRowHeight,
-              child: _DayRow(
-                day: day,
-                isToday: isToday,
-                holiday: holiday,
-                palette: palette,
+              height: 20,
+              child: Row(
+                children: [
+                  _DayNumber(
+                    day: day,
+                    isToday: isToday,
+                    palette: palette,
+                  ),
+                  if (holiday != null) ...[
+                    const SizedBox(width: 4),
+                    HolidayBadge(
+                      holiday: holiday!,
+                      palette: palette,
+                      fontSize: 9,
+                    ),
+                  ],
+                ],
               ),
             ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final plan = _planCellEvents(
-                    events.length,
-                    constraints.maxHeight,
-                  );
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (final event in events.take(plan.visibleRows))
-                        _EventRow(
-                          event: event,
-                          color: categoryMarkerColor(
-                            event.categoryId,
-                            categories,
-                          ),
-                          palette: palette,
-                        ),
-                      if (plan.showOverflow)
-                        SizedBox(
-                          height: _cellOverflowRowHeight,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '…',
-                              key: ValueKey('month-more-${_dateKey(day)}'),
-                              style: AppTextStyles.caption.copyWith(
-                                color: palette.sub,
-                                height: 1,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The 32px day-number row: date, then the festival name and 休/班 pill when
-/// the date has holiday data. Holiday info stays on this row so both event
-/// rows remain available (`docs/design/03-calendar.md` §1.1).
-class _DayRow extends StatelessWidget {
-  const _DayRow({
-    required this.day,
-    required this.isToday,
-    required this.holiday,
-    required this.palette,
-  });
-
-  final DateTime day;
-  final bool isToday;
-  final Holiday? holiday;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final holiday = this.holiday;
-    return SizedBox(
-      height: 32,
-      child: Row(
-        children: [
-          _DayNumber(
-            day: day,
-            isToday: isToday,
-            palette: palette,
-          ),
-          if (holiday != null) ...[
-            const SizedBox(width: 4),
-            // A 调休 workday shows the gray pill alone; only days off carry
-            // the festival name.
-            if (!holiday.isWorkday)
-              Flexible(
+            // Holiday name sits directly under the date and always renders,
+            // no matter how many events the day carries.
+            if (holiday != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
                 child: Text(
-                  holiday.name,
+                  holiday!.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(
@@ -489,10 +388,19 @@ class _DayRow extends StatelessWidget {
                   ),
                 ),
               ),
-            const SizedBox(width: 3),
-            HolidayBadge(holiday: holiday, palette: palette, fontSize: 9),
+            Expanded(
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: MonthMarkerRow(
+                  events: events,
+                  categories: categories,
+                  palette: palette,
+                  ellipsisKey: ValueKey('month-more-${_dateKey(day)}'),
+                ),
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -527,58 +435,6 @@ class _DayNumber extends StatelessWidget {
           fontVariations: const [FontVariation('wght', 600)],
           color: isToday ? Colors.white : palette.ink,
         ),
-      ),
-    );
-  }
-}
-
-class _EventRow extends StatelessWidget {
-  const _EventRow({
-    required this.event,
-    required this.color,
-    required this.palette,
-  });
-
-  final Event event;
-  final Color color;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final start = event.startMinute;
-
-    return SizedBox(
-      height: 18,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Very narrow cells (a 500px window leaves ~46px of content) cannot
-          // hold marker + time + title; drop the time before it overflows.
-          final showTime = start != null && constraints.maxWidth >= 60;
-          return Row(
-            children: [
-              CategoryMarker(kind: event.kind, color: color),
-              const SizedBox(width: 4),
-              if (showTime) ...[
-                Text(
-                  formatMinuteOfDay(start),
-                  style: AppTextStyles.caption.copyWith(
-                    color: palette.sub,
-                    fontSize: 10,
-                  ),
-                ),
-                const SizedBox(width: 3),
-              ],
-              Expanded(
-                child: Text(
-                  event.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.caption.copyWith(color: palette.ink),
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }

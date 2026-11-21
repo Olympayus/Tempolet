@@ -6,12 +6,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/layout.dart';
+import '../../core/layout_metrics.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_popover.dart';
 import '../../core/ui/app_segmented.dart';
 import '../../core/ui/strike_through_text.dart';
+import '../../core/ui/swipe_actions_row.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -81,6 +83,9 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   /// Ids that completed during this session (drives the one-shot animation).
   final Set<String> _animatedIds = <String>{};
 
+  /// At most one touch row reveals its edit/delete actions.
+  final SwipeActionsController _swipe = SwipeActionsController();
+
   /// Set while the router is on another branch (`/reminders/completed`,
   /// `/reminders/categories`, the calendar, settings). The indexed stack keeps
   /// this page mounted, so `mounted` cannot tell whether the user is still
@@ -101,6 +106,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   void dispose() {
     _router.routerDelegate.removeListener(_onRouteChanged);
     _dateScroll.dispose();
+    _swipe.dispose();
     super.dispose();
   }
 
@@ -246,6 +252,79 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
         updatedAt: DateTime.now(),
       ),
     );
+  }
+
+  /// Edit/delete actions behind a swiped touch row.
+  List<SwipeAction> _swipeActionsFor(
+    Event event,
+    AppPalette palette,
+    AppLocalizations l10n,
+  ) {
+    return [
+      SwipeAction(
+        id: 'edit',
+        label: l10n.edit,
+        color: palette.accent,
+        onPressed: () => showEventEditor(context, existing: event),
+      ),
+      SwipeAction(
+        id: 'delete',
+        label: l10n.delete,
+        color: palette.danger,
+        onPressed: () => _confirmSwipeDelete(event, l10n),
+      ),
+    ];
+  }
+
+  /// Touch layouts use the touch row height; desktop keeps 46.
+  double _rowHeight(BuildContext context) =>
+      isTouchLayout(resolveAppLayout(context))
+      ? LayoutMetrics.of(context).row
+      : AppSizes.row;
+
+  /// Wraps a reminders row in the swipe primitive on phone/tablet only.
+  Widget _touchRow({
+    required Event event,
+    required Widget row,
+    required AppPalette palette,
+    required AppLocalizations l10n,
+  }) {
+    if (!isTouchLayout(resolveAppLayout(context))) return row;
+    return SwipeActionsRow(
+      id: event.id,
+      controller: _swipe,
+      actions: _swipeActionsFor(event, palette, l10n),
+      enabled: !_recentlyCompleted.containsKey(event.id),
+      child: row,
+    );
+  }
+
+  Future<void> _confirmSwipeDelete(Event event, AppLocalizations l10n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const ValueKey('delete-confirm'),
+        content: Text(l10n.deleteForeverHint),
+        actions: [
+          TextButton(
+            key: const ValueKey('delete-confirm-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            key: const ValueKey('delete-confirm-delete'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(notificationSchedulerProvider).cancelEvent(event);
+    await ref.read(eventRepositoryProvider).hardDelete(event.id);
   }
 
   void _toggleGroup(String id) {
@@ -503,15 +582,13 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
             children: [
               if (phone)
                 _PhoneRemindersHeader(
-                  onManageCategories: () =>
-                      context.go('/reminders/categories'),
+                  onManageCategories: () => context.go('/reminders/categories'),
                   onViewCompleted: () => context.go('/reminders/completed'),
                   onCreate: () => _openNew(today),
                 )
               else
                 RemindersHeader(
-                  onManageCategories: () =>
-                      context.go('/reminders/categories'),
+                  onManageCategories: () => context.go('/reminders/categories'),
                   onViewCompleted: () => context.go('/reminders/completed'),
                   onCreate: () => _openNew(today),
                 ),
@@ -544,54 +621,60 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: inset),
                 child: Row(
-                        children: [
-                          Flexible(
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: AppSegmented<RemindersFilter>(
-                                key: const ValueKey('reminders-filter'),
-                                values: const [
-                                  RemindersFilter.all,
-                                  RemindersFilter.reminder,
-                                  RemindersFilter.plan,
-                                ],
-                                labelFor: (filter) => Text(switch (filter) {
-                                  RemindersFilter.all => l10n.filterAll,
-                                  RemindersFilter.reminder =>
-                                    l10n.kindReminder,
-                                  RemindersFilter.plan => l10n.kindPlan,
-                                }),
-                                selected: _filter,
-                                onChanged: (filter) =>
-                                    setState(() => _filter = filter),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Flexible(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: AppSegmented<RemindersMode>(
-                                key: const ValueKey('reminders-mode'),
-                                values: const [
-                                  RemindersMode.category,
-                                  RemindersMode.date,
-                                ],
-                                labelFor: (mode) => Text(switch (mode) {
-                                  RemindersMode.category => l10n.categoryLabel,
-                                  RemindersMode.date => l10n.dateLabel,
-                                }),
-                                selected: _mode,
-                                onChanged: (mode) =>
-                                    setState(() => _mode = mode),
-                              ),
-                            ),
-                          ),
-                        ],
+                  children: [
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: AppSegmented<RemindersFilter>(
+                          key: const ValueKey('reminders-filter'),
+                          values: const [
+                            RemindersFilter.all,
+                            RemindersFilter.reminder,
+                            RemindersFilter.plan,
+                          ],
+                          labelFor: (filter) => Text(switch (filter) {
+                            RemindersFilter.all => l10n.filterAll,
+                            RemindersFilter.reminder => l10n.kindReminder,
+                            RemindersFilter.plan => l10n.kindPlan,
+                          }),
+                          selected: _filter,
+                          onChanged: (filter) =>
+                              setState(() => _filter = filter),
+                        ),
                       ),
+                    ),
+                    const SizedBox(width: 16),
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: AppSegmented<RemindersMode>(
+                          key: const ValueKey('reminders-mode'),
+                          values: const [
+                            RemindersMode.category,
+                            RemindersMode.date,
+                          ],
+                          labelFor: (mode) => Text(switch (mode) {
+                            RemindersMode.category => l10n.categoryLabel,
+                            RemindersMode.date => l10n.dateLabel,
+                          }),
+                          selected: _mode,
+                          onChanged: (mode) => setState(() => _mode = mode),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 6),
-              Expanded(child: content),
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (_) {
+                    _swipe.close();
+                    return false;
+                  },
+                  child: content,
+                ),
+              ),
             ],
           );
 
@@ -1059,26 +1142,32 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
             for (final event in events)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: _rowOuterInset),
-                child: EventListRow(
-                  key: ValueKey('date-row-${event.id}'),
+                child: _touchRow(
                   event: event,
-                  color: categoryMarkerColor(event.categoryId, categories),
-                  showDate: false,
-                  timeColor: isOverdueDay ? palette.danger : null,
-                  timeSuffix: isOverdueDay ? l10n.remindersOverdue : null,
-                  onTap: _recentlyCompleted.containsKey(event.id)
-                      ? null
-                      : () => showEventEditor(context, existing: event),
-                  onToggleComplete: _recentlyCompleted.containsKey(event.id)
-                      ? () => _undo(event)
-                      : () => _complete(event),
-                  titleBuilder: _recentlyCompleted.containsKey(event.id)
-                      ? (context, style) => _strikeTitle(
-                          event: event,
-                          style: style,
-                          endColor: palette.sub,
-                        )
-                      : null,
+                  palette: palette,
+                  l10n: l10n,
+                  row: EventListRow(
+                    key: ValueKey('date-row-${event.id}'),
+                    event: event,
+                    color: categoryMarkerColor(event.categoryId, categories),
+                    showDate: false,
+                    timeColor: isOverdueDay ? palette.danger : null,
+                    timeSuffix: isOverdueDay ? l10n.remindersOverdue : null,
+                    height: _rowHeight(context),
+                    onTap: _recentlyCompleted.containsKey(event.id)
+                        ? null
+                        : () => showEventEditor(context, existing: event),
+                    onToggleComplete: _recentlyCompleted.containsKey(event.id)
+                        ? () => _undo(event)
+                        : () => _complete(event),
+                    titleBuilder: _recentlyCompleted.containsKey(event.id)
+                        ? (context, style) => _strikeTitle(
+                            event: event,
+                            style: style,
+                            endColor: palette.sub,
+                          )
+                        : null,
+                  ),
                 ),
               ),
         ],
@@ -1156,25 +1245,31 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
           for (final event in group.events)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: _rowOuterInset),
-              child: EventListRow(
-                key: ValueKey('reminders-row-${event.id}'),
+              child: _touchRow(
                 event: event,
-                color: categoryMarkerColor(event.categoryId, categories),
-                showDate: true,
-                timeColor: group.danger ? palette.danger : null,
-                onTap: _recentlyCompleted.containsKey(event.id)
-                    ? null
-                    : () => showEventEditor(context, existing: event),
-                onToggleComplete: _recentlyCompleted.containsKey(event.id)
-                    ? () => _undo(event)
-                    : () => _complete(event),
-                titleBuilder: _recentlyCompleted.containsKey(event.id)
-                    ? (context, style) => _strikeTitle(
-                        event: event,
-                        style: style,
-                        endColor: palette.sub,
-                      )
-                    : null,
+                palette: palette,
+                l10n: l10n,
+                row: EventListRow(
+                  key: ValueKey('reminders-row-${event.id}'),
+                  event: event,
+                  color: categoryMarkerColor(event.categoryId, categories),
+                  showDate: true,
+                  timeColor: group.danger ? palette.danger : null,
+                  height: _rowHeight(context),
+                  onTap: _recentlyCompleted.containsKey(event.id)
+                      ? null
+                      : () => showEventEditor(context, existing: event),
+                  onToggleComplete: _recentlyCompleted.containsKey(event.id)
+                      ? () => _undo(event)
+                      : () => _complete(event),
+                  titleBuilder: _recentlyCompleted.containsKey(event.id)
+                      ? (context, style) => _strikeTitle(
+                          event: event,
+                          style: style,
+                          endColor: palette.sub,
+                        )
+                      : null,
+                ),
               ),
             ),
       ],
@@ -1288,6 +1383,13 @@ class _PhoneRemindersHeader extends StatelessWidget {
                 ),
               ),
             ),
+            AppIconButton(
+              key: const ValueKey('reminders-create'),
+              tooltip: l10n.newItem,
+              onPressed: onCreate,
+              icon: Icon(LucideIcons.plus, size: 20, color: palette.sub),
+            ),
+            const SizedBox(width: 4),
             _PhoneOverflowMenu(
               onManageCategories: onManageCategories,
               onViewCompleted: onViewCompleted,

@@ -49,6 +49,7 @@ class EventListRow extends StatelessWidget {
     this.onToggleSelection,
     this.trailing,
     this.completeKey,
+    this.showCompletion = true,
     this.height = AppSizes.row,
   });
 
@@ -107,6 +108,10 @@ class EventListRow extends StatelessWidget {
 
   /// Optional key on the completion circle, for tests that tap it directly.
   final Key? completeKey;
+
+  /// When false, the leading completion control is omitted entirely (used by
+  /// the read-only long-press month preview).
+  final bool showCompletion;
 
   /// Row height. Touch layouts pass the 52px touch row; desktop keeps 46.
   final double height;
@@ -169,7 +174,9 @@ class EventListRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: _rowPadding),
                 child: Row(
                   children: [
-                    if (selectionChecked != null)
+                    if (!showCompletion)
+                      const SizedBox(width: 24)
+                    else if (selectionChecked != null)
                       AppListCheckbox(
                         checked: selectionChecked!,
                         onTap: onToggleSelection,

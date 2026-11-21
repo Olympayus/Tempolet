@@ -231,6 +231,14 @@
   "completedChip": "Completed",
   "showLeftPanel": "Show calendar panel",
   "hideLeftPanel": "Hide calendar panel",
+  "monthPreviewMore": "{count} more",
+  "@monthPreviewMore": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sidebarEmptyTitle": "No schedule",
   "sidebarEmptyHint": "Add a reminder or plan to start the day.",
   "plansGroupTitle": "Plans",

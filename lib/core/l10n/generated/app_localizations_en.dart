@@ -507,6 +507,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hideLeftPanel => 'Hide calendar panel';
 
   @override
+  String monthPreviewMore(int count) {
+    return '$count more';
+  }
+
+  @override
   String get sidebarEmptyTitle => 'No schedule';
 
   @override

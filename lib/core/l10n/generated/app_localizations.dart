@@ -962,6 +962,12 @@ abstract class AppLocalizations {
   /// **'Hide calendar panel'**
   String get hideLeftPanel;
 
+  /// No description provided for @monthPreviewMore.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} more'**
+  String monthPreviewMore(int count);
+
   /// No description provided for @sidebarEmptyTitle.
   ///
   /// In en, this message translates to:

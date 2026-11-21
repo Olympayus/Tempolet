@@ -35,9 +35,17 @@ const double _windowInset = 8;
 /// shared [EventListRow] with inline completion. There is no scrim; the
 /// primitive closes it on Escape, an outside tap or the × button.
 class MonthPreviewPopover extends ConsumerWidget {
-  const MonthPreviewPopover({super.key, required this.day});
+  const MonthPreviewPopover({
+    super.key,
+    required this.day,
+    this.readOnly = false,
+  });
 
   final DateTime day;
+
+  /// Touch long-press preview: no close button, no completion circles, no
+  /// scrolling; overflow collapses into a 「还有 N 项」 line.
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,10 +73,7 @@ class MonthPreviewPopover extends ConsumerWidget {
       _popoverWidth,
       math.max(0.0, window.width - _windowInset * 2),
     );
-    final maxHeight = math.max(
-      _headerHeight,
-      window.height - _windowInset * 2,
-    );
+    final maxHeight = math.max(_headerHeight, window.height - _windowInset * 2);
 
     return Container(
       key: const ValueKey('month-preview'),
@@ -129,62 +134,131 @@ class MonthPreviewPopover extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  AppIconButton(
-                    key: const ValueKey('month-preview-close'),
-                    onPressed: () => AppPopoverScope.closeWith(context),
-                    icon: const Icon(LucideIcons.x),
-                  ),
+                  if (!readOnly)
+                    AppIconButton(
+                      key: const ValueKey('month-preview-close'),
+                      onPressed: () => AppPopoverScope.closeWith(context),
+                      icon: const Icon(LucideIcons.x),
+                    ),
                 ],
               ),
             ),
           ),
-          Flexible(
-            child: SingleChildScrollView(
-              key: const ValueKey('month-preview-scroll'),
-              child: events.isEmpty
-                  ? SizedBox(
-                      height: _rowHeight,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            l10n.noEvents,
-                            style: AppTextStyles.body.copyWith(
-                              color: palette.subWeak,
+          if (readOnly)
+            _readOnlyRows(events, categories, palette, l10n, maxHeight)
+          else
+            Flexible(
+              child: SingleChildScrollView(
+                key: const ValueKey('month-preview-scroll'),
+                child: events.isEmpty
+                    ? SizedBox(
+                        height: _rowHeight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              l10n.noEvents,
+                              style: AppTextStyles.body.copyWith(
+                                color: palette.subWeak,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final event in events)
-                          _PreviewRow(
-                            key: ValueKey('preview-row-${event.id}'),
-                            event: event,
-                            color: categoryMarkerColor(
-                              event.categoryId,
-                              categories,
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final event in events)
+                            _PreviewRow(
+                              key: ValueKey('preview-row-${event.id}'),
+                              event: event,
+                              color: categoryMarkerColor(
+                                event.categoryId,
+                                categories,
+                              ),
                             ),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
+              ),
             ),
-          ),
         ],
       ),
+    );
+  }
+
+  /// Read-only body for the touch long-press: fixed rows that fit the panel,
+  /// then a 「还有 N 项」 line. Never scrolls (`v0.1.5 design` §8.4).
+  Widget _readOnlyRows(
+    List<Event> events,
+    List<Category> categories,
+    AppPalette palette,
+    AppLocalizations l10n,
+    double maxHeight,
+  ) {
+    final available = math.max(_rowHeight, maxHeight - _headerHeight);
+    final maxRows = math.max(1, (available / _rowHeight).floor());
+    final overflow = events.length > maxRows;
+    final shown = overflow ? events.take(maxRows - 1).toList() : events;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (events.isEmpty)
+          SizedBox(
+            height: _rowHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  l10n.noEvents,
+                  style: AppTextStyles.body.copyWith(color: palette.subWeak),
+                ),
+              ),
+            ),
+          ),
+        for (final event in shown)
+          _PreviewRow(
+            key: ValueKey('preview-row-${event.id}'),
+            event: event,
+            color: categoryMarkerColor(event.categoryId, categories),
+            readOnly: true,
+          ),
+        if (overflow)
+          SizedBox(
+            height: _rowHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  l10n.monthPreviewMore(events.length - shown.length),
+                  style: AppTextStyles.caption.copyWith(
+                    color: palette.subMuted,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
 
 class _PreviewRow extends ConsumerStatefulWidget {
-  const _PreviewRow({super.key, required this.event, required this.color});
+  const _PreviewRow({
+    super.key,
+    required this.event,
+    required this.color,
+    this.readOnly = false,
+  });
 
   final Event event;
   final Color color;
+  final bool readOnly;
 
   @override
   ConsumerState<_PreviewRow> createState() => _PreviewRowState();
@@ -218,8 +292,11 @@ class _PreviewRowState extends ConsumerState<_PreviewRow> {
       child: EventListRow(
         event: event,
         color: widget.color,
-        onTap: () => showEventEditor(context, existing: widget.event),
-        onToggleComplete: _complete,
+        showCompletion: !widget.readOnly,
+        onTap: widget.readOnly
+            ? null
+            : () => showEventEditor(context, existing: widget.event),
+        onToggleComplete: widget.readOnly ? null : _complete,
       ),
     );
   }

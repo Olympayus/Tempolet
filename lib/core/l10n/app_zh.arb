@@ -144,6 +144,7 @@
   "completedChip": "查看已完成",
   "showLeftPanel": "显示日历面板",
   "hideLeftPanel": "隐藏日历面板",
+  "monthPreviewMore": "还有 {count} 项",
   "sidebarEmptyTitle": "无安排",
   "sidebarEmptyHint": "添加提醒或计划，开始这一天。",
   "plansGroupTitle": "计划",

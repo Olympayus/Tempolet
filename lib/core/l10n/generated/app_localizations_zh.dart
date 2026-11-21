@@ -496,6 +496,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hideLeftPanel => '隐藏日历面板';
 
   @override
+  String monthPreviewMore(int count) {
+    return '还有 $count 项';
+  }
+
+  @override
   String get sidebarEmptyTitle => '无安排';
 
   @override

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -51,8 +52,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
   DateTime? _suppressedDay;
   DateTime? _hoveredDay;
 
-  GlobalKey _cellKey(DateTime day) =>
-      _cellKeys.putIfAbsent(day, GlobalKey.new);
+  GlobalKey _cellKey(DateTime day) => _cellKeys.putIfAbsent(day, GlobalKey.new);
 
   @override
   void dispose() {
@@ -117,6 +117,41 @@ class _MonthViewState extends ConsumerState<MonthView> {
     final close = _closePreview;
     _closePreview = null;
     close?.call();
+  }
+
+  /// Long-press preview for touch tablets: read-only, closes on finger up,
+  /// and never changes the selected day (`v0.1.5 design` §8.4).
+  void _openTouchPreview(DateTime day) {
+    if (!mounted || _openPreviewDay == day) return;
+    _closeOpenPreview();
+    final box = _cellKey(day).currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final anchor = box.localToGlobal(Offset.zero) & box.size;
+    _openPreviewDay = day;
+    _previewBuilt = true;
+    final future = showAppPopover<void>(
+      context: context,
+      anchor: anchor,
+      builder: (popoverContext) {
+        final scope = AppPopoverScope.maybeOf(popoverContext);
+        if (!mounted || _openPreviewDay != day) {
+          scope?.close(null);
+          return const SizedBox.shrink();
+        }
+        if (scope != null) _closePreview = () => scope.close(null);
+        return MonthPreviewPopover(day: day, readOnly: true);
+      },
+    );
+    future.whenComplete(() {
+      if (!mounted || _openPreviewDay != day) return;
+      _openPreviewDay = null;
+      _previewBuilt = false;
+      _closePreview = null;
+    });
+  }
+
+  void _closeTouchPreview() {
+    _closeOpenPreview();
   }
 
   void _openPreview(DateTime day) {
@@ -268,6 +303,9 @@ class _MonthViewState extends ConsumerState<MonthView> {
                                         categories: categories,
                                         palette: palette,
                                         onTap: () => _handleCellTap(day),
+                                        onLongPressStart: () =>
+                                            _openTouchPreview(day),
+                                        onLongPressEnd: _closeTouchPreview,
                                       ),
                                     ),
                             ),
@@ -319,6 +357,8 @@ class _DayCell extends StatelessWidget {
     required this.categories,
     required this.palette,
     required this.onTap,
+    this.onLongPressStart,
+    this.onLongPressEnd,
   });
 
   final DateTime day;
@@ -330,6 +370,10 @@ class _DayCell extends StatelessWidget {
   final List<Category> categories;
   final AppPalette palette;
   final VoidCallback onTap;
+
+  /// Touch long-press preview callbacks (tablet); mouse keeps hover.
+  final VoidCallback? onLongPressStart;
+  final VoidCallback? onLongPressEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -343,10 +387,27 @@ class _DayCell extends StatelessWidget {
       cellColor = palette.hover;
     }
 
-    return GestureDetector(
+    return RawGestureDetector(
       key: ValueKey('month-day-${_dateKey(day)}'),
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      gestures: {
+        TapGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+              TapGestureRecognizer.new,
+              (recognizer) => recognizer.onTap = onTap,
+            ),
+        if (onLongPressStart != null)
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                () => LongPressGestureRecognizer(
+                  duration: const Duration(milliseconds: 400),
+                ),
+                (recognizer) {
+                  recognizer.onLongPressStart = (_) => onLongPressStart!();
+                  recognizer.onLongPressEnd = (_) => onLongPressEnd?.call();
+                },
+              ),
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: _cellBorder(palette, color: cellColor),
@@ -357,11 +418,7 @@ class _DayCell extends StatelessWidget {
               height: 20,
               child: Row(
                 children: [
-                  _DayNumber(
-                    day: day,
-                    isToday: isToday,
-                    palette: palette,
-                  ),
+                  _DayNumber(day: day, isToday: isToday, palette: palette),
                   if (holiday != null) ...[
                     const SizedBox(width: 4),
                     HolidayBadge(

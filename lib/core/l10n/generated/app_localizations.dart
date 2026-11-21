@@ -845,7 +845,7 @@ abstract class AppLocalizations {
   /// No description provided for @notifActionRemind.
   ///
   /// In en, this message translates to:
-  /// **'Remind in 10 minutes'**
+  /// **'In 10 minutes'**
   String get notifActionRemind;
 
   /// No description provided for @navReminders.
@@ -961,6 +961,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hide calendar panel'**
   String get hideLeftPanel;
+
+  /// No description provided for @notificationChannelSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders (sound)'**
+  String get notificationChannelSound;
+
+  /// No description provided for @notificationChannelSilent.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders (silent)'**
+  String get notificationChannelSilent;
+
+  /// No description provided for @notificationChannelDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Tempolet reminders and plans'**
+  String get notificationChannelDescription;
 
   /// No description provided for @notificationPermission.
   ///

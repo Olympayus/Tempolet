@@ -447,7 +447,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifActionDone => 'Done';
 
   @override
-  String get notifActionRemind => 'Remind in 10 minutes';
+  String get notifActionRemind => 'In 10 minutes';
 
   @override
   String get navReminders => 'Reminders';
@@ -505,6 +505,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hideLeftPanel => 'Hide calendar panel';
+
+  @override
+  String get notificationChannelSound => 'Reminders (sound)';
+
+  @override
+  String get notificationChannelSilent => 'Reminders (silent)';
+
+  @override
+  String get notificationChannelDescription => 'Tempolet reminders and plans';
 
   @override
   String get notificationPermission => 'Notification permission';

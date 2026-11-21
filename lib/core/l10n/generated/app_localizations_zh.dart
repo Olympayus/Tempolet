@@ -436,7 +436,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notifActionDone => '完成';
 
   @override
-  String get notifActionRemind => '10 分钟后提醒';
+  String get notifActionRemind => '10 分钟后';
 
   @override
   String get navReminders => '提醒';
@@ -494,6 +494,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hideLeftPanel => '隐藏日历面板';
+
+  @override
+  String get notificationChannelSound => '提醒（有声）';
+
+  @override
+  String get notificationChannelSilent => '提醒（无声）';
+
+  @override
+  String get notificationChannelDescription => 'Tempolet 的提醒与计划';
 
   @override
   String get notificationPermission => '通知权限';

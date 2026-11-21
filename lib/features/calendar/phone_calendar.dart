@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,11 +6,14 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_segmented.dart';
+import '../../core/ui/strike_through_text.dart';
+import '../../core/ui/swipe_actions_row.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../notifications/notification_scheduler.dart';
 import '../events/event_editor_sheet.dart';
 import '../events/event_list_row.dart';
 import 'calendar_state.dart';
@@ -95,9 +99,8 @@ class _PhoneCalendarHeader extends ConsumerWidget {
           AppSegmented<CalendarViewMode>(
             key: const ValueKey('phone-calendar-mode'),
             values: const [CalendarViewMode.month, CalendarViewMode.week],
-            labelFor: (value) => Text(
-              value == CalendarViewMode.month ? l10n.month : l10n.week,
-            ),
+            labelFor: (value) =>
+                Text(value == CalendarViewMode.month ? l10n.month : l10n.week),
             selected: effective,
             onChanged: (value) =>
                 ref.read(calendarViewModeProvider.notifier).set(value),
@@ -183,9 +186,7 @@ class _PhoneMonthPanel extends ConsumerWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: palette.side,
-                  border: Border(
-                    bottom: BorderSide(color: palette.lineStrong),
-                  ),
+                  border: Border(bottom: BorderSide(color: palette.lineStrong)),
                 ),
                 child: Row(
                   children: [
@@ -362,11 +363,138 @@ class _PhoneDayCell extends StatelessWidget {
 }
 
 /// The selected day's header + independently scrolling list.
-class _PhoneDaySection extends ConsumerWidget {
+///
+/// Touch rows complete in place (D70): the row keeps its position with a
+/// 200ms strike-through until the user leaves the month list, and swiping it
+/// left reveals edit/delete.
+class _PhoneDaySection extends ConsumerStatefulWidget {
   const _PhoneDaySection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PhoneDaySection> createState() => _PhoneDaySectionState();
+}
+
+class _PhoneDaySectionState extends ConsumerState<_PhoneDaySection> {
+  final Map<String, Event> _recentlyCompleted = <String, Event>{};
+  final Set<String> _animatedIds = <String>{};
+  final SwipeActionsController _swipe = SwipeActionsController();
+
+  @override
+  void dispose() {
+    // Leaving the page drops the retained snapshots; the items now belong to
+    // the completed page.
+    _recentlyCompleted.clear();
+    _swipe.dispose();
+    super.dispose();
+  }
+
+  Future<void> _complete(Event event) async {
+    final repo = ref.read(eventRepositoryProvider);
+    final sync = ref.read(eventNotifierSyncProvider);
+    await repo.setCompleted(event.id, true);
+    final snapshot = event.copyWith(
+      isCompleted: true,
+      completedAt: Value(DateTime.now()),
+    );
+    if (mounted) {
+      setState(() {
+        _recentlyCompleted[event.id] = snapshot;
+        _animatedIds.add(event.id);
+      });
+    }
+    sync.afterCompletion(snapshot);
+  }
+
+  Future<void> _undo(Event event) async {
+    final repo = ref.read(eventRepositoryProvider);
+    final sync = ref.read(eventNotifierSyncProvider);
+    await repo.setCompleted(event.id, false);
+    if (mounted) {
+      setState(() {
+        _recentlyCompleted.remove(event.id);
+        _animatedIds.remove(event.id);
+      });
+    }
+    sync.afterUpdate(
+      event.copyWith(
+        isCompleted: false,
+        completedAt: const Value(null),
+        updatedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  List<SwipeAction> _swipeActionsFor(
+    Event event,
+    AppPalette palette,
+    AppLocalizations l10n,
+  ) {
+    return [
+      SwipeAction(
+        id: 'edit',
+        label: l10n.edit,
+        color: palette.accent,
+        onPressed: () => showEventEditor(context, existing: event),
+      ),
+      SwipeAction(
+        id: 'delete',
+        label: l10n.delete,
+        color: palette.danger,
+        onPressed: () => _confirmDelete(event, l10n),
+      ),
+    ];
+  }
+
+  Future<void> _confirmDelete(Event event, AppLocalizations l10n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const ValueKey('delete-confirm'),
+        content: Text(l10n.deleteForeverHint),
+        actions: [
+          TextButton(
+            key: const ValueKey('delete-confirm-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            key: const ValueKey('delete-confirm-delete'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(notificationSchedulerProvider).cancelEvent(event);
+    await ref.read(eventRepositoryProvider).hardDelete(event.id);
+  }
+
+  Widget _strikeTitle({
+    required Event event,
+    required TextStyle style,
+    required Color endColor,
+  }) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    Widget title(double progress) => StrikeThroughText(
+      key: ValueKey('phone-day-strike-${event.id}'),
+      text: event.title,
+      style: TextStyle.lerp(style, style.copyWith(color: endColor), progress)!,
+      progress: progress,
+    );
+    if (reduceMotion || !_animatedIds.contains(event.id)) return title(1);
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 200),
+      builder: (context, progress, _) => title(progress),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette =
         (theme.brightness == Brightness.light
@@ -378,9 +506,20 @@ class _PhoneDaySection extends ConsumerWidget {
     final selected = ref.watch(selectedDayProvider);
     final events =
         ref.watch(eventsForDayProvider(selected)).value ?? const <Event>[];
-    final pending = events.where((event) => !event.isCompleted).toList();
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
+
+    // Pending rows keep their provider order; a retained completion stays in
+    // the same slot through its snapshot.
+    final visible = <Event>[
+      for (final event in events)
+        if (!event.isCompleted)
+          event
+        else if (_recentlyCompleted.containsKey(event.id))
+          _recentlyCompleted[event.id]!,
+      for (final retained in _recentlyCompleted.values)
+        if (!events.any((event) => event.id == retained.id)) retained,
+    ];
 
     return Expanded(
       child: Column(
@@ -401,7 +540,7 @@ class _PhoneDaySection extends ConsumerWidget {
                 ),
                 const Spacer(),
                 Text(
-                  l10n.itemsCount(pending.length),
+                  l10n.itemsCount(visible.length),
                   style: AppTextStyles.secondary.copyWith(color: palette.sub),
                 ),
               ],
@@ -412,7 +551,7 @@ class _PhoneDaySection extends ConsumerWidget {
               key: const ValueKey('phone-day-list'),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                if (pending.isEmpty)
+                if (visible.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: Text(
@@ -420,23 +559,38 @@ class _PhoneDaySection extends ConsumerWidget {
                       style: AppTextStyles.body.copyWith(color: palette.sub),
                     ),
                   ),
-                for (final event in pending)
-                  EventListRow(
-                    event: event,
-                    height: 52,
-                    color: categoryMarkerColor(event.categoryId, categories),
-                    onTap: () =>
-                        showEventEditor(context, existing: event),
-                    onToggleComplete: () => ref
-                        .read(eventRepositoryProvider)
-                        .setCompleted(event.id, !event.isCompleted),
+                for (final event in visible)
+                  SwipeActionsRow(
+                    id: event.id,
+                    controller: _swipe,
+                    actions: _swipeActionsFor(event, palette, l10n),
+                    enabled: !_recentlyCompleted.containsKey(event.id),
+                    child: EventListRow(
+                      key: ValueKey('phone-day-row-${event.id}'),
+                      event: event,
+                      height: 52,
+                      color: categoryMarkerColor(event.categoryId, categories),
+                      completeKey: ValueKey('phone-day-complete-${event.id}'),
+                      onTap: _recentlyCompleted.containsKey(event.id)
+                          ? null
+                          : () => showEventEditor(context, existing: event),
+                      onToggleComplete: _recentlyCompleted.containsKey(event.id)
+                          ? () => _undo(event)
+                          : () => _complete(event),
+                      titleBuilder: _recentlyCompleted.containsKey(event.id)
+                          ? (context, style) => _strikeTitle(
+                              event: event,
+                              style: style,
+                              endColor: palette.sub,
+                            )
+                          : null,
+                    ),
                   ),
                 SizedBox(
                   height: 52,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        showEventEditor(context, date: selected),
+                    onTap: () => showEventEditor(context, date: selected),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -486,11 +640,7 @@ class _PhoneDateStrip extends ConsumerWidget {
     final locale = Localizations.localeOf(context);
     final selected = ref.watch(selectedDayProvider);
     final today = dateOnly(ref.watch(todayProvider));
-    final start = DateTime(
-      selected.year,
-      selected.month,
-      selected.day - 3,
-    );
+    final start = DateTime(selected.year, selected.month, selected.day - 3);
     final days = [
       for (var i = 0; i < 7; i++)
         DateTime(start.year, start.month, start.day + i),

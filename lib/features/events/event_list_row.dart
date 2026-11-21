@@ -48,6 +48,7 @@ class EventListRow extends StatelessWidget {
     this.onToggleComplete,
     this.onToggleSelection,
     this.trailing,
+    this.completeKey,
     this.height = AppSizes.row,
   });
 
@@ -103,6 +104,9 @@ class EventListRow extends StatelessWidget {
 
   /// Optional widget rendered after the time (e.g. completed-row actions).
   final Widget? trailing;
+
+  /// Optional key on the completion circle, for tests that tap it directly.
+  final Key? completeKey;
 
   /// Row height. Touch layouts pass the 52px touch row; desktop keeps 46.
   final double height;
@@ -171,9 +175,12 @@ class EventListRow extends StatelessWidget {
                         onTap: onToggleSelection,
                       )
                     else
-                      AppCheckCircle(
-                        checked: event.isCompleted,
-                        onTap: onToggleComplete,
+                      KeyedSubtree(
+                        key: completeKey,
+                        child: AppCheckCircle(
+                          checked: event.isCompleted,
+                          onTap: onToggleComplete,
+                        ),
                       ),
                     const SizedBox(width: _gap),
                     SizedBox(

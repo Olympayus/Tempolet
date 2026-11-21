@@ -1,8 +1,10 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_segmented.dart';
@@ -379,13 +381,39 @@ class _PhoneDaySectionState extends ConsumerState<_PhoneDaySection> {
   final Set<String> _animatedIds = <String>{};
   final SwipeActionsController _swipe = SwipeActionsController();
 
+  late final GoRouter _router;
+
+  /// The indexed shell keeps this page mounted when another branch (or the
+  /// nested completed page) is on top; retention must clear on the route, not
+  /// on dispose.
+  bool _leftPage = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = ref.read(routerProvider);
+    _router.routerDelegate.addListener(_onRouteChanged);
+  }
+
   @override
   void dispose() {
-    // Leaving the page drops the retained snapshots; the items now belong to
-    // the completed page.
+    _router.routerDelegate.removeListener(_onRouteChanged);
     _recentlyCompleted.clear();
     _swipe.dispose();
     super.dispose();
+  }
+
+  void _onRouteChanged() {
+    if (!mounted) return;
+    final onCalendar =
+        _router.routerDelegate.currentConfiguration.uri.path == '/calendar';
+    _leftPage = !onCalendar;
+    if (!onCalendar && _recentlyCompleted.isNotEmpty) {
+      setState(() {
+        _recentlyCompleted.clear();
+        _animatedIds.clear();
+      });
+    }
   }
 
   Future<void> _complete(Event event) async {
@@ -396,7 +424,7 @@ class _PhoneDaySectionState extends ConsumerState<_PhoneDaySection> {
       isCompleted: true,
       completedAt: Value(DateTime.now()),
     );
-    if (mounted) {
+    if (mounted && !_leftPage) {
       setState(() {
         _recentlyCompleted[event.id] = snapshot;
         _animatedIds.add(event.id);
@@ -493,6 +521,17 @@ class _PhoneDaySectionState extends ConsumerState<_PhoneDaySection> {
     );
   }
 
+  /// The repository's day order: start minute (all-day last), then id.
+  int _byStartThenId(Event a, Event b) {
+    final am = a.startMinute;
+    final bm = b.startMinute;
+    if (am == null && bm == null) return a.id.compareTo(b.id);
+    if (am == null) return 1;
+    if (bm == null) return -1;
+    final byStart = am.compareTo(bm);
+    return byStart != 0 ? byStart : a.id.compareTo(b.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -509,17 +548,16 @@ class _PhoneDaySectionState extends ConsumerState<_PhoneDaySection> {
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
 
-    // Pending rows keep their provider order; a retained completion stays in
-    // the same slot through its snapshot.
+    // Completed rows leave the provider stream; re-insert their snapshots in
+    // the provider's own order (start time, all-day last, then id) so a
+    // completion keeps its slot and only this day's snapshots appear.
+    final day = dateOnly(selected);
     final visible = <Event>[
-      for (final event in events)
-        if (!event.isCompleted)
-          event
-        else if (_recentlyCompleted.containsKey(event.id))
-          _recentlyCompleted[event.id]!,
-      for (final retained in _recentlyCompleted.values)
-        if (!events.any((event) => event.id == retained.id)) retained,
-    ];
+      ...events.where((event) => !event.isCompleted),
+      ..._recentlyCompleted.values.where(
+        (event) => dateOnly(event.date) == day,
+      ),
+    ]..sort(_byStartThenId);
 
     return Expanded(
       child: Column(

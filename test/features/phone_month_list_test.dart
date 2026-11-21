@@ -2,10 +2,12 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/core/l10n/generated/app_localizations.dart';
 import 'package:tempolet/core/layout.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/router/app_router.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
@@ -95,6 +97,124 @@ void main() {
     );
 
     await tester.tap(find.byKey(ValueKey('phone-day-complete-${event.id}')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('phone-day-strike-${event.id}')), findsNothing);
+  });
+
+  testWidgets('a completion keeps its slot among several rows', (tester) async {
+    final first = await repo.create(
+      title: 'First',
+      kind: 'reminder',
+      date: _today,
+      startMinute: 540,
+      reminderOffsetMinutes: 0,
+    );
+    final second = await repo.create(
+      title: 'Second',
+      kind: 'reminder',
+      date: _today,
+      startMinute: 600,
+      reminderOffsetMinutes: 0,
+    );
+    _usePhone(tester);
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(ValueKey('phone-day-complete-${first.id}')));
+    await tester.pump(const Duration(milliseconds: 250));
+    final firstY = tester
+        .getTopLeft(find.byKey(ValueKey('phone-day-row-${first.id}')))
+        .dy;
+    final secondY = tester
+        .getTopLeft(find.byKey(ValueKey('phone-day-row-${second.id}')))
+        .dy;
+    expect(firstY, lessThan(secondY));
+    expect(find.text('2 项'), findsOneWidget);
+  });
+
+  testWidgets('retained rows stay on their selected day', (tester) async {
+    final event = await seed();
+    _usePhone(tester);
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(ValueKey('phone-day-complete-${event.id}')));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      find.byKey(ValueKey('phone-day-strike-${event.id}')),
+      findsOneWidget,
+    );
+
+    container
+        .read(selectedDayProvider.notifier)
+        .select(_today.add(const Duration(days: 1)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('phone-day-row-${event.id}')), findsNothing);
+    expect(find.byKey(ValueKey('phone-day-strike-${event.id}')), findsNothing);
+  });
+
+  testWidgets('leaving for the completed page clears retention', (
+    tester,
+  ) async {
+    final event = await seed();
+    final router = GoRouter(
+      initialLocation: '/calendar',
+      routes: [
+        GoRoute(
+          path: '/calendar',
+          builder: (context, state) =>
+              const Scaffold(body: PhoneCalendarPage()),
+          routes: [
+            GoRoute(
+              path: 'completed',
+              builder: (context, state) => const Scaffold(
+                body: SizedBox(key: ValueKey('completed-stub')),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    final routed = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        databaseProvider.overrideWithValue(db),
+        notificationServiceProvider.overrideWithValue(
+          FakeNotificationService(),
+        ),
+        todayProvider.overrideWithValue(_today),
+        routerProvider.overrideWithValue(router),
+      ],
+    );
+    addTearDown(routed.dispose);
+    addTearDown(router.dispose);
+
+    _usePhone(tester);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: routed,
+        child: MaterialApp.router(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    await tester.tap(find.byKey(ValueKey('phone-day-complete-${event.id}')));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      find.byKey(ValueKey('phone-day-strike-${event.id}')),
+      findsOneWidget,
+    );
+
+    router.go('/calendar/completed');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('completed-stub')), findsOneWidget);
+
+    router.go('/calendar');
     await tester.pumpAndSettle();
     expect(find.byKey(ValueKey('phone-day-strike-${event.id}')), findsNothing);
   });

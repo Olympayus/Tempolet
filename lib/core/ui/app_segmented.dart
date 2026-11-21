@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../layout.dart';
 import '../layout_metrics.dart';
 import '../theme/app_tokens.dart';
+import 'touch_target.dart';
 
 /// Track inset that leaves a 22px inner item at the 28px desktop height.
 const EdgeInsets _segmentTrackPadding = EdgeInsets.all(3);
@@ -33,6 +35,8 @@ class AppSegmented<T> extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.height,
+    this.visualKey,
+    this.hitKey,
   });
 
   final List<T> values;
@@ -43,35 +47,87 @@ class AppSegmented<T> extends StatelessWidget {
   /// Visual track height; defaults to [LayoutMetrics.segment].
   final double? height;
 
+  /// Key for the visual track (height == [height]/[LayoutMetrics.segment]).
+  ///
+  /// Touch layouts put this on the 36-high track while [hitKey] marks the
+  /// surrounding 44-high tappable box, so callers can keep asserting both.
+  final Key? visualKey;
+
+  /// Key for the 44-high tappable box created on touch layouts.
+  final Key? hitKey;
+
   @override
   Widget build(BuildContext context) {
     final palette = _paletteOf(context);
     final segmentHeight = height ?? LayoutMetrics.of(context).segment;
-    return SizedBox(
-      height: segmentHeight,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.chip,
-          borderRadius: BorderRadius.circular(AppRadii.segment),
-        ),
-        child: Padding(
-          padding: _segmentTrackPadding,
-          child: _EqualWidthItems(
-            itemHeight: segmentHeight - _segmentTrackPadding.vertical,
-            children: [
-              for (final value in values)
-                _SegmentItem(
-                  label: labelFor(value),
-                  selected: value == selected,
-                  onTap: () => onChanged(value),
-                  palette: palette,
-                ),
-            ],
+    final trackDecoration = BoxDecoration(
+      color: palette.chip,
+      borderRadius: BorderRadius.circular(AppRadii.segment),
+    );
+
+    // Desktop keeps the original compact track and 27-ish hit area.
+    if (!isTouchLayout(resolveAppLayout(context))) {
+      return SizedBox(
+        key: visualKey,
+        height: segmentHeight,
+        child: DecoratedBox(
+          decoration: trackDecoration,
+          child: Padding(
+            padding: _segmentTrackPadding,
+            child: _EqualWidthItems(
+              itemHeight: segmentHeight - _segmentTrackPadding.vertical,
+              children: _items(palette),
+            ),
           ),
+        ),
+      );
+    }
+
+    // Touch: every item owns the full 44-high band (its GestureDetector is
+    // opaque), while the visual track stays [segmentHeight] high and centered.
+    // Taps 4px above/below the track therefore still select a segment.
+    final hitHeight = math.max(segmentHeight, kMinHitTarget);
+    final trackInset = (hitHeight - segmentHeight) / 2;
+    final itemHeight = segmentHeight - _segmentTrackPadding.vertical;
+    final itemInset = (hitHeight - itemHeight) / 2;
+    return TouchTarget(
+      key: hitKey,
+      child: SizedBox(
+        height: hitHeight,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: trackInset,
+              bottom: trackInset,
+              child: SizedBox(
+                key: visualKey,
+                height: segmentHeight,
+                child: DecoratedBox(decoration: trackDecoration),
+              ),
+            ),
+            _EqualWidthItems(
+              itemHeight: hitHeight,
+              children: _items(palette, visualInset: itemInset),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  List<Widget> _items(AppPalette palette, {double? visualInset}) => [
+    for (final value in values)
+      _SegmentItem(
+        label: labelFor(value),
+        selected: value == selected,
+        onTap: () => onChanged(value),
+        palette: palette,
+        visualInset: visualInset,
+      ),
+  ];
 }
 
 class _SegmentItem extends StatelessWidget {
@@ -80,6 +136,7 @@ class _SegmentItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.palette,
+    this.visualInset,
   });
 
   final Widget label;
@@ -87,9 +144,50 @@ class _SegmentItem extends StatelessWidget {
   final VoidCallback onTap;
   final AppPalette palette;
 
+  /// Vertical inset that shrinks the painted capsule inside a taller hit box;
+  /// null keeps the desktop capsule filling the track.
+  final double? visualInset;
+
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(AppRadii.button);
+    final Widget visual = ClipRRect(
+      borderRadius: radius,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedContainer(
+            duration: _segmentAnimation,
+            curve: Curves.easeOut,
+            alignment: Alignment.center,
+            padding: _segmentItemPadding,
+            decoration: BoxDecoration(
+              // The "white" selected cap: `card` stays a raised
+              // surface in dark mode, unlike `bg`.
+              color: selected ? palette.card : Colors.transparent,
+              borderRadius: radius,
+              // Reserve the selected cap's 1px border on every item:
+              // an intrinsic-width measure must not depend on which
+              // item is selected, or the whole control jumps when the
+              // selection moves (design spec §7.1).
+              border: Border.all(
+                color: selected ? palette.lineStrong : Colors.transparent,
+                width: _hairline,
+              ),
+            ),
+            child: DefaultTextStyle(
+              style: AppTextStyles.body.copyWith(
+                color: selected ? palette.ink : palette.sub,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              child: label,
+            ),
+          ),
+        ],
+      ),
+    );
     return Semantics(
       button: true,
       selected: selected,
@@ -103,45 +201,12 @@ class _SegmentItem extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onTap,
-            child: ClipRRect(
-              borderRadius: radius,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  AnimatedContainer(
-                    duration: _segmentAnimation,
-                    curve: Curves.easeOut,
-                    alignment: Alignment.center,
-                    padding: _segmentItemPadding,
-                    decoration: BoxDecoration(
-                      // The "white" selected cap: `card` stays a raised
-                      // surface in dark mode, unlike `bg`.
-                      color: selected ? palette.card : Colors.transparent,
-                      borderRadius: radius,
-                      // Reserve the selected cap's 1px border on every item:
-                      // an intrinsic-width measure must not depend on which
-                      // item is selected, or the whole control jumps when the
-                      // selection moves (design spec §7.1).
-                      border: Border.all(
-                        color: selected
-                            ? palette.lineStrong
-                            : Colors.transparent,
-                        width: _hairline,
-                      ),
-                    ),
-                    child: DefaultTextStyle(
-                      style: AppTextStyles.body.copyWith(
-                        color: selected ? palette.ink : palette.sub,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      child: label,
-                    ),
+            child: visualInset == null
+                ? visual
+                : Padding(
+                    padding: EdgeInsets.symmetric(vertical: visualInset!),
+                    child: visual,
                   ),
-                ],
-              ),
-            ),
           ),
         ),
       ),

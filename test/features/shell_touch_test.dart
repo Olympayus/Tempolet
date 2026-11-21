@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tempolet/app.dart';
 import 'package:tempolet/core/layout.dart';
 import 'package:tempolet/core/prefs.dart';
+import 'package:tempolet/core/ui/app_segmented.dart';
 import 'package:tempolet/core/ui/touch_target.dart';
 import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
@@ -130,5 +131,57 @@ void main() {
           .height,
       44,
     );
+  });
+
+  testWidgets('segment taps land in the 44 band outside the visual track', (
+    tester,
+  ) async {
+    debugLayoutOverride = AppLayout.tablet;
+    addTearDown(() => debugLayoutOverride = null);
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    var picked = 'a';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 600,
+              child: AppSegmented<String>(
+                visualKey: const ValueKey('segmented-visual'),
+                hitKey: const ValueKey('segmented-hit'),
+                values: const ['a', 'b'],
+                labelFor: (value) => Text(value),
+                selected: picked,
+                onChanged: (value) => picked = value,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final hit = tester.getRect(find.byKey(const ValueKey('segmented-hit')));
+    final visual = tester.getRect(
+      find.byKey(const ValueKey('segmented-visual')),
+    );
+    expect(hit.height, 44);
+    expect(visual.height, 36);
+    expect(visual.top - hit.top, 4);
+
+    // 2px above the visual track, inside the second item's 44-high band.
+    await tester.tapAt(
+      Offset(visual.left + visual.width * 0.75, visual.top - 2),
+    );
+    expect(picked, 'b');
+
+    // 2px below the visual track, inside the first item's band.
+    await tester.tapAt(
+      Offset(visual.left + visual.width * 0.25, visual.bottom + 2),
+    );
+    expect(picked, 'a');
   });
 }

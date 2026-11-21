@@ -144,16 +144,20 @@ class _RailDestination extends StatelessWidget {
           child: TouchTarget(
             key: hitKey,
             minSize: hitSize,
-            child: Container(
+            child: SizedBox(
               key: visualKey,
               width: _destinationSize,
               height: _destinationSize,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? palette.accentTint : Colors.transparent,
-                borderRadius: radius,
+              // Ink paints the selected tint on the Material *under* the
+              // InkWell's hover/splash, so desktop hover feedback stays
+              // visible (a normal Container would paint over it).
+              child: Ink(
+                decoration: BoxDecoration(
+                  color: selected ? palette.accentTint : Colors.transparent,
+                  borderRadius: radius,
+                ),
+                child: Center(child: icon),
               ),
-              child: icon,
             ),
           ),
         ),

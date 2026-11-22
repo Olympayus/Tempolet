@@ -5,9 +5,6 @@ import 'fitted_label.dart';
 /// Width of one revealed action button (`10-ui-refinement.md` §9.14).
 const double kSwipeActionWidth = 64;
 
-/// How far the row must travel before the release settles it open.
-const double _openThreshold = 32;
-
 /// Horizontal travel before the gesture claims the pointer; below this the
 /// pointer still belongs to the vertical scrollable or the row's own tap.
 const double _axisLock = 8;
@@ -54,11 +51,14 @@ class SwipeAction {
   String get keySegment => id ?? label;
 }
 
-/// A list row that reveals [actions] when swiped left.
+/// A list row that is pushed left to reveal [actions], iOS style.
 ///
-/// The row is axis-locked: the first [axisLock] of travel decide between the
-/// horizontal reveal and the enclosing vertical scrollable. Releasing past
-/// [_openThreshold] opens the row through [controller], which enforces one
+/// The content follows the finger and the action strip stays pinned to the
+/// right edge underneath it, so the row reads as one surface sliding aside
+/// rather than two buttons appearing in place. The gesture is axis-locked: the
+/// first [_axisLock] of travel decide between the horizontal reveal and the
+/// enclosing vertical scrollable. Releasing past half the strip (or with
+/// leftward velocity) opens the row through [controller], which enforces one
 /// open row per list. While open, an opaque layer absorbs taps so a swipe
 /// never doubles as a row tap, and tapping the row closes it.
 class SwipeActionsRow extends StatefulWidget {
@@ -81,16 +81,33 @@ class SwipeActionsRow extends StatefulWidget {
   State<SwipeActionsRow> createState() => _SwipeActionsRowState();
 }
 
-class _SwipeActionsRowState extends State<SwipeActionsRow> {
+class _SwipeActionsRowState extends State<SwipeActionsRow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _slide;
+
   double _dragDx = 0;
   bool _dragging = false;
 
   bool get _open => widget.controller.openId == widget.id;
+  double get _actionsWidth => kSwipeActionWidth * widget.actions.length;
 
   @override
   void initState() {
     super.initState();
+    _slide = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+      value: _open ? 1 : 0,
+    );
     widget.controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _slide.duration = MediaQuery.of(context).disableAnimations
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
   }
 
   @override
@@ -105,41 +122,61 @@ class _SwipeActionsRowState extends State<SwipeActionsRow> {
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
+    _slide.dispose();
     super.dispose();
   }
 
   void _onControllerChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (_open) {
+      _slide.animateTo(1, curve: Curves.easeOut);
+    } else {
+      _slide.animateBack(0, curve: Curves.easeOut);
+    }
+  }
+
+  /// The content's current offset: settled progress, plus the finger while a
+  /// drag is live (clamped so the row can neither over-pull nor move right of
+  /// its resting place).
+  double get _offset {
+    final settled = -_actionsWidth * _slide.value;
+    if (!_dragging) return settled;
+    return (settled + _dragDx).clamp(-_actionsWidth, 0.0);
   }
 
   void _onDragStart(DragStartDetails details) {
+    _slide.stop();
     _dragDx = 0;
     _dragging = false;
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
     _dragDx += details.delta.dx;
-    if (!_dragging && _dragDx.abs() >= _axisLock) _dragging = true;
+    setState(() => _dragging = _dragDx.abs() >= _axisLock);
   }
 
   void _onDragEnd(DragEndDetails details) {
-    if (!_dragging) return;
+    if (!_dragging) {
+      _dragDx = 0;
+      return;
+    }
     final velocity = details.primaryVelocity ?? 0;
-    if (_dragDx <= -_openThreshold || velocity <= -150) {
+    final open = _offset <= -_actionsWidth / 2 || velocity <= -150;
+    setState(() {
+      _dragging = false;
+      _dragDx = 0;
+    });
+    if (open) {
+      _slide.animateTo(1, curve: Curves.easeOut);
       widget.controller.open(widget.id);
     } else {
+      _slide.animateBack(0, curve: Curves.easeOut);
       widget.controller.close();
     }
-    _dragging = false;
-    _dragDx = 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
-    final duration = reduceMotion
-        ? Duration.zero
-        : const Duration(milliseconds: 150);
     final enabled = widget.enabled;
     final content = GestureDetector(
       key: ValueKey('swipe-row-${widget.id}'),
@@ -151,22 +188,19 @@ class _SwipeActionsRowState extends State<SwipeActionsRow> {
     );
 
     return ClipRect(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0, end: _open ? 1 : 0),
-        duration: duration,
-        curve: Curves.easeOut,
-        builder: (context, progress, child) {
-          final reveal = progress > 0;
-          final actionsWidth = kSwipeActionWidth * widget.actions.length;
+      child: AnimatedBuilder(
+        animation: _slide,
+        builder: (context, child) {
+          final offset = _offset;
+          final revealed = -offset;
           return Stack(
             children: [
-              child!,
-              if (reveal)
+              if (revealed > 0)
                 Positioned(
                   top: 0,
                   bottom: 0,
-                  right: -actionsWidth * (1 - progress),
-                  width: actionsWidth,
+                  right: 0,
+                  width: _actionsWidth,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -200,14 +234,15 @@ class _SwipeActionsRowState extends State<SwipeActionsRow> {
                     ],
                   ),
                 ),
-              // The leading completion circle stays tappable while the row is
-              // open; the rest of the content closes the row on tap.
-              if (reveal)
+              Transform.translate(offset: Offset(offset, 0), child: child),
+              // The row has slid aside, so the whole visible content closes it
+              // on tap; the actions keep the strip the content vacated.
+              if (revealed > 0)
                 Positioned(
                   top: 0,
                   bottom: 0,
-                  left: 48,
-                  right: actionsWidth * progress,
+                  left: 0,
+                  right: revealed,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: widget.controller.close,

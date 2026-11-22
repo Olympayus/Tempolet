@@ -109,6 +109,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('编辑'), findsOneWidget);
 
+    // The row slides aside while open, so a tap on it closes the swipe; the
+    // circle is tappable once the row is back in place.
+    await tester.tapAt(
+      tester.getCenter(find.byKey(ValueKey('sidebar-row-${event.id}'))),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(ValueKey('sidebar-complete-${event.id}')));
     await tester.pump(const Duration(milliseconds: 250));
     expect(find.byKey(ValueKey('sidebar-row-${event.id}')), findsOneWidget);

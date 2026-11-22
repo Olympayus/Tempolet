@@ -92,10 +92,17 @@ void main() {
     );
     expect(text, findsOneWidget);
     expect(tester.widget<Text>(text).overflow, isNot(TextOverflow.ellipsis));
-    // Intrinsic text wider than the slot means it was scaled, not cut.
+
+    // The header grows to give the title a second line instead of shrinking
+    // the type, so the label is laid out unscaled.
     expect(
-      tester.getSize(text).width,
-      greaterThan(tester.getSize(title).width),
+      tester.getSize(find.byKey(const ValueKey('reminders-header'))).height,
+      greaterThan(64),
     );
+    expect(
+      tester.getSize(text).height,
+      closeTo(tester.getSize(title).height, 0.5),
+    );
+    expect(tester.getSize(text).height, greaterThan(60));
   });
 }

@@ -646,47 +646,42 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
               const SizedBox(height: 14),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: inset),
-                child: Row(
+                // Each control keeps its natural width; when a longer
+                // translation cannot share one line they stack instead of
+                // squeezing the labels down.
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 16,
+                  runSpacing: 8,
                   children: [
-                    Flexible(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: AppSegmented<RemindersFilter>(
-                          key: const ValueKey('reminders-filter'),
-                          values: const [
-                            RemindersFilter.all,
-                            RemindersFilter.reminder,
-                            RemindersFilter.plan,
-                          ],
-                          labelFor: (filter) => Text(switch (filter) {
-                            RemindersFilter.all => l10n.filterAll,
-                            RemindersFilter.reminder => l10n.kindReminder,
-                            RemindersFilter.plan => l10n.kindPlan,
-                          }),
-                          selected: _filter,
-                          onChanged: (filter) =>
-                              setState(() => _filter = filter),
-                        ),
-                      ),
+                    AppSegmented<RemindersFilter>(
+                      key: const ValueKey('reminders-filter'),
+                      values: const [
+                        RemindersFilter.all,
+                        RemindersFilter.reminder,
+                        RemindersFilter.plan,
+                      ],
+                      labelFor: (filter) => Text(switch (filter) {
+                        RemindersFilter.all => l10n.filterAll,
+                        RemindersFilter.reminder => l10n.kindReminder,
+                        RemindersFilter.plan => l10n.kindPlan,
+                      }),
+                      selected: _filter,
+                      onChanged: (filter) => setState(() => _filter = filter),
                     ),
-                    const SizedBox(width: 16),
-                    Flexible(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: AppSegmented<RemindersMode>(
-                          key: const ValueKey('reminders-mode'),
-                          values: const [
-                            RemindersMode.category,
-                            RemindersMode.date,
-                          ],
-                          labelFor: (mode) => Text(switch (mode) {
-                            RemindersMode.category => l10n.categoryLabel,
-                            RemindersMode.date => l10n.dateLabel,
-                          }),
-                          selected: _mode,
-                          onChanged: (mode) => setState(() => _mode = mode),
-                        ),
-                      ),
+                    AppSegmented<RemindersMode>(
+                      key: const ValueKey('reminders-mode'),
+                      values: const [
+                        RemindersMode.category,
+                        RemindersMode.date,
+                      ],
+                      labelFor: (mode) => Text(switch (mode) {
+                        RemindersMode.category => l10n.categoryLabel,
+                        RemindersMode.date => l10n.dateLabel,
+                      }),
+                      selected: _mode,
+                      onChanged: (mode) => setState(() => _mode = mode),
                     ),
                   ],
                 ),
@@ -1390,21 +1385,19 @@ class _PhoneRemindersHeader extends StatelessWidget {
             .withAccent(theme.colorScheme.primary);
     final l10n = AppLocalizations.of(context);
 
-    return ConstrainedBox(
+    return SizedBox(
       key: const ValueKey('reminders-header'),
-      // The header grows when the title needs a second line (longer
-      // translations), so the type keeps its display size; it only shrinks
-      // when even two lines cannot fit.
-      constraints: const BoxConstraints(minHeight: 64),
+      height: 64,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
             Expanded(
+              // One line at display size; scales down only when the title is
+              // wider than the space beside the actions.
               child: FittedLabel(
                 l10n.remindersTitle,
                 key: const ValueKey('reminders-title'),
-                maxLines: 2,
                 alignment: Alignment.centerLeft,
                 textAlign: TextAlign.left,
                 style: AppTextStyles.display.copyWith(

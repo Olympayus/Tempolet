@@ -93,16 +93,25 @@ void main() {
     expect(text, findsOneWidget);
     expect(tester.widget<Text>(text).overflow, isNot(TextOverflow.ellipsis));
 
-    // The header grows to give the title a second line instead of shrinking
-    // the type, so the label is laid out unscaled.
+    // One line in a fixed 64 header; the label is painted smaller than its
+    // intrinsic width rather than cut.
     expect(
       tester.getSize(find.byKey(const ValueKey('reminders-header'))).height,
-      greaterThan(64),
+      64,
     );
     expect(
-      tester.getSize(text).height,
-      closeTo(tester.getSize(title).height, 0.5),
+      tester.getSize(text).width,
+      greaterThan(tester.getSize(title).width),
     );
-    expect(tester.getSize(text).height, greaterThan(60));
+
+    // The filter controls keep full-size labels: with a longer translation
+    // they stack instead of squeezing "Reminder" down.
+    final filter = find.byKey(const ValueKey('reminders-filter'));
+    final mode = find.byKey(const ValueKey('reminders-mode'));
+    expect(
+      tester.getTopLeft(mode).dy,
+      greaterThan(tester.getBottomLeft(filter).dy - 1),
+    );
+    expect(tester.getSize(find.text('Reminder')).width, greaterThan(55));
   });
 }

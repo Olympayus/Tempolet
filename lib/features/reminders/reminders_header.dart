@@ -41,11 +41,9 @@ class RemindersHeader extends StatelessWidget {
             .withAccent(theme.colorScheme.primary);
     final l10n = AppLocalizations.of(context);
 
-    return ConstrainedBox(
+    return SizedBox(
       key: const ValueKey('reminders-header'),
-      // Grows for a two-line title rather than shrinking the type; see the
-      // phone header.
-      constraints: const BoxConstraints(minHeight: AppSizes.header),
+      height: AppSizes.header,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Row(
@@ -54,7 +52,6 @@ class RemindersHeader extends StatelessWidget {
               child: FittedLabel(
                 l10n.remindersTitle,
                 key: const ValueKey('reminders-title'),
-                maxLines: 2,
                 alignment: Alignment.centerLeft,
                 textAlign: TextAlign.left,
                 style: AppTextStyles.display.copyWith(color: palette.ink),

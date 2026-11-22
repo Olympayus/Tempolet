@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/gestures.dart'
-    show DragStartBehavior, kDoubleTapTimeout;
+    show DragStartBehavior, PointerDeviceKind, kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -447,16 +447,17 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
         Positioned.fill(
           child: GestureDetector(
             key: ValueKey('week-column-${_isoDay(widget.day)}'),
+            // Mouse and trackpad drags select a range straight away; touch
+            // drags scroll the timeline, so touch selection waits for the
+            // long press handled by the inner detector.
+            supportedDevices: const {
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+            },
             behavior: HitTestBehavior.opaque,
             // Begin the range at the press point, not after the drag slop,
             // so a one-hour drag from 09:00 really means 09:00–10:00.
             dragStartBehavior: DragStartBehavior.down,
-            onTapUp: (details) {
-              _openCreate(
-                kind: EventKind.reminder,
-                start: _minuteAt(details.localPosition.dy),
-              );
-            },
             onVerticalDragStart: (details) {
               final minute = _minuteAt(details.localPosition.dy);
               setState(() {
@@ -489,40 +490,50 @@ class _WeekDayColumnState extends ConsumerState<_WeekDayColumn> {
                 end: selection.end,
               );
             },
-            // Touch: a still finger cannot scroll, so a long press claims the
-            // gesture before the scrollable does. Moving afterwards selects a
-            // range without fighting vertical scrolling.
-            onLongPressStart: (details) {
-              HapticFeedback.mediumImpact();
-              final minute = _minuteAt(details.localPosition.dy);
-              setState(() {
-                _dragStartMinute = minute;
-                _dragCurrentMinute = minute;
-              });
-            },
-            onLongPressMoveUpdate: (details) {
-              setState(() {
-                _dragCurrentMinute = _minuteAt(details.localPosition.dy);
-              });
-            },
-            onLongPressEnd: (_) {
-              final start = _dragStartMinute;
-              final current = _dragCurrentMinute;
-              setState(() {
-                _dragStartMinute = null;
-                _dragCurrentMinute = null;
-              });
-              if (start == null || current == null) return;
-              final selection = selectionFromDrag(start, current);
-              final end = selection.end - selection.start < 5
-                  ? (selection.start + 30).clamp(0, 1440)
-                  : selection.end;
-              _openCreate(
-                kind: EventKind.plan,
-                start: selection.start,
-                end: end,
-              );
-            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (details) {
+                _openCreate(
+                  kind: EventKind.reminder,
+                  start: _minuteAt(details.localPosition.dy),
+                );
+              },
+              // Touch: a still finger cannot scroll, so a long press claims
+              // the gesture before the scrollable does. Moving afterwards
+              // selects a range without fighting vertical scrolling.
+              onLongPressStart: (details) {
+                HapticFeedback.mediumImpact();
+                final minute = _minuteAt(details.localPosition.dy);
+                setState(() {
+                  _dragStartMinute = minute;
+                  _dragCurrentMinute = minute;
+                });
+              },
+              onLongPressMoveUpdate: (details) {
+                setState(() {
+                  _dragCurrentMinute = _minuteAt(details.localPosition.dy);
+                });
+              },
+              onLongPressEnd: (_) {
+                final start = _dragStartMinute;
+                final current = _dragCurrentMinute;
+                setState(() {
+                  _dragStartMinute = null;
+                  _dragCurrentMinute = null;
+                });
+                if (start == null || current == null) return;
+                final selection = selectionFromDrag(start, current);
+                final end = selection.end - selection.start < 5
+                    ? (selection.start + 30).clamp(0, 1440)
+                    : selection.end;
+                _openCreate(
+                  kind: EventKind.plan,
+                  start: selection.start,
+                  end: end,
+                );
+              },
+              child: const SizedBox.expand(),
+            ),
           ),
         ),
         for (final plan in plans) _planLayer(plan, lanes[plan.id] ?? 0, unit),

@@ -239,4 +239,93 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('delete-confirm')), findsOneWidget);
   });
+
+  testWidgets('swiping the month grid slides to the next month', (
+    tester,
+  ) async {
+    _usePhone(tester);
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    final pager = find.byKey(const ValueKey('phone-month-pages'));
+    final gesture = await tester.startGesture(tester.getCenter(pager));
+    await gesture.moveBy(const Offset(0, -120));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -100));
+    await tester.pump();
+
+    // Both months are on screen while the finger moves: the grid slides
+    // instead of swapping pages outright.
+    expect(
+      find.byKey(const ValueKey('phone-month-page-2026-11')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('phone-month-page-2026-12')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('phone-month-page-2026-11')))
+          .dy,
+      lessThan(tester.getTopLeft(pager).dy),
+    );
+
+    await gesture.moveBy(const Offset(0, -150));
+    await tester.pump();
+    await gesture.up();
+    await _settle(tester);
+
+    expect(container.read(selectedDayProvider), DateTime(2026, 12, 16));
+  });
+
+  testWidgets('swiping to a shorter month clamps the day of month', (
+    tester,
+  ) async {
+    container
+        .read(selectedDayProvider.notifier)
+        .select(DateTime(2026, 1, 31));
+    _usePhone(tester);
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    await tester.fling(
+      find.byKey(const ValueKey('phone-month-pages')),
+      const Offset(0, -300),
+      1200,
+    );
+    await _settle(tester);
+
+    expect(container.read(selectedDayProvider), DateTime(2026, 2, 28));
+  });
+
+  testWidgets('Today slides the grid back to the selected month', (
+    tester,
+  ) async {
+    _usePhone(tester);
+    await tester.pumpWidget(_app(container));
+    await _settle(tester);
+
+    await tester.fling(
+      find.byKey(const ValueKey('phone-month-pages')),
+      const Offset(0, -300),
+      1200,
+    );
+    await _settle(tester);
+    expect(container.read(selectedDayProvider), DateTime(2026, 12, 16));
+
+    await tester.tap(find.byKey(const ValueKey('phone-calendar-today')));
+    await _settle(tester);
+
+    expect(container.read(selectedDayProvider), DateTime(2026, 11, 16));
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('phone-month-page-2026-11')))
+          .top,
+      closeTo(
+        tester.getRect(find.byKey(const ValueKey('phone-month-pages'))).top,
+        0.5,
+      ),
+    );
+  });
 }

@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -332,6 +333,7 @@ void main() {
       await tester.dragFrom(
         Offset(column.left + 20, column.top + minuteToY(9 * 60)),
         const Offset(0, 68),
+        kind: PointerDeviceKind.mouse,
       );
       await _settle(tester);
 
@@ -353,6 +355,7 @@ void main() {
       );
       final gesture = await tester.startGesture(
         Offset(column.left + 20, column.top + minuteToY(9 * 60)),
+        kind: PointerDeviceKind.mouse,
       );
       await gesture.moveBy(const Offset(0, 68));
       await tester.pump();
@@ -373,6 +376,30 @@ void main() {
 
       await gesture.up();
       await _settle(tester);
+    });
+
+    testWidgets('a touch drag on a column scrolls the week grid', (
+      tester,
+    ) async {
+      await pumpWeek(tester, DateTime(2026, 11, 11));
+
+      final scroll = find.byKey(const ValueKey('week-scroll'));
+      final before = tester
+          .widget<SingleChildScrollView>(scroll)
+          .controller!
+          .offset;
+
+      await tester.drag(
+        find.byKey(const ValueKey('week-column-2026-11-11')),
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<SingleChildScrollView>(scroll).controller!.offset,
+        greaterThan(before),
+      );
+      expect(find.byKey(const ValueKey('editor-save')), findsNothing);
     });
 
     testWidgets('tapping a plan opens the shared editor', (tester) async {

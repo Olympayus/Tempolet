@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -220,7 +221,11 @@ void main() {
       final x = rect.center.dx;
       final startY = rect.top + (minuteToY(9 * 60) - offset);
 
-      await tester.dragFrom(Offset(x, startY), const Offset(0, 68));
+      await tester.dragFrom(
+        Offset(x, startY),
+        const Offset(0, 68),
+        kind: PointerDeviceKind.mouse,
+      );
       await _settle(tester);
 
       expect(find.byKey(const ValueKey('editor-save')), findsOneWidget);
@@ -230,6 +235,28 @@ void main() {
       expect(find.byKey(const ValueKey('end-stepper')), findsOneWidget);
       expect(_stepperText(tester, 'start-stepper'), '09:00');
       expect(_stepperText(tester, 'end-stepper'), '10:00');
+    });
+
+    testWidgets('a touch drag on the timeline scrolls instead of selecting', (
+      tester,
+    ) async {
+      await pumpDay(tester, DateTime(2026, 11, 11));
+
+      final scroll = find.byKey(const ValueKey('day-scroll'));
+      final before = tester
+          .widget<SingleChildScrollView>(scroll)
+          .controller!
+          .offset;
+
+      // Touch: the drag belongs to the scrollable, not to the create surface.
+      await tester.drag(scroll, const Offset(0, -120));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<SingleChildScrollView>(scroll).controller!.offset,
+        greaterThan(before),
+      );
+      expect(find.byKey(const ValueKey('editor-save')), findsNothing);
     });
 
     testWidgets('dragging a plan to the bottom clamps its end to midnight', (

@@ -120,25 +120,153 @@ class _PhoneMonthBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedDayProvider);
-    final weeks = monthWeeks(selected);
-
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _PhoneMonthPanel(weeks: weeks),
-        const _PhoneDaySection(),
+        _PhoneMonthPager(),
+        _PhoneDaySection(),
       ],
     );
   }
 }
 
 const double _phoneMonthRowHeight = 58;
+const double _phoneMonthWeekdayHeight = 28;
 
-class _PhoneMonthPanel extends ConsumerWidget {
-  const _PhoneMonthPanel({required this.weeks});
+/// Six rows always: the pager height never changes, so the day list below
+/// keeps its place when moving between a 5-row and a 6-row month.
+const double _phoneMonthGridHeight = _phoneMonthRowHeight * 6;
 
-  final List<List<DateTime?>> weeks;
+/// Vertically swipeable month grid. One page per month; the page settles and
+/// only then moves the selection, so the day list below does not flicker
+/// mid-drag. Apple Calendar's month paging is the reference.
+class _PhoneMonthPager extends ConsumerStatefulWidget {
+  const _PhoneMonthPager();
+
+  @override
+  ConsumerState<_PhoneMonthPager> createState() => _PhoneMonthPagerState();
+}
+
+class _PhoneMonthPagerState extends ConsumerState<_PhoneMonthPager> {
+  /// Page 0 is January 2000; the pager is infinite in both directions.
+  static const int _anchorYear = 2000;
+
+  late final PageController _controller;
+  late int _index;
+
+  static int _indexOf(DateTime month) =>
+      (month.year - _anchorYear) * 12 + (month.month - 1);
+
+  static DateTime _monthOf(int index) =>
+      DateTime(_anchorYear + index ~/ 12, index % 12 + 1);
+
+  @override
+  void initState() {
+    super.initState();
+    _index = _indexOf(ref.read(selectedDayProvider));
+    _controller = PageController(initialPage: _index);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// A settled page selects the same day-of-month in that month, clamped to
+  /// the month's length — the day list below follows the visible month.
+  void _onPageChanged(int index) {
+    _index = index;
+    final month = _monthOf(index);
+    final day = ref.read(selectedDayProvider).day;
+    ref
+        .read(selectedDayProvider.notifier)
+        .select(clampDayOfMonth(month.year, month.month, day));
+  }
+
+  void _syncToSelection(int target) {
+    _index = target;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      if ((_controller.page ?? target.toDouble()).round() == target) return;
+      _controller.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette =
+        (theme.brightness == Brightness.light
+                ? AppPalette.light
+                : AppPalette.dark)
+            .withAccent(theme.colorScheme.primary);
+    final locale = Localizations.localeOf(context);
+
+    // The "Today" button and the header's month arrows change the selection
+    // outside the pager; slide the grid after them.
+    final target = _indexOf(ref.watch(selectedDayProvider));
+    if (target != _index) _syncToSelection(target);
+
+    return Padding(
+      key: const ValueKey('phone-month-panel'),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        children: [
+          SizedBox(
+            height: _phoneMonthWeekdayHeight,
+            child: Container(
+              decoration: BoxDecoration(
+                color: palette.side,
+                border: Border(bottom: BorderSide(color: palette.lineStrong)),
+              ),
+              child: Row(
+                children: [
+                  for (var i = 0; i < 7; i++)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          AppFormats.weekday(locale, DateTime(2024, 1, 1 + i)),
+                          style: AppTextStyles.caption.copyWith(
+                            color: palette.sub,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            height: _phoneMonthGridHeight,
+            child: PageView.builder(
+              key: const ValueKey('phone-month-pages'),
+              controller: _controller,
+              // Swipe up = next month, down = previous, as the mobile shell
+              // spec asks; the movement is what makes it feel like a page.
+              scrollDirection: Axis.vertical,
+              onPageChanged: _onPageChanged,
+              itemBuilder: (context, index) =>
+                  _PhoneMonthPage(month: _monthOf(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One month's grid inside the pager: only that month's dates, never the
+/// adjacent months' cells. Row count follows the real week span (4–6), so the
+/// pager's fixed height leaves the remaining rows blank.
+class _PhoneMonthPage extends ConsumerWidget {
+  const _PhoneMonthPage({required this.month});
+
+  final DateTime month;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -151,12 +279,11 @@ class _PhoneMonthPanel extends ConsumerWidget {
     final locale = Localizations.localeOf(context);
     final selected = ref.watch(selectedDayProvider);
     final today = dateOnly(ref.watch(todayProvider));
-    final rangeStart = DateTime(selected.year, selected.month, 1);
-    final rangeEnd = DateTime(selected.year, selected.month + 1, 1);
+    final weeks = monthWeeks(month);
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 1);
     final events =
-        ref
-            .watch(eventsInRangeProvider((start: rangeStart, end: rangeEnd)))
-            .value ??
+        ref.watch(eventsInRangeProvider((start: start, end: end))).value ??
         const <Event>[];
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
@@ -170,79 +297,39 @@ class _PhoneMonthPanel extends ConsumerWidget {
       for (final holiday in holidays) dateOnly(holiday.date): holiday,
     };
 
-    return GestureDetector(
-      key: const ValueKey('phone-month-panel'),
-      onVerticalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity < -120) {
-          ref.read(selectedDayProvider.notifier).shiftMonths(1);
-        } else if (velocity > 120) {
-          ref.read(selectedDayProvider.notifier).shiftMonths(-1);
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 28,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: palette.side,
-                  border: Border(bottom: BorderSide(color: palette.lineStrong)),
-                ),
-                child: Row(
-                  children: [
-                    for (var i = 0; i < 7; i++)
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            AppFormats.weekday(
-                              locale,
-                              DateTime(2024, 1, 1 + i),
-                            ),
-                            style: AppTextStyles.caption.copyWith(
-                              color: palette.sub,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+    return Column(
+      key: ValueKey('phone-month-page-${month.year}-${month.month}'),
+      children: [
+        for (final week in weeks)
+          Container(
+            height: _phoneMonthRowHeight,
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: palette.line)),
             ),
-            for (final week in weeks)
-              Container(
-                height: _phoneMonthRowHeight,
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: palette.line)),
-                ),
-                child: Row(
-                  children: [
-                    for (final day in week)
-                      Expanded(
-                        child: day == null
-                            ? const SizedBox.shrink()
-                            : _PhoneDayCell(
-                                day: day,
-                                isToday: day == today,
-                                isSelected: day == selected,
-                                events: eventsByDay[day] ?? const <Event>[],
-                                holiday: holidayByDay[day],
-                                categories: categories,
-                                palette: palette,
-                                locale: locale,
-                                onTap: () => ref
-                                    .read(selectedDayProvider.notifier)
-                                    .select(day),
-                              ),
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
+            child: Row(
+              children: [
+                for (final day in week)
+                  Expanded(
+                    child: day == null
+                        ? const SizedBox.shrink()
+                        : _PhoneDayCell(
+                            day: day,
+                            isToday: day == today,
+                            isSelected: day == selected,
+                            events: eventsByDay[day] ?? const <Event>[],
+                            holiday: holidayByDay[day],
+                            categories: categories,
+                            palette: palette,
+                            locale: locale,
+                            onTap: () => ref
+                                .read(selectedDayProvider.notifier)
+                                .select(day),
+                          ),
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

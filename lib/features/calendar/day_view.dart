@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, PointerDeviceKind;
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -160,16 +161,20 @@ class _DayViewState extends ConsumerState<DayView> {
               children: [
                 Positioned.fill(child: HourGrid(gutterColor: palette.side)),
                 Positioned.fill(
+                  // Mouse and trackpad drags select a range straight away;
+                  // a touch drag belongs to the scrollable, so touch range
+                  // selection waits for the long press handled inside
+                  // (`docs/design/02-shell-mobile.md` §3: 滑动 = 滚动).
                   child: GestureDetector(
                     key: const ValueKey('day-create-surface'),
+                    supportedDevices: const {
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                    },
                     behavior: HitTestBehavior.opaque,
                     // Begin the range at the press point, not after the drag
                     // slop, so a 34px drag from 09:00 really means 09:00–10:00.
                     dragStartBehavior: DragStartBehavior.down,
-                    onTapUp: (details) {
-                      final minute = _minuteAt(details.localPosition.dy);
-                      _openCreate(kind: EventKind.reminder, start: minute);
-                    },
                     onVerticalDragStart: (details) {
                       setState(() {
                         _dragStartMinute = _minuteAt(details.localPosition.dy);
@@ -206,40 +211,48 @@ class _DayViewState extends ConsumerState<DayView> {
                         end: selection.end,
                       );
                     },
-                    // Touch: long-press claims the gesture from the scroll,
-                    // then vertical movement selects the plan range.
-                    onLongPressStart: (details) {
-                      HapticFeedback.mediumImpact();
-                      setState(() {
-                        _dragStartMinute = _minuteAt(details.localPosition.dy);
-                        _dragCurrentMinute = _dragStartMinute;
-                      });
-                    },
-                    onLongPressMoveUpdate: (details) {
-                      setState(() {
-                        _dragCurrentMinute = _minuteAt(
-                          details.localPosition.dy,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (details) {
+                        final minute = _minuteAt(details.localPosition.dy);
+                        _openCreate(kind: EventKind.reminder, start: minute);
+                      },
+                      // Touch: long-press claims the gesture from the scroll,
+                      // then vertical movement selects the plan range.
+                      onLongPressStart: (details) {
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _dragStartMinute = _minuteAt(details.localPosition.dy);
+                          _dragCurrentMinute = _dragStartMinute;
+                        });
+                      },
+                      onLongPressMoveUpdate: (details) {
+                        setState(() {
+                          _dragCurrentMinute = _minuteAt(
+                            details.localPosition.dy,
+                          );
+                        });
+                      },
+                      onLongPressEnd: (_) {
+                        final start = _dragStartMinute;
+                        final current = _dragCurrentMinute;
+                        setState(() {
+                          _dragStartMinute = null;
+                          _dragCurrentMinute = null;
+                        });
+                        if (start == null || current == null) return;
+                        final selection = selectionFromDrag(start, current);
+                        final end = selection.end - selection.start < 5
+                            ? (selection.start + 30).clamp(0, 1440)
+                            : selection.end;
+                        _openCreate(
+                          kind: EventKind.plan,
+                          start: selection.start,
+                          end: end,
                         );
-                      });
-                    },
-                    onLongPressEnd: (_) {
-                      final start = _dragStartMinute;
-                      final current = _dragCurrentMinute;
-                      setState(() {
-                        _dragStartMinute = null;
-                        _dragCurrentMinute = null;
-                      });
-                      if (start == null || current == null) return;
-                      final selection = selectionFromDrag(start, current);
-                      final end = selection.end - selection.start < 5
-                          ? (selection.start + 30).clamp(0, 1440)
-                          : selection.end;
-                      _openCreate(
-                        kind: EventKind.plan,
-                        start: selection.start,
-                        end: end,
-                      );
-                    },
+                      },
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
                 if (_dragStartMinute != null && _dragCurrentMinute != null)

@@ -292,14 +292,23 @@ void main() {
     await tester.tap(_row('work'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('category-editor')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('category-editor-color-0')));
+    // The preset swatches are gone; a colour comes from the wheel's 「高级」
+    // HEX entry, which is exact and easy to assert.
+    await tester.tap(
+      find.byKey(const ValueKey('category-editor-wheel-advanced')),
+    );
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('category-editor-wheel-hex')),
+      '#123456',
+    );
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('category-editor-save')));
     await _settle(tester);
 
     final saved = (await tester.runAsync(() => categories.watchAll().first))!
         .single;
-    expect(saved.color, 0xFFE5484D);
+    expect(saved.color, 0xFF123456);
   });
 
   testWidgets(

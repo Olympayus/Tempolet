@@ -5,10 +5,10 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
-import '../../core/ui/touch_target.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import 'category_order.dart';
+import '../../core/ui/color_wheel_picker.dart';
 
 /// Built-in category colours (`v0.1.5 design` §8.6). Categories store the
 /// ARGB value; new categories take the first unused colour.
@@ -280,31 +280,18 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
             ),
           ],
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (var i = 0; i < kCategoryColorChoices.length; i++)
-                GestureDetector(
-                  key: ValueKey('category-editor-color-$i'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () =>
-                      setState(() => _color = kCategoryColorChoices[i]),
-                  child: TouchTarget(
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: Color(kCategoryColorChoices[i]),
-                        shape: BoxShape.circle,
-                        border: _color == kCategoryColorChoices[i]
-                            ? Border.all(color: palette.ink, width: 2)
-                            : null,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+          // The palette swatches are gone: a colour wheel with an 「高级」
+          // disclosure covers every colour instead of eight presets.
+          ColorWheelPicker(
+            key: const ValueKey('category-editor-wheel'),
+            keyPrefix: 'category-editor-wheel',
+            initial: Color(
+              _color ??
+                  nextCategoryColor(
+                    ref.read(allCategoriesProvider).value ?? const <Category>[],
+                  ).toARGB32(),
+            ),
+            onChanged: (color) => setState(() => _color = color.toARGB32()),
           ),
           const SizedBox(height: 20),
           Row(

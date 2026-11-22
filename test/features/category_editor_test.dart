@@ -136,24 +136,30 @@ void main() {
     );
     expect(save().onPressed, isNull);
 
-    await tester.tap(
-      find.byKey(const ValueKey('category-editor-color-0')),
-    );
+    await tester.tap(find.byKey(const ValueKey('category-editor-wheel-sv')));
     await tester.pump();
     expect(save().onPressed, isNotNull);
   });
 
-  testWidgets('phone creates from the bottom input row', (tester) async {
+  testWidgets('phone creates from the editor sheet', (tester) async {
     _useLayout(tester, AppLayout.phone, const Size(375, 812));
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    expect(find.byKey(const ValueKey('category-create-row')), findsOneWidget);
+    // The old always-visible bottom input row is gone: creation goes through
+    // the same editor sheet as editing.
+    expect(find.byKey(const ValueKey('category-create-row')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('category-create')));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('category-editor-sheet')), findsOneWidget);
+
     await tester.enterText(
-      find.byKey(const ValueKey('category-new-name')),
+      find.byKey(const ValueKey('category-editor-name')),
       '新分类',
     );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('category-editor-save')));
     await _settle(tester);
     expect(find.text('新分类'), findsOneWidget);
   });

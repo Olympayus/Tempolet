@@ -14,6 +14,7 @@ import '../../data/repositories/category_repository.dart';
 import 'category_editor.dart';
 import 'category_order.dart';
 import '../../core/ui/confirm_delete_dialog.dart';
+import '../../core/ui/fitted_label.dart';
 
 /// Event totals per category, including completed but not deleted items.
 ///
@@ -57,58 +58,10 @@ class CategoryManagementPage extends ConsumerStatefulWidget {
 
 class _CategoryManagementPageState
     extends ConsumerState<CategoryManagementPage> {
-  final _newName = TextEditingController();
-  final _newNameFocus = FocusNode();
-  String? _newNameError;
-  bool _creating = false;
-
-  @override
-  void dispose() {
-    _newName.dispose();
-    _newNameFocus.dispose();
-    super.dispose();
-  }
-
-  /// Creates a category from the phone's bottom input row. Returns null on
-  /// success and keeps the conflict message inline.
-  Future<void> _createFromRow() async {
-    final name = _newName.text.trim();
-    if (name.isEmpty || _creating) return;
-    final repo = ref.read(categoryRepositoryProvider);
-    final l10n = AppLocalizations.of(context);
-    setState(() {
-      _creating = true;
-      _newNameError = null;
-    });
-    try {
-      final existing = ref.read(allCategoriesProvider).value ?? const [];
-      final category = await repo.create(
-        name: name,
-        color: nextCategoryColor(existing).toARGB32(),
-      );
-      if (!mounted) return;
-      ref.read(categoryOrderProvider.notifier).addCategory(category.id);
-      await _persistRealOrder();
-      if (!mounted) return;
-      _newName.clear();
-      setState(() => _creating = false);
-    } on CategoryNameConflict {
-      if (mounted) {
-        setState(() {
-          _creating = false;
-          _newNameError = l10n.categoryNameExists;
-        });
-      }
-    }
-  }
-
-  Future<void> _openCreate() async {
-    if (resolveAppLayout(context) == AppLayout.phone) {
-      _newNameFocus.requestFocus();
-      return;
-    }
-    await showCategoryEditor(context);
-  }
+  /// One create path for every layout: the shared category editor (a bottom
+  /// sheet on phones, a dialog on tablet and desktop), matching the event
+  /// editor's flow.
+  Future<void> _openCreate() => showCategoryEditor(context);
 
   Future<void> _delete(Category category) async {
     final l10n = AppLocalizations.of(context);
@@ -125,20 +78,6 @@ class _CategoryManagementPageState
     await ref.read(categoryRepositoryProvider).softDelete(category.id);
     if (!mounted) return;
     ref.read(categoryOrderProvider.notifier).removeCategory(category.id);
-  }
-
-  /// Keeps the database's `sortOrder` in step with the displayed real ids.
-  Future<void> _persistRealOrder() async {
-    final repo = ref.read(categoryRepositoryProvider);
-    final categories = await repo.watchAll().first;
-    final ordered = applyCategoryOrder(
-      ref.read(categoryOrderProvider),
-      categories,
-    );
-    await repo.reorder([
-      for (final category in ordered)
-        if (category != null) category.id,
-    ]);
   }
 
   void _reorder(String sourceId, String targetId) {
@@ -221,11 +160,13 @@ class _CategoryManagementPageState
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
+                    // Fixed copy: scale rather than ellipsise beside the create
+                    // button, like the reminders title.
+                    child: FittedLabel(
                       l10n.manageCategories,
                       key: const ValueKey('category-title'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      alignment: Alignment.centerLeft,
+                      textAlign: TextAlign.left,
                       style: AppTextStyles.display.copyWith(
                         fontSize: resolveAppLayout(context) == AppLayout.phone
                             ? 34
@@ -282,57 +223,6 @@ class _CategoryManagementPageState
                     ],
                   ),
                 ),
-                if (resolveAppLayout(context) == AppLayout.phone)
-                  Padding(
-                    key: const ValueKey('category-create-row'),
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          key: const ValueKey('category-new-name'),
-                          controller: _newName,
-                          focusNode: _newNameFocus,
-                          maxLines: 1,
-                          textInputAction: TextInputAction.done,
-                          onChanged: (_) {
-                            if (_newNameError != null) {
-                              setState(() => _newNameError = null);
-                            }
-                          },
-                          onSubmitted: (_) => _createFromRow(),
-                          style: AppTextStyles.body.copyWith(
-                            color: palette.ink,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: l10n.newCategoryName,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 10,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppRadii.field,
-                              ),
-                              borderSide: BorderSide(color: palette.line),
-                            ),
-                          ),
-                        ),
-                        if (_newNameError != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6, left: 2),
-                            child: Text(
-                              _newNameError!,
-                              key: const ValueKey('category-new-error'),
-                              style: AppTextStyles.caption.copyWith(
-                                color: palette.danger,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),

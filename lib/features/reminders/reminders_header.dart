@@ -5,6 +5,7 @@ import '../../core/l10n/generated/app_localizations.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_icons.dart';
+import '../../core/ui/fitted_label.dart';
 
 /// 64px page header for `/reminders` (`10-ui-refinement.md` §9.7).
 ///
@@ -48,11 +49,12 @@ class RemindersHeader extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(
+              // Scale down rather than ellipsise (see the phone header).
+              child: FittedLabel(
                 l10n.remindersTitle,
                 key: const ValueKey('reminders-title'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                alignment: Alignment.centerLeft,
+                textAlign: TextAlign.left,
                 style: AppTextStyles.display.copyWith(color: palette.ink),
               ),
             ),

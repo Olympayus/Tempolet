@@ -175,14 +175,18 @@ class _SegmentItem extends StatelessWidget {
                 width: _hairline,
               ),
             ),
-            child: DefaultTextStyle(
-              style: AppTextStyles.body.copyWith(
-                color: selected ? palette.ink : palette.sub,
+            // Fixed labels shrink to fit rather than ellipsising: the control
+            // must always read in full, even when the parent is narrow.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: DefaultTextStyle(
+                style: AppTextStyles.body.copyWith(
+                  color: selected ? palette.ink : palette.sub,
+                ),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                child: label,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              child: label,
             ),
           ),
         ],

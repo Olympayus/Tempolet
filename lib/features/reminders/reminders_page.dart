@@ -12,6 +12,7 @@ import '../../core/theme/app_tokens.dart';
 import '../../core/ui/app_buttons.dart';
 import '../../core/ui/app_popover.dart';
 import '../../core/ui/app_segmented.dart';
+import '../../core/ui/fitted_label.dart';
 import '../../core/ui/strike_through_text.dart';
 import '../../core/ui/swipe_actions_row.dart';
 import '../../core/utils/dates.dart';
@@ -609,27 +610,37 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                 ),
               Padding(
                 padding: EdgeInsets.fromLTRB(inset, 4, inset, 0),
-                child: Row(
-                  children: [
-                    _Stat(
-                      key: const ValueKey('reminders-stat-overdue'),
-                      label: l10n.remindersOverdue,
-                      count: overdueDisplay.length,
-                      danger: true,
+                // Fixed copy: the three counts shrink together on a narrow
+                // header instead of overflowing or truncating their labels.
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _Stat(
+                          key: const ValueKey('reminders-stat-overdue'),
+                          label: l10n.remindersOverdue,
+                          count: overdueDisplay.length,
+                          danger: true,
+                        ),
+                        const SizedBox(width: 16),
+                        _Stat(
+                          key: const ValueKey('reminders-stat-today'),
+                          label: l10n.remindersToday,
+                          count: todayDisplay.length,
+                        ),
+                        const SizedBox(width: 16),
+                        _Stat(
+                          key: const ValueKey('reminders-stat-week'),
+                          label: l10n.remindersThisWeek,
+                          count: weekDisplay.length,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    _Stat(
-                      key: const ValueKey('reminders-stat-today'),
-                      label: l10n.remindersToday,
-                      count: todayDisplay.length,
-                    ),
-                    const SizedBox(width: 16),
-                    _Stat(
-                      key: const ValueKey('reminders-stat-week'),
-                      label: l10n.remindersThisWeek,
-                      count: weekDisplay.length,
-                    ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
@@ -1387,11 +1398,13 @@ class _PhoneRemindersHeader extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(
+              // Scale the title down instead of ellipsising it: a longer
+              // translation shrinks the type rather than cutting the word.
+              child: FittedLabel(
                 l10n.remindersTitle,
                 key: const ValueKey('reminders-title'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                alignment: Alignment.centerLeft,
+                textAlign: TextAlign.left,
                 style: AppTextStyles.display.copyWith(
                   fontSize: 34,
                   height: 41 / 34,

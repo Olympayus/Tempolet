@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../layout.dart';
 import '../theme/app_tokens.dart';
+import 'fitted_label.dart';
 import 'touch_target.dart';
 
 const double _iconButtonSize = AppSizes.control;
@@ -192,12 +193,12 @@ class _AppButtonState extends State<AppButton> {
                       ),
                       const SizedBox(width: _primaryIconGap),
                     ],
-                    Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _primaryLabelStyle.copyWith(
-                        color: enabled ? Colors.white : palette.subMuted,
+                    Flexible(
+                      child: FittedLabel(
+                        widget.label,
+                        style: _primaryLabelStyle.copyWith(
+                          color: enabled ? Colors.white : palette.subMuted,
+                        ),
                       ),
                     ),
                   ],
@@ -211,10 +212,8 @@ class _AppButtonState extends State<AppButton> {
                   color: _hovering && enabled ? palette.hover : palette.chip,
                   borderRadius: BorderRadius.circular(AppRadii.button),
                 ),
-                child: Text(
+                child: FittedLabel(
                   widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.body.copyWith(
                     color: enabled ? palette.ink : palette.subMuted,
                   ),
@@ -222,10 +221,8 @@ class _AppButtonState extends State<AppButton> {
               ),
               _AppButtonKind.textLink => Padding(
                 padding: _textLinkPadding,
-                child: Text(
+                child: FittedLabel(
                   widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.body.copyWith(
                     color: enabled ? palette.accent : palette.subMuted,
                   ),

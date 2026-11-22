@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'fitted_label.dart';
+
 /// Width of one revealed action button (`10-ui-refinement.md` §9.14).
 const double kSwipeActionWidth = 64;
 
@@ -183,10 +185,8 @@ class _SwipeActionsRowState extends State<SwipeActionsRow> {
                             child: ColoredBox(
                               color: action.color,
                               child: Center(
-                                child: Text(
+                                child: FittedLabel(
                                   action.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 13,

@@ -85,8 +85,13 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
     with SingleTickerProviderStateMixin {
   late final AnimationController _slide;
 
-  double _dragDx = 0;
+  /// Live finger offset. A notifier rather than `setState` on purpose:
+  /// rebuilding the gesture detector mid-drag tears down the recognizer and
+  /// the pointer stream stops after the first update.
+  final ValueNotifier<double> _dragDx = ValueNotifier<double>(0);
   bool _dragging = false;
+
+  late final Listenable _repaint = Listenable.merge([_slide, _dragDx]);
 
   bool get _open => widget.controller.openId == widget.id;
   double get _actionsWidth => kSwipeActionWidth * widget.actions.length;
@@ -123,6 +128,7 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
     _slide.dispose();
+    _dragDx.dispose();
     super.dispose();
   }
 
@@ -141,31 +147,34 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
   double get _offset {
     final settled = -_actionsWidth * _slide.value;
     if (!_dragging) return settled;
-    return (settled + _dragDx).clamp(-_actionsWidth, 0.0);
+    return (settled + _dragDx.value).clamp(-_actionsWidth, 0.0);
   }
 
   void _onDragStart(DragStartDetails details) {
     _slide.stop();
-    _dragDx = 0;
+    _dragDx.value = 0;
     _dragging = false;
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
-    _dragDx += details.delta.dx;
-    setState(() => _dragging = _dragDx.abs() >= _axisLock);
+    _dragDx.value += details.delta.dx;
+    _dragging = _dragDx.value.abs() >= _axisLock;
   }
 
   void _onDragEnd(DragEndDetails details) {
     if (!_dragging) {
-      _dragDx = 0;
+      _dragDx.value = 0;
       return;
     }
     final velocity = details.primaryVelocity ?? 0;
-    final open = _offset <= -_actionsWidth / 2 || velocity <= -150;
-    setState(() {
-      _dragging = false;
-      _dragDx = 0;
-    });
+    _settle(open: _offset <= -_actionsWidth / 2 || velocity <= -150);
+  }
+
+  /// Snaps to the open or closed pose. A cancelled drag lands here too, so the
+  /// row can never freeze half-open under the finger.
+  void _settle({required bool open}) {
+    _dragging = false;
+    _dragDx.value = 0;
     if (open) {
       _slide.animateTo(1, curve: Curves.easeOut);
       widget.controller.open(widget.id);
@@ -173,6 +182,14 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
       _slide.animateBack(0, curve: Curves.easeOut);
       widget.controller.close();
     }
+  }
+
+  void _onDragCancel() {
+    if (!_dragging) {
+      _dragDx.value = 0;
+      return;
+    }
+    _settle(open: _offset <= -_actionsWidth / 2);
   }
 
   @override
@@ -184,23 +201,31 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
       onHorizontalDragStart: enabled ? _onDragStart : null,
       onHorizontalDragUpdate: enabled ? _onDragUpdate : null,
       onHorizontalDragEnd: enabled ? _onDragEnd : null,
+      onHorizontalDragCancel: enabled ? _onDragCancel : null,
       child: widget.child,
     );
 
     return ClipRect(
       child: AnimatedBuilder(
-        animation: _slide,
+        animation: _repaint,
         builder: (context, child) {
           final offset = _offset;
           final revealed = -offset;
+          // The three layers are always present, in this order: adding or
+          // removing a Stack child mid-drag shifts the content's slot, which
+          // rebuilds its element and tears down the gesture recognizer.
           return Stack(
             children: [
-              if (revealed > 0)
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  width: _actionsWidth,
+              Positioned(
+                top: 0,
+                bottom: 0,
+                // The strip tracks the reveal so it never shows through the
+                // row: rows are transparent, so the buttons must occupy
+                // exactly the area the content has vacated.
+                right: revealed - _actionsWidth,
+                width: _actionsWidth,
+                child: Offstage(
+                  offstage: revealed <= 0,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -232,22 +257,25 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
                           ),
                         ),
                     ],
+                    ),
                   ),
                 ),
               Transform.translate(offset: Offset(offset, 0), child: child),
               // The row has slid aside, so the whole visible content closes it
               // on tap; the actions keep the strip the content vacated.
-              if (revealed > 0)
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: revealed,
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: revealed,
+                child: Offstage(
+                  offstage: revealed <= 0,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: widget.controller.close,
                   ),
                 ),
+              ),
             ],
           );
         },

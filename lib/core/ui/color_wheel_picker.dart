@@ -214,20 +214,35 @@ class _ColorWheelPickerState extends State<ColorWheelPicker> {
               const SizedBox(width: 8),
               _byteField('b', 'B', _b, _bFocus, palette),
               const SizedBox(width: 8),
+              // Labelled like R/G/B so the four fields share one baseline.
               Expanded(
                 flex: 2,
-                child: TextField(
-                  key: ValueKey(_key('hex')),
-                  controller: _hex,
-                  focusNode: _hexFocus,
-                  maxLength: 7,
-                  style: AppTextStyles.secondary.copyWith(color: palette.ink),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[#0-9a-fA-F]')),
-                    LengthLimitingTextInputFormatter(7),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'HEX',
+                      style: AppTextStyles.caption.copyWith(color: palette.sub),
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      key: ValueKey(_key('hex')),
+                      controller: _hex,
+                      focusNode: _hexFocus,
+                      maxLength: 7,
+                      style: AppTextStyles.secondary.copyWith(
+                        color: palette.ink,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp('[#0-9a-fA-F]'),
+                        ),
+                        LengthLimitingTextInputFormatter(7),
+                      ],
+                      onChanged: (_) => _onHexChanged(),
+                      decoration: _fieldDecoration(palette),
+                    ),
                   ],
-                  onChanged: (_) => _onHexChanged(),
-                  decoration: _fieldDecoration(palette),
                 ),
               ),
             ],

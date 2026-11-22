@@ -14,6 +14,7 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_page.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
+import 'package:tempolet/features/calendar/category_marker.dart';
 import 'package:tempolet/features/calendar/month_preview_popover.dart';
 import 'package:tempolet/features/calendar/month_view.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
@@ -78,7 +79,7 @@ void main() {
     );
   }
 
-  testWidgets('grid has no adjacent-month cells and shows an ellipsis', (
+  testWidgets('month cells show markers, not titles, and no adjacent months', (
     tester,
   ) async {
     await seed('E1', startMinute: 540);
@@ -87,12 +88,14 @@ void main() {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    expect(find.textContaining('E3'), findsNothing);
-    expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
+    // Cells carry shape markers only; titles never print in the grid.
+    expect(find.textContaining('E1'), findsNothing);
+    expect(find.byType(CategoryMarker), findsNWidgets(3));
+    expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsNothing);
     expect(find.textContaining('Oct'), findsNothing);
   });
 
-  testWidgets('holiday info shares the day row and keeps both event rows', (
+  testWidgets('holiday name always renders directly under the date', (
     tester,
   ) async {
     // The 8/10 + 32 density needs a taller window to fit two event rows; keep
@@ -122,20 +125,23 @@ void main() {
 
     expect(find.text('Test Holiday'), findsOneWidget);
     expect(find.text('Off'), findsOneWidget);
-    expect(find.text('E1'), findsOneWidget);
-    expect(find.text('E2'), findsOneWidget);
-    expect(find.text('E3'), findsNothing);
-    expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
+    expect(find.byType(CategoryMarker), findsNWidgets(3));
+    // The holiday line sits under the date number, not squeezed out by events.
+    final dateRect = tester.getRect(
+      find.byKey(const ValueKey('month-day-number-2026-11-11')),
+    );
+    final holidayRect = tester.getRect(find.text('Test Holiday'));
+    expect(holidayRect.top, greaterThanOrEqualTo(dateRect.bottom));
   });
 
-  testWidgets('960x600 keeps the overflow row and one event inside the cell', (
+  testWidgets('960x600 keeps the marker row inside the cell', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(960, 600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 24; i++) {
       await seed('H$i', startMinute: 480 + i * 15);
     }
     await tester.pumpWidget(_app(container));
@@ -153,25 +159,29 @@ void main() {
     expect(moreRect.right, lessThanOrEqualTo(cellRect.right));
     expect(moreRect.bottom, lessThanOrEqualTo(cellRect.bottom));
 
-    // Only the rows that fit render; the first one must be fully inside the
-    // cell rather than clipped in half.
-    final first = find.text('H0');
-    expect(first, findsOneWidget);
-    expect(find.text('H1'), findsNothing);
-    final textRect = tester.getRect(first);
-    expect(textRect.top, greaterThanOrEqualTo(cellRect.top));
-    expect(textRect.bottom, lessThanOrEqualTo(cellRect.bottom));
-    expect(textRect.bottom, lessThanOrEqualTo(moreRect.top));
+    // Markers stay on one row: nothing may sit below the ellipsis baseline.
+    final marker = find.byType(CategoryMarker).first;
+    final markerRect = tester.getRect(marker);
+    expect(markerRect.top, greaterThanOrEqualTo(cellRect.top));
+    expect(markerRect.bottom, lessThanOrEqualTo(cellRect.bottom));
   });
 
-  testWidgets('weekday band uses the side surface', (tester) async {
+  testWidgets('weekday band is the table header on the side surface', (
+    tester,
+  ) async {
     await tester.pumpWidget(_app(container));
     await _settle(tester);
 
-    final band = tester.widget<ColoredBox>(
+    // The header keeps the structural `side` fill but docks onto the grid:
+    // its bottom rule is the grid's top line and its cells share the table's
+    // column rules.
+    final band = tester.widget<Container>(
       find.byKey(const ValueKey('month-weekday-band')),
     );
-    expect(band.color, AppPalette.light.side);
+    final decoration = band.decoration! as BoxDecoration;
+    expect(decoration.color, AppPalette.light.side);
+    final border = decoration.border! as Border;
+    expect(border.bottom.color, AppPalette.light.lineStrong);
   });
 
   testWidgets('single click selects the day and does not open the sidebar', (

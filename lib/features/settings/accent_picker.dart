@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_settings.dart';
 
@@ -35,11 +36,25 @@ class AccentSwatch extends StatelessWidget {
 }
 
 /// Opens the custom accent picker. Returns the chosen color, or null when the
-/// dialog was cancelled.
+/// dialog was cancelled. Phone gets a bottom sheet with the RGB/HEX fields
+/// behind an 「高级」 disclosure (`v0.1.5 design` §8.6).
 Future<Color?> showAccentColorPicker(
   BuildContext context, {
   required Color initial,
 }) {
+  if (resolveAppLayout(context) == AppLayout.phone) {
+    return showModalBottomSheet<Color>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: _AccentColorPickerDialog(initial: initial, sheet: true),
+      ),
+    );
+  }
   return showDialog<Color>(
     context: context,
     builder: (_) => _AccentColorPickerDialog(initial: initial),
@@ -55,9 +70,10 @@ AppPalette _paletteOf(BuildContext context) {
 }
 
 class _AccentColorPickerDialog extends StatefulWidget {
-  const _AccentColorPickerDialog({required this.initial});
+  const _AccentColorPickerDialog({required this.initial, this.sheet = false});
 
   final Color initial;
+  final bool sheet;
 
   @override
   State<_AccentColorPickerDialog> createState() =>
@@ -66,6 +82,9 @@ class _AccentColorPickerDialog extends StatefulWidget {
 
 class _AccentColorPickerDialogState extends State<_AccentColorPickerDialog> {
   static const double _svHeight = 150;
+
+  /// Phone sheet keeps RGB/HEX behind the 「高级」 disclosure.
+  bool _advanced = false;
 
   late HSVColor _hsv;
   late Color _color;
@@ -348,43 +367,56 @@ class _AccentColorPickerDialogState extends State<_AccentColorPickerDialog> {
     final l10n = AppLocalizations.of(context);
     final palette = _paletteOf(context);
 
-    return Dialog(
-      key: const ValueKey('color-picker'),
-      backgroundColor: palette.card,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadii.dialog),
-      ),
-      child: SizedBox(
-        width: 300,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    l10n.customColor,
-                    style: AppTextStyles.headline.copyWith(color: palette.ink),
+    final content = SizedBox(
+      width: 300,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Text(
+                  l10n.customColor,
+                  style: AppTextStyles.headline.copyWith(color: palette.ink),
+                ),
+                const Spacer(),
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: _color,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: palette.lineStrong),
                   ),
-                  const Spacer(),
-                  Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: _color,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: palette.lineStrong),
-                    ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _svSquare(),
+            const SizedBox(height: 12),
+            _hueStrip(),
+            const SizedBox(height: 14),
+            if (widget.sheet) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const ValueKey('accent-advanced'),
+                  onPressed: () => setState(() => _advanced = !_advanced),
+                  style: TextButton.styleFrom(
+                    foregroundColor: palette.sub,
+                    textStyle: AppTextStyles.secondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                ],
+                  child: Text(_advanced ? l10n.advancedHide : l10n.advanced),
+                ),
               ),
-              const SizedBox(height: 12),
-              _svSquare(),
-              const SizedBox(height: 12),
-              _hueStrip(),
-              const SizedBox(height: 14),
+              const SizedBox(height: 4),
+            ],
+            if (!widget.sheet || _advanced) ...[
               Row(
                 children: [
                   _byteField(
@@ -419,7 +451,7 @@ class _AccentColorPickerDialogState extends State<_AccentColorPickerDialog> {
               ),
               const SizedBox(height: 4),
               TextField(
-                key: const ValueKey('color-hex'),
+                key: ValueKey(widget.sheet ? 'accent-hex' : 'color-hex'),
                 controller: _hex,
                 focusNode: _hexFocus,
                 maxLength: 7,
@@ -432,61 +464,85 @@ class _AccentColorPickerDialogState extends State<_AccentColorPickerDialog> {
                 decoration: _fieldDecoration(palette),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        key: const ValueKey('color-restore'),
-                        onPressed: _restoreDefault,
-                        style: TextButton.styleFrom(
-                          foregroundColor: palette.sub,
-                          textStyle: AppTextStyles.secondary,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          minimumSize: const Size(0, 30),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Text(
-                          l10n.restoreDefault,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      key: const ValueKey('color-restore'),
+                      onPressed: _restoreDefault,
+                      style: TextButton.styleFrom(
+                        foregroundColor: palette.sub,
+                        textStyle: AppTextStyles.secondary,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        minimumSize: const Size(0, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        l10n.restoreDefault,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
-                  TextButton(
-                    key: const ValueKey('color-cancel'),
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: palette.sub,
-                      textStyle: AppTextStyles.secondary,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      minimumSize: const Size(0, 30),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(l10n.cancel),
+                ),
+                TextButton(
+                  key: const ValueKey('color-cancel'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: palette.sub,
+                    textStyle: AppTextStyles.secondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    key: const ValueKey('color-confirm'),
-                    onPressed: () => Navigator.of(context).pop(_color),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: palette.accent,
-                      foregroundColor: Colors.white,
-                      textStyle: AppTextStyles.secondary,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      minimumSize: const Size(0, 30),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(l10n.confirm),
+                  child: Text(l10n.cancel),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  key: const ValueKey('color-confirm'),
+                  onPressed: () => Navigator.of(context).pop(_color),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: palette.accent,
+                    foregroundColor: Colors.white,
+                    textStyle: AppTextStyles.secondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                ],
-              ),
-            ],
-          ),
+                  child: Text(l10n.confirm),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
+    );
+
+    if (widget.sheet) {
+      return SafeArea(
+        top: false,
+        child: Container(
+          key: const ValueKey('accent-picker-sheet'),
+          decoration: BoxDecoration(
+            color: palette.card,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppRadii.dialog),
+            ),
+          ),
+          child: content,
+        ),
+      );
+    }
+    return Dialog(
+      key: const ValueKey('color-picker'),
+      backgroundColor: palette.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.dialog),
+      ),
+      child: content,
     );
   }
 }

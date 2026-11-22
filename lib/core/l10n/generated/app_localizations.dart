@@ -845,7 +845,7 @@ abstract class AppLocalizations {
   /// No description provided for @notifActionRemind.
   ///
   /// In en, this message translates to:
-  /// **'Remind in 10 minutes'**
+  /// **'In 10 minutes'**
   String get notifActionRemind;
 
   /// No description provided for @navReminders.
@@ -950,6 +950,120 @@ abstract class AppLocalizations {
   /// **'Completed'**
   String get completedChip;
 
+  /// No description provided for @showLeftPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Show calendar panel'**
+  String get showLeftPanel;
+
+  /// No description provided for @hideLeftPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide calendar panel'**
+  String get hideLeftPanel;
+
+  /// No description provided for @notificationEventMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This item no longer exists'**
+  String get notificationEventMissing;
+
+  /// No description provided for @notificationChannelSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders (sound)'**
+  String get notificationChannelSound;
+
+  /// No description provided for @notificationChannelSilent.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders (silent)'**
+  String get notificationChannelSilent;
+
+  /// No description provided for @notificationChannelDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Tempolet reminders and plans'**
+  String get notificationChannelDescription;
+
+  /// No description provided for @notificationPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification permission'**
+  String get notificationPermission;
+
+  /// No description provided for @notificationOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are off'**
+  String get notificationOff;
+
+  /// No description provided for @notificationClosedBySystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications were turned off by the system'**
+  String get notificationClosedBySystem;
+
+  /// No description provided for @openSystemSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open system settings'**
+  String get openSystemSettings;
+
+  /// No description provided for @exactAlarmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact reminders'**
+  String get exactAlarmTitle;
+
+  /// No description provided for @exactAlarmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The system limits exact alarms; reminders may be delayed'**
+  String get exactAlarmHint;
+
+  /// No description provided for @advanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get advanced;
+
+  /// No description provided for @advancedHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide advanced'**
+  String get advancedHide;
+
+  /// No description provided for @editCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit category'**
+  String get editCategory;
+
+  /// No description provided for @discardChangesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes?'**
+  String get discardChangesTitle;
+
+  /// No description provided for @keepEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get keepEditing;
+
+  /// No description provided for @discard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discard;
+
+  /// No description provided for @monthPreviewMore.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} more'**
+  String monthPreviewMore(int count);
+
   /// No description provided for @sidebarEmptyTitle.
   ///
   /// In en, this message translates to:
@@ -985,6 +1099,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tomorrow preview'**
   String get tomorrowPreviewTitle;
+
+  /// No description provided for @moreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get moreActions;
 }
 
 class _AppLocalizationsDelegate

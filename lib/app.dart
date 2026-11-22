@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/l10n/generated/app_localizations.dart';
 import 'core/l10n/locale_controller.dart';
 import 'core/router/app_router.dart';
+import 'core/system_orientation.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 
@@ -31,6 +32,15 @@ class TempoletApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: clampAppTextScaler(media.textScaler),
+          ),
+          child: child!,
+        );
+      },
     );
   }
 }

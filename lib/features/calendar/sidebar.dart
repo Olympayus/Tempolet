@@ -1,10 +1,14 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/swipe_actions_row.dart';
+import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
@@ -14,6 +18,7 @@ import '../events/event_editor_sheet.dart';
 import '../events/event_list_row.dart';
 import 'calendar_state.dart';
 import 'category_marker.dart';
+import '../../core/ui/confirm_delete_dialog.dart';
 
 /// Sidebar width from `docs/design/10-ui-refinement.md` §9.12.
 const double _sidebarWidth = 300;
@@ -38,11 +43,148 @@ const double _checkHitSize = 24;
 /// (`docs/design/10-ui-refinement.md` §9.12): a single-row date header with the
 /// completed-list chip, the day's unfinished items grouped plans-first, and a
 /// bottom add row.
-class CalendarSidebar extends ConsumerWidget {
-  const CalendarSidebar({super.key});
+class CalendarSidebar extends ConsumerStatefulWidget {
+  const CalendarSidebar({super.key, this.retainCompletions, this.swipeActions});
+
+  /// Overrides the touch defaults (tablet retains and swipes); desktop keeps
+  /// both off unless a caller opts in.
+  final bool? retainCompletions;
+  final bool? swipeActions;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CalendarSidebar> createState() => _CalendarSidebarState();
+}
+
+class _CalendarSidebarState extends ConsumerState<CalendarSidebar> {
+  final Map<String, Event> _recentlyCompleted = <String, Event>{};
+  final Set<String> _animatedIds = <String>{};
+  final SwipeActionsController _swipe = SwipeActionsController();
+
+  // Captured once: a completion write can outlive the row's 120ms fade, and
+  // `ref` must not be used after the widget is deactivated.
+  late final EventRepository _repo;
+  late final EventNotifierSync _sync;
+
+  /// Resolved lazily: only the swipe-delete path needs the notification
+  /// service, and tests that never delete do not override it.
+  late final NotificationScheduler _scheduler = ref.read(
+    notificationSchedulerProvider,
+  );
+
+  bool get _tablet => resolveAppLayout(context) == AppLayout.tablet;
+  bool get _retain => widget.retainCompletions ?? _tablet;
+  bool get _swipeEnabled => widget.swipeActions ?? _tablet;
+
+  @override
+  void initState() {
+    super.initState();
+    _repo = ref.read(eventRepositoryProvider);
+    _sync = ref.read(eventNotifierSyncProvider);
+  }
+
+  @override
+  void dispose() {
+    _recentlyCompleted.clear();
+    _swipe.dispose();
+    super.dispose();
+  }
+
+  Future<void> _complete(Event event) async {
+    await _repo.setCompleted(event.id, true);
+    final snapshot = event.copyWith(
+      isCompleted: true,
+      completedAt: Value(DateTime.now()),
+    );
+    if (mounted && _retain) {
+      setState(() => _recentlyCompleted[event.id] = snapshot);
+    }
+    _sync.afterCompletion(snapshot);
+  }
+
+  Future<void> _undo(Event event) async {
+    await _repo.setCompleted(event.id, false);
+    if (mounted) {
+      setState(() {
+        _recentlyCompleted.remove(event.id);
+        _animatedIds.remove(event.id);
+      });
+    }
+    _sync.afterUpdate(
+      event.copyWith(
+        isCompleted: false,
+        completedAt: const Value(null),
+        updatedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  /// The repository's day order: start minute (all-day last), then id.
+  int _byStartThenId(Event a, Event b) {
+    final am = a.startMinute;
+    final bm = b.startMinute;
+    if (am == null && bm == null) return a.id.compareTo(b.id);
+    if (am == null) return 1;
+    if (bm == null) return -1;
+    final byStart = am.compareTo(bm);
+    return byStart != 0 ? byStart : a.id.compareTo(b.id);
+  }
+
+  Future<void> _confirmDelete(Event event, AppLocalizations l10n) async {
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      message: l10n.deleteForeverHint,
+      cancelLabel: l10n.cancel,
+      deleteLabel: l10n.delete,
+    );
+    if (!confirmed) return;
+    await _scheduler.cancelEvent(event);
+    await _repo.hardDelete(event.id);
+    if (mounted) {
+      setState(() => _recentlyCompleted.remove(event.id));
+    }
+  }
+
+  Widget _rowFor(
+    Event event, {
+    required List<Category> categories,
+    required AppPalette palette,
+    required AppLocalizations l10n,
+  }) {
+    final retained = _recentlyCompleted.containsKey(event.id);
+    final row = _SidebarRow(
+      key: ValueKey('sidebar-row-${event.id}'),
+      event: event,
+      color: categoryMarkerColor(event.categoryId, categories),
+      retained: retained,
+      retainOnComplete: _retain,
+      onComplete: () => _complete(event),
+      onUndo: () => _undo(event),
+    );
+    if (!_swipeEnabled) return row;
+    return SwipeActionsRow(
+      id: event.id,
+      controller: _swipe,
+      enabled: !retained,
+      actions: [
+        SwipeAction(
+          id: 'edit',
+          label: l10n.edit,
+          color: palette.accent,
+          onPressed: () => showEventEditor(context, existing: event),
+        ),
+        SwipeAction(
+          id: 'delete',
+          label: l10n.delete,
+          color: palette.danger,
+          onPressed: () => _confirmDelete(event, l10n),
+        ),
+      ],
+      child: row,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final palette = _paletteOf(context);
     final locale = Localizations.localeOf(context);
     final l10n = AppLocalizations.of(context);
@@ -51,21 +193,22 @@ class CalendarSidebar extends ConsumerWidget {
         ref.watch(eventsForDayProvider(day)).value ?? const <Event>[];
     final categories =
         ref.watch(allCategoriesProvider).value ?? const <Category>[];
-    // Completed items leave the sidebar silently, like every other surface.
-    final pending = events.where((event) => !event.isCompleted).toList();
-    // The provider already orders by start time (all-day last); filtering
-    // preserves that order inside each group.
-    final plans = pending.where((event) => event.kind == 'plan').toList();
-    final reminders = pending.where((event) => event.kind != 'plan').toList();
-    // Captured while building, before any 120ms fade, so a mid-fade dismissal
-    // can neither lose the write nor touch `ref` after disposal.
-    final repo = ref.read(eventRepositoryProvider);
-    final sync = ref.read(eventNotifierSyncProvider);
 
-    Future<void> complete(Event event) async {
-      await repo.setCompleted(event.id, true);
-      sync.afterCompletion(event.copyWith(isCompleted: true));
-    }
+    // Completed items leave the sidebar silently on desktop. On the tablet
+    // they retain (D70) through a snapshot, merged back at their start-time
+    // slot and scoped to the selected day. A snapshot whose id is live again
+    // (restored from the completed page) must not duplicate the row.
+    final dayKey = dateOnly(day);
+    final liveIds = {for (final event in events) event.id};
+    final visible = <Event>[
+      ...events.where((event) => !event.isCompleted),
+      ..._recentlyCompleted.values.where(
+        (event) =>
+            dateOnly(event.date) == dayKey && !liveIds.contains(event.id),
+      ),
+    ]..sort(_byStartThenId);
+    final plans = visible.where((event) => event.kind == 'plan').toList();
+    final reminders = visible.where((event) => event.kind != 'plan').toList();
 
     return Container(
       width: _sidebarWidth,
@@ -126,57 +269,58 @@ class CalendarSidebar extends ConsumerWidget {
             ),
           ),
           Expanded(
-            child: pending.isEmpty
-                ? _EmptyState(palette: palette)
-                : ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      if (plans.isNotEmpty)
-                        _SidebarGroup(
-                          key: const ValueKey('sidebar-group-plan'),
-                          titleKey: const ValueKey('sidebar-group-title-plan'),
-                          title: l10n.plansGroupTitle,
-                          count: plans.length,
-                          palette: palette,
-                          children: [
-                            for (final event in plans)
-                              _SidebarRow(
-                                key: ValueKey('sidebar-row-${event.id}'),
-                                event: event,
-                                color: categoryMarkerColor(
-                                  event.categoryId,
-                                  categories,
+            // Empty space closes the open swipe row.
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _swipe.close,
+              child: visible.isEmpty
+                  ? _EmptyState(palette: palette)
+                  : ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        if (plans.isNotEmpty)
+                          _SidebarGroup(
+                            key: const ValueKey('sidebar-group-plan'),
+                            titleKey: const ValueKey(
+                              'sidebar-group-title-plan',
+                            ),
+                            title: l10n.plansGroupTitle,
+                            count: plans.length,
+                            palette: palette,
+                            children: [
+                              for (final event in plans)
+                                _rowFor(
+                                  event,
+                                  categories: categories,
+                                  palette: palette,
+                                  l10n: l10n,
                                 ),
-                                onComplete: () => complete(event),
-                              ),
-                          ],
-                        ),
-                      if (plans.isNotEmpty && reminders.isNotEmpty)
-                        const SizedBox(height: _groupGap),
-                      if (reminders.isNotEmpty)
-                        _SidebarGroup(
-                          key: const ValueKey('sidebar-group-reminder'),
-                          titleKey: const ValueKey(
-                            'sidebar-group-title-reminder',
+                            ],
                           ),
-                          title: l10n.remindersGroupTitle,
-                          count: reminders.length,
-                          palette: palette,
-                          children: [
-                            for (final event in reminders)
-                              _SidebarRow(
-                                key: ValueKey('sidebar-row-${event.id}'),
-                                event: event,
-                                color: categoryMarkerColor(
-                                  event.categoryId,
-                                  categories,
+                        if (plans.isNotEmpty && reminders.isNotEmpty)
+                          const SizedBox(height: _groupGap),
+                        if (reminders.isNotEmpty)
+                          _SidebarGroup(
+                            key: const ValueKey('sidebar-group-reminder'),
+                            titleKey: const ValueKey(
+                              'sidebar-group-title-reminder',
+                            ),
+                            title: l10n.remindersGroupTitle,
+                            count: reminders.length,
+                            palette: palette,
+                            children: [
+                              for (final event in reminders)
+                                _rowFor(
+                                  event,
+                                  categories: categories,
+                                  palette: palette,
+                                  l10n: l10n,
                                 ),
-                                onComplete: () => complete(event),
-                              ),
-                          ],
-                        ),
-                    ],
-                  ),
+                            ],
+                          ),
+                      ],
+                    ),
+            ),
           ),
           Container(height: 1, color: palette.line),
           SizedBox(
@@ -344,15 +488,28 @@ class _SidebarRow extends StatefulWidget {
     super.key,
     required this.event,
     required this.color,
+    required this.retained,
+    required this.retainOnComplete,
     required this.onComplete,
+    required this.onUndo,
   });
 
   final Event event;
   final Color color;
 
+  /// Retained (D70) rows stay visible with a strike and undo instead of
+  /// fading away.
+  final bool retained;
+
+  /// Whether this surface retains completions at all (tablet). Captured from
+  /// the layout so the row knows before its widget config rebuilds.
+  final bool retainOnComplete;
+
   /// The sidebar owns the write so it can capture its repository before the
   /// fade; the row only runs the 120ms fade and then awaits this.
   final Future<void> Function() onComplete;
+
+  final Future<void> Function() onUndo;
 
   @override
   State<_SidebarRow> createState() => _SidebarRowState();
@@ -363,6 +520,16 @@ class _SidebarRowState extends State<_SidebarRow> {
 
   Future<void> _complete() async {
     if (_completing) return;
+    if (widget.retained) {
+      await widget.onUndo();
+      return;
+    }
+    // The retained row keeps its position, so it does not fade; the parent
+    // swaps in the struck snapshot on the next frame.
+    if (widget.retainOnComplete) {
+      await widget.onComplete();
+      return;
+    }
     setState(() => _completing = true);
     await Future<void>.delayed(const Duration(milliseconds: 120));
     await widget.onComplete();
@@ -372,7 +539,7 @@ class _SidebarRowState extends State<_SidebarRow> {
   Widget build(BuildContext context) {
     final event = widget.event;
     return AnimatedOpacity(
-      opacity: _completing ? 0.35 : 1,
+      opacity: _completing && !widget.retained ? 0.35 : 1,
       duration: const Duration(milliseconds: 120),
       child: Stack(
         children: [
@@ -380,7 +547,9 @@ class _SidebarRowState extends State<_SidebarRow> {
             event: event,
             color: widget.color,
             showDate: false,
-            onTap: () => showEventEditor(context, existing: event),
+            onTap: widget.retained
+                ? null
+                : () => showEventEditor(context, existing: event),
             onToggleComplete: _complete,
           ),
           // EventListRow owns the check circle but not a per-event key; this

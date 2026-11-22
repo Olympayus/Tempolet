@@ -48,6 +48,9 @@ class EventListRow extends StatelessWidget {
     this.onToggleComplete,
     this.onToggleSelection,
     this.trailing,
+    this.completeKey,
+    this.showCompletion = true,
+    this.height = AppSizes.row,
   });
 
   final Event event;
@@ -103,6 +106,16 @@ class EventListRow extends StatelessWidget {
   /// Optional widget rendered after the time (e.g. completed-row actions).
   final Widget? trailing;
 
+  /// Optional key on the completion circle, for tests that tap it directly.
+  final Key? completeKey;
+
+  /// When false, the leading completion control is omitted entirely (used by
+  /// the read-only long-press month preview).
+  final bool showCompletion;
+
+  /// Row height. Touch layouts pass the 52px touch row; desktop keeps 46.
+  final double height;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -135,7 +148,7 @@ class EventListRow extends StatelessWidget {
     final note = event.note.trim();
 
     return SizedBox(
-      height: AppSizes.row,
+      height: height,
       child: Stack(
         children: [
           if (isPlan)
@@ -161,15 +174,20 @@ class EventListRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: _rowPadding),
                 child: Row(
                   children: [
-                    if (selectionChecked != null)
+                    if (!showCompletion)
+                      const SizedBox(width: 24)
+                    else if (selectionChecked != null)
                       AppListCheckbox(
                         checked: selectionChecked!,
                         onTap: onToggleSelection,
                       )
                     else
-                      AppCheckCircle(
-                        checked: event.isCompleted,
-                        onTap: onToggleComplete,
+                      KeyedSubtree(
+                        key: completeKey,
+                        child: AppCheckCircle(
+                          checked: event.isCompleted,
+                          onTap: onToggleComplete,
+                        ),
                       ),
                     const SizedBox(width: _gap),
                     SizedBox(

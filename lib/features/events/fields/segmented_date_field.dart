@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/generated/app_localizations.dart';
+import '../../../core/layout.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/ui/app_buttons.dart';
 import '../../../core/utils/dates.dart';
@@ -124,18 +125,46 @@ class _SegmentedDateFieldState extends State<SegmentedDateField> {
   }
 
   Future<void> _openCalendar() async {
-    final picked = await showDialog<DateTime>(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: _palette(context).card,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.dialog),
+    final calendar = MiniCalendarPopover(value: _value);
+    final phone = resolveAppLayout(context) == AppLayout.phone;
+    final DateTime? picked;
+    if (phone) {
+      picked = await showModalBottomSheet<DateTime>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => Container(
+          key: const ValueKey('date-picker-sheet'),
+          width: double.infinity,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          decoration: BoxDecoration(
+            color: _palette(sheetContext).card,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppRadii.dialog),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(child: calendar),
+          ),
         ),
-        child: MiniCalendarPopover(value: _value),
-      ),
-    );
+      );
+    } else {
+      picked = await showDialog<DateTime>(
+        context: context,
+        builder: (context) => Dialog(
+          backgroundColor: _palette(context).card,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.dialog),
+          ),
+          child: calendar,
+        ),
+      );
+    }
     if (picked == null) return;
     if (!mounted) return;
     final next = dateOnly(picked);

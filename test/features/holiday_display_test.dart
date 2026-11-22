@@ -13,6 +13,7 @@ import 'package:tempolet/data/database/database.dart';
 import 'package:tempolet/data/repositories/event_repository.dart';
 import 'package:tempolet/features/calendar/calendar_page.dart';
 import 'package:tempolet/features/calendar/calendar_state.dart';
+import 'package:tempolet/features/calendar/category_marker.dart';
 import 'package:tempolet/notifications/fake_notification_service.dart';
 import 'package:tempolet/notifications/notification_scheduler.dart';
 
@@ -115,8 +116,10 @@ void main() {
       AppPalette.light.festivalTint,
     );
 
-    // A 调休 workday gets the gray pill only, never the festival name.
-    final workPill = tester.widget<Text>(find.text('班'));
+    // A 调休 workday keeps the gray pill; the holiday name still renders
+    // directly under the date, so the label appears twice (pill + name).
+    expect(find.text('班'), findsNWidgets(2));
+    final workPill = tester.widget<Text>(find.text('班').first);
     expect(workPill.style?.color, AppPalette.light.sub);
     final workBadge = tester.widget<Container>(
       find.byKey(const ValueKey('holiday-badge-2026-11-12')),
@@ -127,11 +130,9 @@ void main() {
     );
   });
 
-  testWidgets('holiday info never consumes one of the two event rows', (
+  testWidgets('holiday name stays visible however many events the day has', (
     tester,
   ) async {
-    // Match month_view_test: the 8/10 + 32 density needs the taller viewport
-    // to show two event rows; keep the width under the sidebar breakpoint.
     tester.view.physicalSize = const Size(1100, 820);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -150,12 +151,8 @@ void main() {
 
     expect(find.text('Test Holiday'), findsOneWidget);
     expect(find.text('休'), findsOneWidget);
-    expect(find.text('E1'), findsOneWidget);
-    expect(find.text('E2'), findsOneWidget);
-    // The third event still overflows into the ellipsis, exactly as it does
-    // on days without holiday data.
-    expect(find.text('E3'), findsNothing);
-    expect(find.byKey(const ValueKey('month-more-2026-11-11')), findsOneWidget);
+    expect(find.textContaining('E1'), findsNothing);
+    expect(find.byType(CategoryMarker), findsNWidgets(3));
   });
 
   testWidgets('day header appends the holiday name with festival styling', (
@@ -208,6 +205,11 @@ void main() {
   testWidgets('week headers show only the 休/班 pill, never the name', (
     tester,
   ) async {
+    // Wide enough for the seven-column grid (>=900 content width).
+    tester.view.physicalSize = const Size(1100, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await insertHoliday(
       DateTime(2026, 11, 11),
       'Test Holiday',

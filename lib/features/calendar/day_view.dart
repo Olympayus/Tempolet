@@ -1,10 +1,15 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, PointerDeviceKind;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout_metrics.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/ui/gesture_edges.dart';
+import '../../core/ui/touch_target.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/formats.dart';
 import '../../data/database/database.dart';
@@ -40,7 +45,9 @@ class _DayViewState extends ConsumerState<DayView> {
 
   String? _draggingId;
   int? _dragCurrentStart;
-  double _dragAccumulated = 0;
+
+  /// Horizontal drag origin for edge-gesture avoidance.
+  double _dragStartX = 0;
 
   @override
   void dispose() {
@@ -79,20 +86,38 @@ class _DayViewState extends ConsumerState<DayView> {
     // stats and move to the completed page.
     final pending = events.where((event) => !event.isCompleted).toList();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final showRail = constraints.maxWidth >= 1100;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: _timeline(pending, today: today, isToday: isToday),
-            ),
-            if (showRail)
-              _DayOverview(events: events, tomorrowEvents: tomorrowEvents),
-          ],
-        );
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      dragStartBehavior: DragStartBehavior.down,
+      onHorizontalDragStart: (details) {
+        _dragStartX = details.globalPosition.dx;
       },
+      onHorizontalDragEnd: (details) {
+        final width = MediaQuery.sizeOf(context).width;
+        if (isEdgeSwipe(_dragStartX, width)) return;
+        final velocity = details.primaryVelocity ?? 0;
+        final dx = details.globalPosition.dx - _dragStartX;
+        if (velocity < -150 || dx < -60) {
+          ref.read(selectedDayProvider.notifier).shiftDays(1);
+        } else if (velocity > 150 || dx > 60) {
+          ref.read(selectedDayProvider.notifier).shiftDays(-1);
+        }
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showRail = constraints.maxWidth >= 1100;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _timeline(pending, today: today, isToday: isToday),
+              ),
+              if (showRail)
+                _DayOverview(events: events, tomorrowEvents: tomorrowEvents),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -136,15 +161,20 @@ class _DayViewState extends ConsumerState<DayView> {
               children: [
                 Positioned.fill(child: HourGrid(gutterColor: palette.side)),
                 Positioned.fill(
+                  // Mouse and trackpad drags select a range straight away;
+                  // a touch drag belongs to the scrollable, so touch range
+                  // selection waits for the long press handled inside
+                  // (`docs/design/02-shell-mobile.md` §3: 滑动 = 滚动).
                   child: GestureDetector(
+                    key: const ValueKey('day-create-surface'),
+                    supportedDevices: const {
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                    },
                     behavior: HitTestBehavior.opaque,
                     // Begin the range at the press point, not after the drag
                     // slop, so a 34px drag from 09:00 really means 09:00–10:00.
                     dragStartBehavior: DragStartBehavior.down,
-                    onTapUp: (details) {
-                      final minute = _minuteAt(details.localPosition.dy);
-                      _openCreate(kind: EventKind.reminder, start: minute);
-                    },
                     onVerticalDragStart: (details) {
                       setState(() {
                         _dragStartMinute = _minuteAt(details.localPosition.dy);
@@ -181,6 +211,48 @@ class _DayViewState extends ConsumerState<DayView> {
                         end: selection.end,
                       );
                     },
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (details) {
+                        final minute = _minuteAt(details.localPosition.dy);
+                        _openCreate(kind: EventKind.reminder, start: minute);
+                      },
+                      // Touch: long-press claims the gesture from the scroll,
+                      // then vertical movement selects the plan range.
+                      onLongPressStart: (details) {
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _dragStartMinute = _minuteAt(details.localPosition.dy);
+                          _dragCurrentMinute = _dragStartMinute;
+                        });
+                      },
+                      onLongPressMoveUpdate: (details) {
+                        setState(() {
+                          _dragCurrentMinute = _minuteAt(
+                            details.localPosition.dy,
+                          );
+                        });
+                      },
+                      onLongPressEnd: (_) {
+                        final start = _dragStartMinute;
+                        final current = _dragCurrentMinute;
+                        setState(() {
+                          _dragStartMinute = null;
+                          _dragCurrentMinute = null;
+                        });
+                        if (start == null || current == null) return;
+                        final selection = selectionFromDrag(start, current);
+                        final end = selection.end - selection.start < 5
+                            ? (selection.start + 30).clamp(0, 1440)
+                            : selection.end;
+                        _openCreate(
+                          kind: EventKind.plan,
+                          start: selection.start,
+                          end: end,
+                        );
+                      },
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
                 if (_dragStartMinute != null && _dragCurrentMinute != null)
@@ -242,45 +314,46 @@ class _DayViewState extends ConsumerState<DayView> {
           ? (_dragCurrentStart ?? start)
           : start;
       final width = unit - 2 <= 1 ? 1.0 : unit - 2;
+      final hitHeight = height < kMinHitTarget ? kMinHitTarget : height;
       return [
         Positioned(
           left: kAxisGutter + lane * unit + 1,
           width: width,
-          top: minuteToY(currentStart),
-          height: height,
+          top: minuteToY(currentStart) - (hitHeight - height) / 2,
+          height: hitHeight,
           child: GestureDetector(
+            key: ValueKey('plan-hit-${event.id}'),
             behavior: HitTestBehavior.opaque,
-            // Start at the touch point so the whole 34px drag counts; with the
-            // default post-slop start, ~20px of the move is discarded.
-            dragStartBehavior: DragStartBehavior.down,
-            // Vertical drag rather than pan: inside the scrolling grid the
-            // scrollable's vertical recognizer wins any pan arena, so a child
-            // vertical recognizer is what keeps block moves on the block.
-            onVerticalDragStart: (_) {
+            // A long press arms the move; before that the grid keeps its
+            // scroll. Touch rows follow the finger vertically only.
+            onLongPressStart: (_) {
+              HapticFeedback.selectionClick();
               setState(() {
                 _draggingId = event.id;
                 _dragCurrentStart = start;
-                _dragAccumulated = 0;
               });
             },
-            onVerticalDragUpdate: (details) {
-              _dragAccumulated += details.delta.dy * 60 / kHourHeight;
-              if (_dragAccumulated.abs() < 5) return;
-              final delta = _dragAccumulated.round();
+            onLongPressMoveUpdate: (details) {
+              final delta = (details.offsetFromOrigin.dy * 60 / kHourHeight)
+                  .round();
               final latestStart = (1440 - (end - start)).clamp(0, 1440);
               setState(() {
-                _dragCurrentStart = snapMinutes(
-                  (_dragCurrentStart ?? start) + delta,
-                ).clamp(0, latestStart);
+                _dragCurrentStart = snapMinutes(start + delta)
+                    .clamp(0, latestStart);
               });
-              _dragAccumulated -= delta;
             },
-            onVerticalDragEnd: (_) => _commitPlanMove(event, start, end),
-            child: PlanBlock(
-              key: ValueKey('plan-${event.id}'),
-              event: event,
-              overdue: eventStatus(event, today) == EventStatus.overdue,
-              onTap: () => showEventEditor(context, existing: event),
+            onLongPressEnd: (_) => _commitPlanMove(event, start, end),
+            child: TouchTarget(
+              child: SizedBox(
+                width: width,
+                height: height,
+                child: PlanBlock(
+                  key: ValueKey('plan-${event.id}'),
+                  event: event,
+                  overdue: eventStatus(event, today) == EventStatus.overdue,
+                  onTap: () => showEventEditor(context, existing: event),
+                ),
+              ),
             ),
           ),
         ),
@@ -293,13 +366,27 @@ class _DayViewState extends ConsumerState<DayView> {
         left: kAxisGutter,
         right: 10,
         top: minuteToY(start) - 6,
-        child: ReminderCard(
-          key: ValueKey('reminder-${event.id}'),
-          event: event,
-          overdue: eventStatus(event, today) == EventStatus.overdue,
-          showCheckbox: true,
+        child: GestureDetector(
+          key: ValueKey('reminder-hit-${event.id}'),
+          behavior: HitTestBehavior.opaque,
           onTap: () => showEventEditor(context, existing: event),
-          onComplete: _completion(event),
+          // Grow the hit band downward so the card keeps its anchor.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: kMinHitTarget),
+            child: Align(
+              alignment: Alignment.topCenter,
+              widthFactor: 1,
+              heightFactor: 1,
+              child: ReminderCard(
+                key: ValueKey('reminder-${event.id}'),
+                event: event,
+                overdue: eventStatus(event, today) == EventStatus.overdue,
+                showCheckbox: true,
+                onTap: () => showEventEditor(context, existing: event),
+                onComplete: _completion(event),
+              ),
+            ),
+          ),
         ),
       ),
     ];
@@ -323,7 +410,6 @@ class _DayViewState extends ConsumerState<DayView> {
     setState(() {
       _draggingId = null;
       _dragCurrentStart = null;
-      _dragAccumulated = 0;
     });
     if (moved == null || moved == start) return;
     final updated = event.copyWith(

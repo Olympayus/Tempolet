@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/app_info.dart';
 import '../../core/l10n/generated/app_localizations.dart';
+import '../../core/layout.dart';
+import '../../core/platform/android_capabilities.dart';
 import '../../core/l10n/locale_controller.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_controller.dart';
@@ -22,18 +24,49 @@ import 'notification_prefs.dart';
 ///
 /// One 760-wide column: an appearance, notifications, desktop and about card,
 /// each with 64-high two-part rows and right-aligned self-drawn controls.
-class SettingsPage extends ConsumerWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  /// Android capability rows must refresh after the user returns from the
+  /// system settings (notifications may have been granted meanwhile).
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(
+      onResume: () {
+        ref.invalidate(notificationPermissionProvider);
+        ref.invalidate(exactAlarmAvailableProvider);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final palette = _paletteOf(context);
+    final layout = resolveAppLayout(context);
+    final desktop = layout == AppLayout.desktop;
+    final phone = layout == AppLayout.phone;
     final theme = ref.watch(themeControllerProvider);
     final locale = ref.watch(localeControllerProvider);
     final offset = ref.watch(defaultReminderOffsetProvider);
     final sound = ref.watch(notificationSoundEnabledProvider);
     final overdueSummary = ref.watch(overdueSummaryEnabledProvider);
+    final permission = ref.watch(notificationPermissionProvider).value;
+    final exactAlarm = ref.watch(exactAlarmAvailableProvider).value;
     final minimizeToTray = ref.watch(minimizeToTrayEnabledProvider);
     final launchAtStartup = ref.watch(launchAtStartupEnabledProvider);
 
@@ -53,7 +86,7 @@ class SettingsPage extends ConsumerWidget {
       key: const ValueKey('settings-page'),
       backgroundColor: palette.bg,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+        padding: EdgeInsets.fromLTRB(phone ? 16 : 32, 24, phone ? 16 : 32, 32),
         child: Align(
           alignment: Alignment.topLeft,
           child: ConstrainedBox(
@@ -64,7 +97,10 @@ class SettingsPage extends ConsumerWidget {
               children: [
                 Text(
                   l10n.navSettings,
-                  style: AppTextStyles.display.copyWith(color: palette.ink),
+                  style: AppTextStyles.display.copyWith(
+                    fontSize: phone ? 34 : 28,
+                    color: palette.ink,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 _SettingsGroup(
@@ -161,11 +197,12 @@ class SettingsPage extends ConsumerWidget {
                   palette: palette,
                   label: l10n.settingsNotifications,
                   rows: [
-                    _SettingsNoteRow(
-                      key: const ValueKey('settings-row-windows-note'),
-                      palette: palette,
-                      text: l10n.notificationsWindowsNote,
-                    ),
+                    if (desktop)
+                      _SettingsNoteRow(
+                        key: const ValueKey('settings-row-windows-note'),
+                        palette: palette,
+                        text: l10n.notificationsWindowsNote,
+                      ),
                     _SettingsRow(
                       key: const ValueKey('settings-row-lead'),
                       palette: palette,
@@ -182,6 +219,37 @@ class SettingsPage extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    if (!desktop &&
+                        permission != null &&
+                        permission != NotificationPermissionState.granted)
+                      _AndroidCapabilityRow(
+                        key: const ValueKey(
+                          'settings-row-notification-permission',
+                        ),
+                        palette: palette,
+                        title: l10n.notificationPermission,
+                        text:
+                            permission ==
+                                NotificationPermissionState.permanentlyDenied
+                            ? l10n.notificationClosedBySystem
+                            : l10n.notificationOff,
+                        action: l10n.openSystemSettings,
+                        danger: true,
+                        onTap: () => ref
+                            .read(androidCapabilitiesProvider)
+                            .openNotificationSettings(),
+                      ),
+                    if (!desktop && exactAlarm == false)
+                      _AndroidCapabilityRow(
+                        key: const ValueKey('settings-row-exact-alarm'),
+                        palette: palette,
+                        title: l10n.exactAlarmTitle,
+                        text: l10n.exactAlarmHint,
+                        action: l10n.openSystemSettings,
+                        onTap: () => ref
+                            .read(androidCapabilitiesProvider)
+                            .openExactAlarmSettings(),
+                      ),
                     _SettingsRow(
                       key: const ValueKey('settings-row-sound'),
                       palette: palette,
@@ -215,53 +283,55 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 28),
-                _SettingsGroup(
-                  containerKey: const ValueKey('settings-group-desktop'),
-                  palette: palette,
-                  label: l10n.settingsDesktop,
-                  rows: [
-                    _SettingsRow(
-                      key: const ValueKey('settings-row-tray'),
-                      palette: palette,
-                      title: l10n.closeToTray,
-                      hint: l10n.closeToTrayHint,
-                      onTap: () => ref
-                          .read(minimizeToTrayEnabledProvider.notifier)
-                          .set(!minimizeToTray),
-                      control: AppSwitch(
-                        key: const ValueKey('switch-tray'),
-                        value: minimizeToTray,
-                        onChanged: (value) => ref
+                if (desktop) ...[
+                  const SizedBox(height: 28),
+                  _SettingsGroup(
+                    containerKey: const ValueKey('settings-group-desktop'),
+                    palette: palette,
+                    label: l10n.settingsDesktop,
+                    rows: [
+                      _SettingsRow(
+                        key: const ValueKey('settings-row-tray'),
+                        palette: palette,
+                        title: l10n.closeToTray,
+                        hint: l10n.closeToTrayHint,
+                        onTap: () => ref
                             .read(minimizeToTrayEnabledProvider.notifier)
-                            .set(value),
+                            .set(!minimizeToTray),
+                        control: AppSwitch(
+                          key: const ValueKey('switch-tray'),
+                          value: minimizeToTray,
+                          onChanged: (value) => ref
+                              .read(minimizeToTrayEnabledProvider.notifier)
+                              .set(value),
+                        ),
                       ),
-                    ),
-                    _SettingsRow(
-                      key: const ValueKey('settings-row-startup'),
-                      palette: palette,
-                      title: l10n.launchAtStartup,
-                      hint: l10n.launchAtStartupHint,
-                      onTap: () {
-                        final value = !launchAtStartup;
-                        ref
-                            .read(launchAtStartupEnabledProvider.notifier)
-                            .set(value);
-                        syncLaunchAtStartup(value);
-                      },
-                      control: AppSwitch(
-                        key: const ValueKey('switch-startup'),
-                        value: launchAtStartup,
-                        onChanged: (value) {
+                      _SettingsRow(
+                        key: const ValueKey('settings-row-startup'),
+                        palette: palette,
+                        title: l10n.launchAtStartup,
+                        hint: l10n.launchAtStartupHint,
+                        onTap: () {
+                          final value = !launchAtStartup;
                           ref
                               .read(launchAtStartupEnabledProvider.notifier)
                               .set(value);
                           syncLaunchAtStartup(value);
                         },
+                        control: AppSwitch(
+                          key: const ValueKey('switch-startup'),
+                          value: launchAtStartup,
+                          onChanged: (value) {
+                            ref
+                                .read(launchAtStartupEnabledProvider.notifier)
+                                .set(value);
+                            syncLaunchAtStartup(value);
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 28),
                 _SettingsGroup(
                   containerKey: const ValueKey('settings-group-about'),
@@ -277,17 +347,18 @@ class SettingsPage extends ConsumerWidget {
                         style: AppTextStyles.body.copyWith(color: palette.sub),
                       ),
                     ),
-                    _SettingsRow(
-                      key: const ValueKey('settings-row-data'),
-                      palette: palette,
-                      title: l10n.dataLocation,
-                      control: _TextLink(
-                        key: const ValueKey('open-data-folder'),
-                        label: l10n.openFolder,
-                        color: palette.accent,
-                        onTap: openDataFolder,
+                    if (desktop)
+                      _SettingsRow(
+                        key: const ValueKey('settings-row-data'),
+                        palette: palette,
+                        title: l10n.dataLocation,
+                        control: _TextLink(
+                          key: const ValueKey('open-data-folder'),
+                          label: l10n.openFolder,
+                          color: palette.accent,
+                          onTap: openDataFolder,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -421,6 +492,31 @@ class _SettingsRowState extends State<_SettingsRow> {
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final interactive = widget.onTap != null;
+    // Touch phone rows put segmented controls on their own line, stretched
+    // (`10-ui-refinement.md` §9.10).
+    final stacked =
+        resolveAppLayout(context) == AppLayout.phone &&
+        widget.control is AppSegmented;
+
+    final textColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.title,
+          style: AppTextStyles.rowTitle.copyWith(color: palette.ink),
+        ),
+        if (widget.hint != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            widget.hint!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.hint.copyWith(color: palette.sub),
+          ),
+        ],
+      ],
+    );
 
     final content = Container(
       constraints: const BoxConstraints(minHeight: AppSizes.rowTall),
@@ -432,33 +528,18 @@ class _SettingsRowState extends State<_SettingsRow> {
         color: interactive && _hovered ? palette.hover : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadii.block),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: stacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [textColumn, const SizedBox(height: 8), widget.control],
+            )
+          : Row(
               children: [
-                Text(
-                  widget.title,
-                  style: AppTextStyles.rowTitle.copyWith(color: palette.ink),
-                ),
-                if (widget.hint != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    widget.hint!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.hint.copyWith(color: palette.sub),
-                  ),
-                ],
+                Expanded(child: textColumn),
+                const SizedBox(width: 24),
+                widget.control,
               ],
             ),
-          ),
-          const SizedBox(width: 24),
-          widget.control,
-        ],
-      ),
     );
 
     return MouseRegion(
@@ -472,6 +553,61 @@ class _SettingsRowState extends State<_SettingsRow> {
               child: content,
             )
           : content,
+    );
+  }
+}
+
+/// Android capability row: title plus a 13px explanatory line (danger for a
+/// denied notification permission) and a right-aligned system-settings link.
+class _AndroidCapabilityRow extends StatelessWidget {
+  const _AndroidCapabilityRow({
+    super.key,
+    required this.palette,
+    required this.title,
+    required this.text,
+    required this.action,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final AppPalette palette;
+  final String title;
+  final String text;
+  final String action;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.body.copyWith(color: palette.ink),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(
+                    color: danger ? palette.danger : palette.sub,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _TextLink(label: action, color: palette.accent, onTap: onTap),
+        ],
+      ),
     );
   }
 }

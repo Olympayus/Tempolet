@@ -172,11 +172,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('category-create')));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const ValueKey('category-new-name')),
+      find.byKey(const ValueKey('category-editor-name')),
       'Personal',
     );
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('category-add')));
+    await tester.tap(find.byKey(const ValueKey('category-editor-save')));
     await _settle(tester);
 
     final added = (await tester.runAsync(() => categories.watchAll().first))!
@@ -186,7 +186,7 @@ void main() {
       _rowTop(tester, added.id),
       lessThan(_rowTop(tester, uncategorizedOrderId)),
     );
-    expect(find.byKey(const ValueKey('category-create-dialog')), findsNothing);
+    expect(find.byKey(const ValueKey('category-editor')), findsNothing);
   });
 
   testWidgets('a duplicate name keeps the dialog open with an error', (
@@ -200,20 +200,19 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('category-create')));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const ValueKey('category-new-name')),
+      find.byKey(const ValueKey('category-editor-name')),
       'Work',
     );
-    await tester.tap(find.byKey(const ValueKey('category-add')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('category-editor-save')));
     await _settle(tester);
 
-    expect(
-      find.byKey(const ValueKey('category-create-dialog')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('category-editor')), findsOneWidget);
+    expect(find.byKey(const ValueKey('category-editor-error')), findsOneWidget);
     expect(find.text('分类名称已存在'), findsOneWidget);
   });
 
-  testWidgets('renaming saves on blur and restores on a name conflict', (
+  testWidgets('row tap opens the editor and renames; conflict keeps the name', (
     tester,
   ) async {
     await insertCategory('work', 'Work');
@@ -222,30 +221,32 @@ void main() {
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
-    await tester.tap(find.byKey(const ValueKey('category-name-work')));
-    await tester.pump();
+    await tester.tap(_row('work'));
+    await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const ValueKey('category-name-field-work')),
+      find.byKey(const ValueKey('category-editor-name')),
       'Office',
     );
-    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('category-editor-save')));
     await _settle(tester);
     expect(find.text('Office'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('category-name-work')));
-    await tester.pump();
+    await tester.tap(_row('work'));
+    await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const ValueKey('category-name-field-work')),
+      find.byKey(const ValueKey('category-editor-name')),
       'personal',
     );
-    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('category-editor-save')));
     await _settle(tester);
 
     final names = (await tester.runAsync(() => categories.watchAll().first))!
         .map((category) => category.name)
         .toList();
     expect(names, ['Office', 'Personal']);
-    expect(find.text('Office'), findsOneWidget);
+    expect(find.byKey(const ValueKey('category-editor-error')), findsOneWidget);
   });
 
   testWidgets('deleting a category soft-deletes it and frees its events', (
@@ -263,6 +264,14 @@ void main() {
     await _settle(tester);
 
     await tester.tap(find.byKey(const ValueKey('category-delete-work')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('category-delete-confirm')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('category-delete-confirm-action')),
+    );
     await _settle(tester);
 
     expect(_row('work'), findsNothing);
@@ -274,26 +283,32 @@ void main() {
     expect(detached!.categoryId, isNull);
   });
 
-  testWidgets('tapping the colour dot opens the shared picker and saves', (
-    tester,
-  ) async {
+  testWidgets('the editor palette saves the picked colour', (tester) async {
     await insertCategory('work', 'Work', color: 0xFF007AFF);
 
     await tester.pumpWidget(_pageApp(container));
     await _settle(tester);
 
-    await tester.tap(find.byKey(const ValueKey('category-color-work')));
+    await tester.tap(_row('work'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('color-picker')), findsOneWidget);
-
-    await tester.enterText(find.byKey(const ValueKey('color-hex')), '#FF0000');
+    expect(find.byKey(const ValueKey('category-editor')), findsOneWidget);
+    // The preset swatches are gone; a colour comes from the wheel's 「高级」
+    // HEX entry, which is exact and easy to assert.
+    await tester.tap(
+      find.byKey(const ValueKey('category-editor-wheel-advanced')),
+    );
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('color-confirm')));
+    await tester.enterText(
+      find.byKey(const ValueKey('category-editor-wheel-hex')),
+      '#123456',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('category-editor-save')));
     await _settle(tester);
 
     final saved = (await tester.runAsync(() => categories.watchAll().first))!
         .single;
-    expect(saved.color, 0xFFFF0000);
+    expect(saved.color, 0xFF123456);
   });
 
   testWidgets(
@@ -308,7 +323,7 @@ void main() {
       expect(_rowTop(tester, 'work'), lessThan(_rowTop(tester, 'personal')));
 
       final gesture = await tester.startGesture(
-        tester.getCenter(find.byKey(const ValueKey('category-handle-work'))),
+        tester.getCenter(find.byKey(const ValueKey('category-row-work'))),
       );
       await tester.pump(const Duration(milliseconds: 700));
       await gesture.moveTo(tester.getCenter(_row('personal')));
@@ -336,7 +351,7 @@ void main() {
 
     final gesture = await tester.startGesture(
       tester.getCenter(
-        find.byKey(ValueKey('category-handle-$uncategorizedOrderId')),
+        find.byKey(ValueKey('category-row-$uncategorizedOrderId')),
       ),
     );
     await tester.pump(const Duration(milliseconds: 700));

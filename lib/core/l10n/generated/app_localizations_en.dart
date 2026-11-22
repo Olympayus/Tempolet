@@ -447,7 +447,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifActionDone => 'Done';
 
   @override
-  String get notifActionRemind => 'Remind in 10 minutes';
+  String get notifActionRemind => 'In 10 minutes';
 
   @override
   String get navReminders => 'Reminders';
@@ -501,6 +501,67 @@ class AppLocalizationsEn extends AppLocalizations {
   String get completedChip => 'Completed';
 
   @override
+  String get showLeftPanel => 'Show calendar panel';
+
+  @override
+  String get hideLeftPanel => 'Hide calendar panel';
+
+  @override
+  String get notificationEventMissing => 'This item no longer exists';
+
+  @override
+  String get notificationChannelSound => 'Reminders (sound)';
+
+  @override
+  String get notificationChannelSilent => 'Reminders (silent)';
+
+  @override
+  String get notificationChannelDescription => 'Tempolet reminders and plans';
+
+  @override
+  String get notificationPermission => 'Notification permission';
+
+  @override
+  String get notificationOff => 'Notifications are off';
+
+  @override
+  String get notificationClosedBySystem =>
+      'Notifications were turned off by the system';
+
+  @override
+  String get openSystemSettings => 'Open system settings';
+
+  @override
+  String get exactAlarmTitle => 'Exact reminders';
+
+  @override
+  String get exactAlarmHint =>
+      'The system limits exact alarms; reminders may be delayed';
+
+  @override
+  String get advanced => 'Advanced';
+
+  @override
+  String get advancedHide => 'Hide advanced';
+
+  @override
+  String get editCategory => 'Edit category';
+
+  @override
+  String get discardChangesTitle => 'Discard changes?';
+
+  @override
+  String get keepEditing => 'Keep editing';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
+  String monthPreviewMore(int count) {
+    return '$count more';
+  }
+
+  @override
   String get sidebarEmptyTitle => 'No schedule';
 
   @override
@@ -517,4 +578,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tomorrowPreviewTitle => 'Tomorrow preview';
+
+  @override
+  String get moreActions => 'More';
 }

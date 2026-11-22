@@ -11,6 +11,9 @@ class FakeNotificationService implements NotificationService {
   Future<void> initialize({required void Function(String payload) onTap}) async {}
 
   @override
+  Future<String?> takeLaunchPayload() async => null;
+
+  @override
   Future<bool> requestPermissions() async => true;
 
   @override

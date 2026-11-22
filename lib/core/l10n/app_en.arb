@@ -211,7 +211,7 @@
   "trayShow": "Show main window",
   "trayQuit": "Quit",
   "notifActionDone": "Done",
-  "notifActionRemind": "Remind in 10 minutes",
+  "notifActionRemind": "In 10 minutes",
   "navReminders": "Reminders",
   "remindersTitle": "Reminders & Plans",
   "remindersOverdue": "Overdue",
@@ -229,10 +229,37 @@
   "restOfMonth": "Rest of month",
   "futureMonths": "Next 6 months",
   "completedChip": "Completed",
+  "showLeftPanel": "Show calendar panel",
+  "hideLeftPanel": "Hide calendar panel",
+  "notificationEventMissing": "This item no longer exists",
+  "notificationChannelSound": "Reminders (sound)",
+  "notificationChannelSilent": "Reminders (silent)",
+  "notificationChannelDescription": "Tempolet reminders and plans",
+  "notificationPermission": "Notification permission",
+  "notificationOff": "Notifications are off",
+  "notificationClosedBySystem": "Notifications were turned off by the system",
+  "openSystemSettings": "Open system settings",
+  "exactAlarmTitle": "Exact reminders",
+  "exactAlarmHint": "The system limits exact alarms; reminders may be delayed",
+  "advanced": "Advanced",
+  "advancedHide": "Hide advanced",
+  "editCategory": "Edit category",
+  "discardChangesTitle": "Discard changes?",
+  "keepEditing": "Keep editing",
+  "discard": "Discard",
+  "monthPreviewMore": "{count} more",
+  "@monthPreviewMore": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sidebarEmptyTitle": "No schedule",
   "sidebarEmptyHint": "Add a reminder or plan to start the day.",
   "plansGroupTitle": "Plans",
   "remindersGroupTitle": "Reminders",
   "dayOverviewTitle": "Day overview",
-  "tomorrowPreviewTitle": "Tomorrow preview"
+  "tomorrowPreviewTitle": "Tomorrow preview",
+  "moreActions": "More"
 }

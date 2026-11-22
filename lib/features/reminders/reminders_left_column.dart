@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/l10n/generated/app_localizations.dart';
@@ -313,6 +314,44 @@ class _RemindersLeftColumnState extends ConsumerState<RemindersLeftColumn> {
                             kind: EventKind.plan,
                             start: selection.start,
                             end: selection.end,
+                          );
+                        },
+                        // Touch tablet: long-press then drag selects the
+                        // range without fighting the column's scrolling.
+                        onLongPressStart: (details) {
+                          HapticFeedback.mediumImpact();
+                          final minute = _minuteAt(
+                            details.localPosition.dy,
+                          );
+                          setState(() {
+                            _dragStartMinute = minute;
+                            _dragCurrentMinute = minute;
+                          });
+                        },
+                        onLongPressMoveUpdate: (details) {
+                          setState(() {
+                            _dragCurrentMinute = _minuteAt(
+                              details.localPosition.dy,
+                            );
+                          });
+                        },
+                        onLongPressEnd: (_) {
+                          final start = _dragStartMinute;
+                          final current = _dragCurrentMinute;
+                          setState(() {
+                            _dragStartMinute = null;
+                            _dragCurrentMinute = null;
+                          });
+                          if (start == null || current == null) return;
+                          final selection = selectionFromDrag(start, current);
+                          final end = selection.end - selection.start < 5
+                              ? (selection.start + 30).clamp(0, 1440)
+                              : selection.end;
+                          _openCreate(
+                            date: selected,
+                            kind: EventKind.plan,
+                            start: selection.start,
+                            end: end,
                           );
                         },
                       ),

@@ -7,6 +7,15 @@ class FakeNotificationService implements NotificationService {
   final List<int> cancelled = [];
   final List<ReminderNotification> shownNow = [];
 
+  /// Task 12 assertions: the permission prompt must run once, and exact-mode
+  /// scheduling may be observed through the real service fake.
+  int requestPermissionCalls = 0;
+
+  /// Cold-start payload returned by [takeLaunchPayload].
+  String? launchPayload;
+  int exactModeCalls = 0;
+  bool grantPermission = true;
+
   void clear() {
     calls.clear();
     scheduled.clear();
@@ -15,14 +24,24 @@ class FakeNotificationService implements NotificationService {
   }
 
   @override
-  Future<void> initialize({required void Function(String payload) onTap}) async {}
+  Future<void> initialize({
+    required void Function(String payload) onTap,
+  }) async {}
 
   @override
-  Future<bool> requestPermissions() async => true;
+  Future<String?> takeLaunchPayload() async => launchPayload;
+
+  @override
+  Future<bool> requestPermissions() async {
+    requestPermissionCalls++;
+    return grantPermission;
+  }
 
   @override
   Future<void> schedule(ReminderNotification notification) async {
-    calls.add('schedule:${notification.id}@${notification.at.toIso8601String()}');
+    calls.add(
+      'schedule:${notification.id}@${notification.at.toIso8601String()}',
+    );
     scheduled.add(notification);
   }
 

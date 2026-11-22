@@ -7,11 +7,11 @@ void main() {
   test('English action labels', () {
     expect(
       actionLabelsFor(const Locale('en')),
-      ('Done', 'Remind in 10 minutes'),
+      ('Done', 'In 10 minutes'),
     );
   });
 
   test('Chinese action labels', () {
-    expect(actionLabelsFor(const Locale('zh')), ('完成', '10 分钟后提醒'));
+    expect(actionLabelsFor(const Locale('zh')), ('完成', '10 分钟后'));
   });
 }

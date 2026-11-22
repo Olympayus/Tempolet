@@ -66,6 +66,27 @@ class CalendarHeader extends ConsumerWidget {
       }
     }
 
+    final viewSwitch = AppSegmented<CalendarViewMode>(
+      // Touch layouts expose a 44-high tappable box (`-hit`) around the
+      // LayoutMetrics.segment-high visual track; desktop renders only the
+      // visual track.
+      visualKey: const ValueKey('calendar-view-segmented'),
+      hitKey: const ValueKey('calendar-view-segmented-hit'),
+      values: const [
+        CalendarViewMode.month,
+        CalendarViewMode.week,
+        CalendarViewMode.day,
+      ],
+      labelFor: (value) => Text(switch (value) {
+        CalendarViewMode.month => l10n.month,
+        CalendarViewMode.week => l10n.week,
+        CalendarViewMode.day => l10n.day,
+      }),
+      selected: mode,
+      onChanged: (value) =>
+          ref.read(calendarViewModeProvider.notifier).set(value),
+    );
+
     return Container(
       key: const ValueKey('calendar-header'),
       height: AppSizes.header,
@@ -125,30 +146,12 @@ class CalendarHeader extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          AppSegmented<CalendarViewMode>(
-            key: const ValueKey('calendar-view-segmented'),
-            values: const [
-              CalendarViewMode.month,
-              CalendarViewMode.week,
-              CalendarViewMode.day,
-            ],
-            labelFor: (value) => Text(switch (value) {
-              CalendarViewMode.month => l10n.month,
-              CalendarViewMode.week => l10n.week,
-              CalendarViewMode.day => l10n.day,
-            }),
-            selected: mode,
-            onChanged: (value) =>
-                ref.read(calendarViewModeProvider.notifier).set(value),
-          ),
+          viewSwitch,
           const SizedBox(width: 8),
           AppButton.primary(
             key: const ValueKey('calendar-new'),
             label: l10n.newItem,
-            leadingIcon: const AppIcon.plus(
-              size: 16,
-              color: Colors.white,
-            ),
+            leadingIcon: const AppIcon.plus(size: 16, color: Colors.white),
             onPressed: () => showEventEditor(context, date: selected),
           ),
           if (mode != CalendarViewMode.day) ...[

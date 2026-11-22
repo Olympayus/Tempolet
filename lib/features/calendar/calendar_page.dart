@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/layout.dart';
 import 'calendar_header.dart';
 import 'calendar_state.dart';
 import 'day_view.dart';
 import 'month_view.dart';
+import 'phone_calendar.dart';
 import 'sidebar.dart';
 import 'week_view.dart';
 
@@ -20,6 +22,14 @@ class CalendarPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Phone shell: its own month/week structure (`02-shell-mobile.md` §2).
+    if (resolveAppLayout(context) == AppLayout.phone) {
+      return const Scaffold(
+        key: ValueKey('calendar-page'),
+        body: PhoneCalendarPage(),
+      );
+    }
+
     final mode = ref.watch(calendarViewModeProvider);
     final reduceMotion = MediaQuery.of(context).disableAnimations;
 
@@ -33,11 +43,14 @@ class CalendarPage extends ConsumerWidget {
       key: const ValueKey('calendar-page'),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // An explicit choice always wins; the width only supplies the
-          // default until the user first toggles the sidebar.
+          // An explicit choice always wins; the table defaults to collapsed
+          // in portrait or on narrower windows until the user first toggles.
           final preference = ref.watch(sidebarPreferenceProvider);
+          final portrait =
+              MediaQuery.orientationOf(context) == Orientation.portrait;
           final sidebarOpen =
-              preference ?? (constraints.maxWidth >= kSidebarBreakpoint);
+              preference ??
+              (!portrait && constraints.maxWidth >= kSidebarBreakpoint);
           // Day view owns its own 216px stats rail and hides the toggle
           // (`docs/design/02-shell-desktop.md` §4, decision D38).
           final showSidebar = sidebarOpen && mode != CalendarViewMode.day;

@@ -56,3 +56,20 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Android build (v0.1.5)
+
+```bash
+flutter build apk --release      # universal APK for direct install
+```
+
+- `applicationId`: `com.tempolet.tempolet`; version `0.1.5+6`; app label `Tempolet`.
+- Signing: provide `android/key.properties` + keystore locally (gitignored);
+  without it the release APK uses debug signing and is smoke-test only.
+- Runtime permissions: Android 13+ asks for notifications the first time an
+  item with a reminder is saved; Android 12+ schedules exact alarms, falling
+  back to inexact (possibly delayed) when the special permission is missing.
+  Settings shows a state row with a jump to the system settings.
+- Reminders are restored after reboot and re-planned on time/timezone changes;
+  the first run may download the sqlite3 Android prebuilt binary, so network
+  or a proxy is required at build time.

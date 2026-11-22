@@ -436,7 +436,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notifActionDone => '完成';
 
   @override
-  String get notifActionRemind => '10 分钟后提醒';
+  String get notifActionRemind => '10 分钟后';
 
   @override
   String get navReminders => '提醒';
@@ -490,6 +490,65 @@ class AppLocalizationsZh extends AppLocalizations {
   String get completedChip => '查看已完成';
 
   @override
+  String get showLeftPanel => '显示日历面板';
+
+  @override
+  String get hideLeftPanel => '隐藏日历面板';
+
+  @override
+  String get notificationEventMissing => '事项已不存在';
+
+  @override
+  String get notificationChannelSound => '提醒（有声）';
+
+  @override
+  String get notificationChannelSilent => '提醒（无声）';
+
+  @override
+  String get notificationChannelDescription => 'Tempolet 的提醒与计划';
+
+  @override
+  String get notificationPermission => '通知权限';
+
+  @override
+  String get notificationOff => '通知权限未开启';
+
+  @override
+  String get notificationClosedBySystem => '通知已被系统关闭';
+
+  @override
+  String get openSystemSettings => '打开系统设置';
+
+  @override
+  String get exactAlarmTitle => '精确提醒';
+
+  @override
+  String get exactAlarmHint => '系统限制了精确闹钟，提醒可能延迟';
+
+  @override
+  String get advanced => '高级';
+
+  @override
+  String get advancedHide => '收起高级';
+
+  @override
+  String get editCategory => '编辑分类';
+
+  @override
+  String get discardChangesTitle => '放弃修改？';
+
+  @override
+  String get keepEditing => '继续编辑';
+
+  @override
+  String get discard => '放弃';
+
+  @override
+  String monthPreviewMore(int count) {
+    return '还有 $count 项';
+  }
+
+  @override
   String get sidebarEmptyTitle => '无安排';
 
   @override
@@ -506,4 +565,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get tomorrowPreviewTitle => '次日预览';
+
+  @override
+  String get moreActions => '更多';
 }

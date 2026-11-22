@@ -36,15 +36,18 @@ Future<void> runTempolet() async {
     exactAlarmsAllowed: () => exactAlarmsAllowedCache,
     soundEnabled: () => container.read(notificationSoundEnabledProvider),
   );
-  await service.initialize(
-    onTap: (payload) => _handleNotificationPayload(container, payload),
-  );
 
   container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       notificationServiceProvider.overrideWithValue(service),
     ],
+  );
+
+  // Must come after the container exists: initialisation reads the locale
+  // through it to create the notification channels.
+  await service.initialize(
+    onTap: (payload) => _handleNotificationPayload(container, payload),
   );
   await refreshExactAlarms(container);
 

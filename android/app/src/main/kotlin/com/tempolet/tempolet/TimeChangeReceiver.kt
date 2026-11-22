@@ -27,10 +27,11 @@ class TimeChangeReceiver : BroadcastReceiver() {
             loader.startInitialization(appContext)
             loader.ensureInitializationComplete(appContext, null)
             val engine = FlutterEngine(appContext)
-            engine.dartExecutor.executeDartCallback(
-                DartExecutor.DartCallback(
-                    appContext.assets,
-                    loader.findAppBundlePath(),
+            // Flutter 3.47 dropped the name-based DartCallback overload;
+            // entry points are now addressed by library URI + function name.
+            engine.dartExecutor.executeDartEntrypoint(
+                DartExecutor.DartEntrypoint(
+                    "package:tempolet/main.dart",
                     "notificationRescheduleEntrypoint"
                 )
             )

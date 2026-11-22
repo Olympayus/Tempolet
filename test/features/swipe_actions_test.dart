@@ -65,6 +65,42 @@ void main() {
     expect(find.byKey(const ValueKey('swipe-action-b-edit')), findsOneWidget);
   });
 
+  testWidgets('a rightward swipe on the open row slides it back', (
+    tester,
+  ) async {
+    final controller = SwipeActionsController();
+    await tester.pumpWidget(_twoRows(controller));
+
+    await tester.drag(
+      find.byKey(const ValueKey('swipe-row-a')),
+      const Offset(-120, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.openId, 'a');
+
+    // Start inside the visible part of the shifted row, not its (clipped)
+    // centre.
+    await tester.dragFrom(const Offset(200, 26), const Offset(120, 0));
+    await tester.pumpAndSettle();
+    expect(controller.openId, isNull);
+  });
+
+  testWidgets('touching another row closes the open one', (tester) async {
+    final controller = SwipeActionsController();
+    await tester.pumpWidget(_twoRows(controller));
+
+    await tester.drag(
+      find.byKey(const ValueKey('swipe-row-a')),
+      const Offset(-120, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.openId, 'a');
+
+    await tester.tap(find.byKey(const ValueKey('swipe-row-b')));
+    await tester.pumpAndSettle();
+    expect(controller.openId, isNull);
+  });
+
   testWidgets('the row follows the finger while swiping', (tester) async {
     final controller = SwipeActionsController();
     await tester.pumpWidget(_twoRows(controller));

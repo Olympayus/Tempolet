@@ -13,6 +13,7 @@ import '../../data/database/database.dart';
 import '../../data/repositories/category_repository.dart';
 import 'category_editor.dart';
 import 'category_order.dart';
+import '../../core/ui/confirm_delete_dialog.dart';
 
 /// Event totals per category, including completed but not deleted items.
 ///
@@ -111,29 +112,16 @@ class _CategoryManagementPageState
 
   Future<void> _delete(Category category) async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        key: const ValueKey('category-delete-confirm'),
-        content: Text(l10n.deleteForeverHint),
-        actions: [
-          TextButton(
-            key: const ValueKey('category-delete-cancel'),
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            key: const ValueKey('category-delete-confirm-action'),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      message: l10n.deleteForeverHint,
+      cancelLabel: l10n.cancel,
+      deleteLabel: l10n.delete,
+      dialogKey: const ValueKey('category-delete-confirm'),
+      cancelKey: const ValueKey('category-delete-cancel'),
+      deleteKey: const ValueKey('category-delete-confirm-action'),
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await ref.read(categoryRepositoryProvider).softDelete(category.id);
     if (!mounted) return;
     ref.read(categoryOrderProvider.notifier).removeCategory(category.id);

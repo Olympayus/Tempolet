@@ -18,6 +18,7 @@ import '../events/event_editor_sheet.dart';
 import '../events/event_list_row.dart';
 import 'calendar_state.dart';
 import 'category_marker.dart';
+import '../../core/ui/confirm_delete_dialog.dart';
 
 /// Sidebar width from `docs/design/10-ui-refinement.md` §9.12.
 const double _sidebarWidth = 300;
@@ -129,29 +130,13 @@ class _CalendarSidebarState extends ConsumerState<CalendarSidebar> {
   }
 
   Future<void> _confirmDelete(Event event, AppLocalizations l10n) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        key: const ValueKey('delete-confirm'),
-        content: Text(l10n.deleteForeverHint),
-        actions: [
-          TextButton(
-            key: const ValueKey('delete-confirm-cancel'),
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            key: const ValueKey('delete-confirm-delete'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      message: l10n.deleteForeverHint,
+      cancelLabel: l10n.cancel,
+      deleteLabel: l10n.delete,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await _scheduler.cancelEvent(event);
     await _repo.hardDelete(event.id);
     if (mounted) {
@@ -284,51 +269,58 @@ class _CalendarSidebarState extends ConsumerState<CalendarSidebar> {
             ),
           ),
           Expanded(
-            child: visible.isEmpty
-                ? _EmptyState(palette: palette)
-                : ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      if (plans.isNotEmpty)
-                        _SidebarGroup(
-                          key: const ValueKey('sidebar-group-plan'),
-                          titleKey: const ValueKey('sidebar-group-title-plan'),
-                          title: l10n.plansGroupTitle,
-                          count: plans.length,
-                          palette: palette,
-                          children: [
-                            for (final event in plans)
-                              _rowFor(
-                                event,
-                                categories: categories,
-                                palette: palette,
-                                l10n: l10n,
-                              ),
-                          ],
-                        ),
-                      if (plans.isNotEmpty && reminders.isNotEmpty)
-                        const SizedBox(height: _groupGap),
-                      if (reminders.isNotEmpty)
-                        _SidebarGroup(
-                          key: const ValueKey('sidebar-group-reminder'),
-                          titleKey: const ValueKey(
-                            'sidebar-group-title-reminder',
+            // Empty space closes the open swipe row.
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _swipe.close,
+              child: visible.isEmpty
+                  ? _EmptyState(palette: palette)
+                  : ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        if (plans.isNotEmpty)
+                          _SidebarGroup(
+                            key: const ValueKey('sidebar-group-plan'),
+                            titleKey: const ValueKey(
+                              'sidebar-group-title-plan',
+                            ),
+                            title: l10n.plansGroupTitle,
+                            count: plans.length,
+                            palette: palette,
+                            children: [
+                              for (final event in plans)
+                                _rowFor(
+                                  event,
+                                  categories: categories,
+                                  palette: palette,
+                                  l10n: l10n,
+                                ),
+                            ],
                           ),
-                          title: l10n.remindersGroupTitle,
-                          count: reminders.length,
-                          palette: palette,
-                          children: [
-                            for (final event in reminders)
-                              _rowFor(
-                                event,
-                                categories: categories,
-                                palette: palette,
-                                l10n: l10n,
-                              ),
-                          ],
-                        ),
-                    ],
-                  ),
+                        if (plans.isNotEmpty && reminders.isNotEmpty)
+                          const SizedBox(height: _groupGap),
+                        if (reminders.isNotEmpty)
+                          _SidebarGroup(
+                            key: const ValueKey('sidebar-group-reminder'),
+                            titleKey: const ValueKey(
+                              'sidebar-group-title-reminder',
+                            ),
+                            title: l10n.remindersGroupTitle,
+                            count: reminders.length,
+                            palette: palette,
+                            children: [
+                              for (final event in reminders)
+                                _rowFor(
+                                  event,
+                                  categories: categories,
+                                  palette: palette,
+                                  l10n: l10n,
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+            ),
           ),
           Container(height: 1, color: palette.line),
           SizedBox(

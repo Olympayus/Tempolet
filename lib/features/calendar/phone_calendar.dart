@@ -24,6 +24,7 @@ import 'day_view.dart';
 import 'holiday_badge.dart';
 import 'week_date_strip.dart';
 import 'month_model.dart';
+import '../../core/ui/confirm_delete_dialog.dart';
 
 /// Phone calendar (`docs/design/02-shell-mobile.md` §2): month and week only.
 /// The month view is a sticky grid over an independently scrolling selected-day
@@ -122,10 +123,7 @@ class _PhoneMonthBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _PhoneMonthPager(),
-        _PhoneDaySection(),
-      ],
+      children: [_PhoneMonthPager(), _PhoneDaySection()],
     );
   }
 }
@@ -562,29 +560,13 @@ class _PhoneDaySectionState extends ConsumerState<_PhoneDaySection> {
   }
 
   Future<void> _confirmDelete(Event event, AppLocalizations l10n) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        key: const ValueKey('delete-confirm'),
-        content: Text(l10n.deleteForeverHint),
-        actions: [
-          TextButton(
-            key: const ValueKey('delete-confirm-cancel'),
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            key: const ValueKey('delete-confirm-delete'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      message: l10n.deleteForeverHint,
+      cancelLabel: l10n.cancel,
+      deleteLabel: l10n.delete,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await ref.read(notificationSchedulerProvider).cancelEvent(event);
     await ref.read(eventRepositoryProvider).hardDelete(event.id);
   }
@@ -673,62 +655,71 @@ class _PhoneDaySectionState extends ConsumerState<_PhoneDaySection> {
             ),
           ),
           Expanded(
-            child: ListView(
-              key: const ValueKey('phone-day-list'),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                if (visible.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(
-                      l10n.noSchedule,
-                      style: AppTextStyles.body.copyWith(color: palette.sub),
-                    ),
-                  ),
-                for (final event in visible)
-                  SwipeActionsRow(
-                    id: event.id,
-                    controller: _swipe,
-                    actions: _swipeActionsFor(event, palette, l10n),
-                    enabled: !_recentlyCompleted.containsKey(event.id),
-                    child: EventListRow(
-                      key: ValueKey('phone-day-row-${event.id}'),
-                      event: event,
-                      height: 52,
-                      color: categoryMarkerColor(event.categoryId, categories),
-                      completeKey: ValueKey('phone-day-complete-${event.id}'),
-                      onTap: _recentlyCompleted.containsKey(event.id)
-                          ? null
-                          : () => showEventEditor(context, existing: event),
-                      onToggleComplete: _recentlyCompleted.containsKey(event.id)
-                          ? () => _undo(event)
-                          : () => _complete(event),
-                      titleBuilder: _recentlyCompleted.containsKey(event.id)
-                          ? (context, style) => _strikeTitle(
-                              event: event,
-                              style: style,
-                              endColor: palette.sub,
-                            )
-                          : null,
-                    ),
-                  ),
-                SizedBox(
-                  height: 52,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => showEventEditor(context, date: selected),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
+            // Empty space closes the open swipe row.
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _swipe.close,
+              child: ListView(
+                key: const ValueKey('phone-day-list'),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  if (visible.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
                       child: Text(
-                        l10n.addReminderOrPlan,
-                        style: AppTextStyles.body.copyWith(
-                          color: palette.accent,
+                        l10n.noSchedule,
+                        style: AppTextStyles.body.copyWith(color: palette.sub),
+                      ),
+                    ),
+                  for (final event in visible)
+                    SwipeActionsRow(
+                      id: event.id,
+                      controller: _swipe,
+                      actions: _swipeActionsFor(event, palette, l10n),
+                      enabled: !_recentlyCompleted.containsKey(event.id),
+                      child: EventListRow(
+                        key: ValueKey('phone-day-row-${event.id}'),
+                        event: event,
+                        height: 52,
+                        color: categoryMarkerColor(
+                          event.categoryId,
+                          categories,
+                        ),
+                        completeKey: ValueKey('phone-day-complete-${event.id}'),
+                        onTap: _recentlyCompleted.containsKey(event.id)
+                            ? null
+                            : () => showEventEditor(context, existing: event),
+                        onToggleComplete:
+                            _recentlyCompleted.containsKey(event.id)
+                            ? () => _undo(event)
+                            : () => _complete(event),
+                        titleBuilder: _recentlyCompleted.containsKey(event.id)
+                            ? (context, style) => _strikeTitle(
+                                event: event,
+                                style: style,
+                                endColor: palette.sub,
+                              )
+                            : null,
+                      ),
+                    ),
+                  SizedBox(
+                    height: 52,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => showEventEditor(context, date: selected),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          l10n.addReminderOrPlan,
+                          style: AppTextStyles.body.copyWith(
+                            color: palette.accent,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

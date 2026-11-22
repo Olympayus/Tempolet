@@ -30,6 +30,7 @@ import '../events/event_list_row.dart';
 import 'category_order.dart';
 import 'reminders_header.dart';
 import 'reminders_left_column.dart';
+import '../../core/ui/confirm_delete_dialog.dart';
 
 /// Page content inset (`10-ui-refinement.md` §9.7); rows add 8 outside their
 /// own 16px internal padding so their content aligns with this inset.
@@ -304,29 +305,13 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   }
 
   Future<void> _confirmSwipeDelete(Event event, AppLocalizations l10n) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        key: const ValueKey('delete-confirm'),
-        content: Text(l10n.deleteForeverHint),
-        actions: [
-          TextButton(
-            key: const ValueKey('delete-confirm-cancel'),
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            key: const ValueKey('delete-confirm-delete'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      message: l10n.deleteForeverHint,
+      cancelLabel: l10n.cancel,
+      deleteLabel: l10n.delete,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await ref.read(notificationSchedulerProvider).cancelEvent(event);
     await ref.read(eventRepositoryProvider).hardDelete(event.id);
   }
@@ -693,7 +678,12 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                     _swipe.close();
                     return false;
                   },
-                  child: content,
+                  // Empty space closes the open row; rows keep their taps.
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _swipe.close,
+                    child: content,
+                  ),
                 ),
               ),
             ],

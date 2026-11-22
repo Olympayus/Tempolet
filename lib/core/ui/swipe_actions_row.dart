@@ -198,6 +198,10 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
     final content = GestureDetector(
       key: ValueKey('swipe-row-${widget.id}'),
       behavior: HitTestBehavior.opaque,
+      // Touching another row puts the open one back before this row reacts.
+      onTapDown: enabled && !_open
+          ? (_) => widget.controller.close()
+          : null,
       onHorizontalDragStart: enabled ? _onDragStart : null,
       onHorizontalDragUpdate: enabled ? _onDragUpdate : null,
       onHorizontalDragEnd: enabled ? _onDragEnd : null,
@@ -270,9 +274,15 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
                 right: revealed,
                 child: Offstage(
                   offstage: revealed <= 0,
+                  // The row has slid aside; a tap closes it and a rightward
+                  // drag slides it back with the finger.
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: widget.controller.close,
+                    onHorizontalDragStart: enabled ? _onDragStart : null,
+                    onHorizontalDragUpdate: enabled ? _onDragUpdate : null,
+                    onHorizontalDragEnd: enabled ? _onDragEnd : null,
+                    onHorizontalDragCancel: enabled ? _onDragCancel : null,
                   ),
                 ),
               ),
